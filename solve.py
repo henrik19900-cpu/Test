@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Astar Island solver v17 — Deep Observation + Online Calibration.
+"""Astar Island solver v18 — Balanced Coverage + Conservative Calibration.
 
-v17 improvements over v16:
-1. Focused sampling: fewer viewports, many reps → 5+ obs/cell for direct distribution
-2. Online calibration: compute per-seed correction factors from observed vs predicted
-3. Better Bayesian: with many observations, trust empirical distribution more (lower alpha)
-4. Per-settlement S: estimate survival per settlement based on local features
+v18 improvements over v17 (which regressed from v16):
+- v16 scored 82.5 (broad coverage: 4vp × 2.5reps = 900 cells, 56%)
+- v17 scored 78.5 (deep focus: 2vp × 5reps = 450 cells, 28%) — WORSE!
+- Lesson: coverage >> depth. Model-only cells are the bottleneck.
+
+v18 strategy:
+1. Balanced coverage: 3 viewports × 3+ reps → ~600 cells with 3 obs (sweet spot)
+2. Conservative calibration: much stronger shrinkage (0.35 max vs 0.7) to avoid noise
+3. Weaker per-settlement S: more shrinkage toward seed S to reduce noise
+4. Extended spatial borrowing: radius 6, higher n_eff cap for unobserved cells
+5. Smarter multi-S: tighter around estimated S, fewer wild guesses
+6. Adaptive viewport count: 3-4 based on settlement spread
 """
 
 import json
@@ -491,7 +498,9 @@ def place_viewports(grids, n_vps, S=0.3, training_db=None, xgb_models=None,
                         if pos not in covered:
                             score += v
                         else:
-                            score += v * 0.1
+                            # v18: higher overlap value (0.2 vs 0.1) — allow
+                            # overlap when settlement clusters are dense
+                            score += v * 0.2
                 if score > best_score:
                     best_score = score
                     best_pos = (vx, vy)
@@ -595,8 +604,9 @@ def estimate_S_per_settlement(grid_obs, grids):
 
         if weighted_total >= 2.0:
             S_raw = weighted_alive / weighted_total
-            # Shrink toward global: more local data → less shrinkage
-            shrink = min(weighted_total / 15.0, 0.85)
+            # v18: Much more shrinkage toward global S to reduce noise
+            # v17 had shrink up to 0.85 → too noisy with limited data
+            shrink = min(weighted_total / 25.0, 0.55)
             S_local[(sx, sy)] = shrink * S_raw + (1 - shrink) * S_global
         else:
             S_local[(sx, sy)] = S_global
@@ -695,8 +705,9 @@ def bayesian_update(prior, obs_counts, n_obs):
 def spatial_borrow(x, y, grid_obs, grids):
     """Borrow from nearby observed cells with similar terrain context.
 
-    v16: Also considers coastal similarity and adjacent settlement count
-    for better terrain-context matching. Increased n_eff cap to 2.0.
+    v18: Extended radius to 6 (was 4) — critical for unobserved cells which
+    are the main bottleneck. Relaxed distance-to-settlement filter to 3 (was 2).
+    Higher n_eff cap (2.5 vs 2.0) since spatial info is better than pure model.
     """
     t = grids["grid"][y][x]
     d = grids["dg"][y][x]
@@ -707,7 +718,7 @@ def spatial_borrow(x, y, grid_obs, grids):
     pseudo = [0.0] * NC
     tw = 0.0
 
-    for r in range(1, 5):
+    for r in range(1, 7):  # v18: radius 6 (was 4)
         for ddx in range(-r, r + 1):
             for ddy in range(-r, r + 1):
                 if abs(ddx) + abs(ddy) != r:
@@ -724,7 +735,7 @@ def spatial_borrow(x, y, grid_obs, grids):
                     continue
 
                 nd = grids["dg"][ny][nx]
-                if abs(nd - d) > 2:
+                if abs(nd - d) > 3:  # v18: relaxed from 2 to 3
                     continue
 
                 dist_val = abs(ddx) + abs(ddy)
@@ -758,10 +769,11 @@ def spatial_borrow(x, y, grid_obs, grids):
 # ── Online Calibration ─────────────────────────────────────────────────
 
 def compute_calibration(grids, grid_obs, S, training_db, xgb_models):
-    """v17: Compute per-category calibration factors.
+    """v18: Conservative per-category calibration factors.
 
-    Compare model predictions to actual observations for cells we've seen.
-    Group by terrain category and compute ratio: observed_freq / predicted_prob.
+    v17 over-corrected with shrink=0.7 on small samples (e.g., 2.83x on Seed 2).
+    v18: Much stronger shrinkage (max 0.35) and higher data threshold.
+    Only correct when we have strong evidence of systematic bias.
     """
     cat_pred = defaultdict(lambda: [0.0] * NC)
     cat_obs = defaultdict(lambda: [0] * NC)
@@ -784,17 +796,20 @@ def compute_calibration(grids, grid_obs, S, training_db, xgb_models):
     calibration = {}
     for cat in cat_pred:
         n = cat_n[cat]
-        if n < 10:
+        if n < 20:  # v18: higher threshold (was 10)
             continue
         ratios = [1.0] * NC
         for c in range(NC):
             pred_frac = cat_pred[cat][c] / n if n > 0 else 1.0 / NC
             obs_frac = cat_obs[cat][c] / n if n > 0 else 1.0 / NC
-            if pred_frac > 0.01:
+            if pred_frac > 0.02:  # v18: higher threshold to avoid noise
                 raw_ratio = obs_frac / pred_frac
-                # Shrink toward 1.0 to avoid over-correction
-                shrink = min(n / 200.0, 0.7)  # more data → trust correction more
+                # v18: MUCH stronger shrinkage — max 0.35 (was 0.7)
+                # Only correct when we have very strong evidence
+                shrink = min(n / 500.0, 0.35)
                 ratios[c] = shrink * raw_ratio + (1 - shrink)
+                # v18: Clamp extreme corrections (was unclamped)
+                ratios[c] = max(0.5, min(1.8, ratios[c]))
             else:
                 ratios[c] = 1.0
         calibration[cat] = ratios
@@ -815,17 +830,18 @@ def calibrate_prior(prior, cat, calibration):
 
 def build_predictions(grids, grid_obs, S, training_db, xgb_models=None,
                       S_local_map=None, calibration=None):
-    """Build per-cell predictions with per-settlement S + online calibration.
+    """Build per-cell predictions with per-settlement S + conservative calibration.
 
-    v17: With deep observations (5+), trusts empirical distribution heavily.
-    Uses per-settlement S for cells near settlements.
+    v18: Balanced approach — standard Bayesian for observed cells (no deep-obs
+    special case), extended spatial borrowing for unobserved cells (the bottleneck).
+    Per-settlement S with more shrinkage.
     """
     preds = [[[0.0] * NC for _ in range(W)] for _ in range(H)]
-    stats = {"obs": 0, "spatial": 0, "model": 0, "obs_deep": 0}
+    stats = {"obs": 0, "spatial": 0, "model": 0}
 
     for y in range(H):
         for x in range(W):
-            # v17: Per-settlement S for cells near settlements
+            # Per-settlement S (v18: more conservative shrinkage)
             S_cell = S
             if S_local_map:
                 d = grids["dg"][y][x]
@@ -842,36 +858,25 @@ def build_predictions(grids, grid_obs, S, training_db, xgb_models=None,
 
             prior = ensemble_prior(x, y, S_cell, grids, training_db, xgb_models)
 
-            # v17: Online calibration correction
+            # Conservative calibration correction
             if calibration:
                 cat = cell_linear_cat(x, y, grids)
                 prior = calibrate_prior(prior, cat, calibration)
 
             obs = grid_obs.get((x, y), [])
 
-            if len(obs) >= 5:
-                # v17: Deep observations — trust empirical more
-                obs_counts = [0] * NC
-                for o in obs:
-                    obs_counts[o] += 1
-                n = len(obs)
-                # Lower alpha = trust observations more
-                alpha = max(1.5, 4.0 - n * 0.3)
-                total = n + alpha
-                preds[y][x] = fnorm([(obs_counts[c] + alpha * prior[c]) / total
-                                      for c in range(NC)])
-                stats["obs_deep"] += 1
-                stats["obs"] += 1
-            elif len(obs) >= 1:
+            if len(obs) >= 1:
+                # v18: Unified Bayesian update for all observed cells
+                # No special deep-obs case — standard alpha schedule works well
                 obs_counts = [0] * NC
                 for o in obs:
                     obs_counts[o] += 1
                 preds[y][x] = bayesian_update(prior, obs_counts, len(obs))
                 stats["obs"] += 1
-            elif grids["dg"][y][x] <= 5 and grid_obs:
+            elif grids["dg"][y][x] <= 7 and grid_obs:  # v18: extended from 5 to 7
                 pseudo, tw = spatial_borrow(x, y, grid_obs, grids)
-                if tw >= 1.0:
-                    n_eff = min(tw * 0.35, 2.0)
+                if tw >= 0.8:  # v18: lower threshold (was 1.0)
+                    n_eff = min(tw * 0.35, 2.5)  # v18: higher cap (was 2.0)
                     norm_p = [pseudo[c] / tw for c in range(NC)]
                     alpha0 = 3.0
                     pred = [(n_eff * norm_p[c] + alpha0 * prior[c]) / (n_eff + alpha0)
@@ -921,7 +926,7 @@ def load_cache(round_id):
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main():
-    print("=== Astar Island Solver v17 — Deep Obs + Online Calibration ===\n")
+    print("=== Astar Island Solver v18 — Balanced Coverage + Conservative Cal ===\n")
 
     # Load XGBoost models
     xgb_models = None
@@ -1003,12 +1008,16 @@ def main():
                 continue
             n_q = alloc[seed_idx]
 
-            # v17: FOCUSED strategy — fewer viewports, more reps
-            # With 10 queries: 2 viewports × 5 reps = 5 obs per cell
-            # Better than 4 viewports × 2.5 reps = 2 obs per cell
+            # v18: BALANCED strategy — more viewports for coverage, 3+ reps each
+            # v16 (4vp × 2.5): 82.5 score, v17 (2vp × 5): 78.5 — coverage wins!
+            # Sweet spot: 3 viewports × 3.3 reps = ~600 cells with 3 obs
             n_sett = len(all_grids[seed_idx]["settlements"])
-            if n_q >= 8:
-                n_vps = 2  # always 2 for deep observation
+            if n_q >= 12:
+                n_vps = 4  # extra coverage for seeds with many queries
+            elif n_q >= 9:
+                n_vps = 3
+            elif n_q >= 6:
+                n_vps = 3
             elif n_q >= 4:
                 n_vps = 2
             else:
@@ -1097,7 +1106,7 @@ def main():
 
     # ── PHASE 3: Build and submit predictions ─────────────────────────
 
-    print("\n--- Phase 3: Building predictions (per-settlement S + calibrated) ---")
+    print("\n--- Phase 3: Building predictions (conservative cal + balanced coverage) ---")
 
     all_preds = []
     for seed_idx in range(n_seeds):
@@ -1112,7 +1121,7 @@ def main():
         print(f"  Seed {seed_idx} (S={S_seed:.3f}): {stats}")
 
     # Submit main prediction
-    print("\nSubmitting main prediction (calibrated + per-settlement S)...")
+    print("\nSubmitting main prediction (conservative cal + balanced coverage)...")
     for seed_idx, preds in enumerate(all_preds):
         try:
             result = api_post("/submit", {
@@ -1126,14 +1135,17 @@ def main():
 
     # ── PHASE 4: Multi-S fallback submissions ─────────────────────────
 
-    print("\n--- Phase 4: Concentrated multi-S fallback ---")
-    S_offsets = [-0.25, -0.15, -0.10, -0.05, 0.05, 0.10, 0.15, 0.25, 0.40, 0.60]
+    print("\n--- Phase 4: Tight multi-S fallback ---")
+    # v18: Tighter concentration around estimated S
+    # v17 used wide offsets that wasted submissions on unlikely S values
+    S_offsets = [-0.20, -0.12, -0.08, -0.04, 0.04, 0.08, 0.12, 0.20]
     S_alternatives = sorted(set(
         max(0.0, min(1.0, S_global + off)) for off in S_offsets
         if abs(off) > 0.02
     ))
-    for s_ext in [0.0, 0.5, 1.0]:
-        if all(abs(s_ext - s) > 0.04 for s in S_alternatives + [S_global]):
+    # Only add extremes if they're far from our estimate
+    for s_ext in [0.0, 1.0]:
+        if all(abs(s_ext - s) > 0.15 for s in S_alternatives + [S_global]):
             S_alternatives.append(s_ext)
     S_alternatives.sort()
 

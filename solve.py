@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Astar Island solver v14 — Ultimate hybrid kNN+Linear model.
+"""Astar Island solver v15 — Ensemble (XGBoost + kNN + Linear).
 
-Key improvements over v13:
-- Hybrid kNN(rich features) + linear fallback prior model
-- kNN uses 93K historical data points from rounds 1-13
-- Features: terrain type, distance, adj water, adj settlements, n_sett_d3
-- Two-phase query: estimate S first, then deep observation
-- Multi-S submission fallback (submit with 11 S values, best kept)
-- Adaptive Bayesian updating
-- Maximum viewport coverage of dynamic cells
+Model-only CV scores: XGBoost=79.4, kNN+Linear=81.0, Ensemble≈82+
+With observations (alpha=5-8): +6-16 points → expected 87-95
 
-Score formula: 100 * exp(-3 * weighted_KL)
+Key features:
+- 3-model ensemble: XGBoost + kNN(rich) + Linear
+- XGBoost trained on 76K cells with 20 spatial features
+- Optimized Bayesian updating (alpha=5-8 from CV)
+- Two-phase queries: S estimation → deep observation
+- Multi-S fallback submissions
 """
 
 import json
@@ -20,7 +19,15 @@ import sys
 import time
 import requests
 import urllib3
+import numpy as np
 from collections import defaultdict
+
+try:
+    import xgboost as xgb
+    HAS_XGB = True
+except ImportError:
+    HAS_XGB = False
+    print("WARNING: xgboost not available, using kNN+Linear only")
 
 urllib3.disable_warnings()
 
@@ -68,7 +75,7 @@ def api_post(path, data):
 
 
 def fnorm(probs):
-    p = [max(v, FLOOR) for v in probs]
+    p = [max(float(v), FLOOR) for v in probs]
     s = sum(p)
     return [v / s for v in p]
 
@@ -112,8 +119,65 @@ def precompute_grids(state):
             n_sett_d3[y][x] = sum(1 for s in settlements
                                   if abs(x - s["x"]) + abs(y - s["y"]) <= 3)
 
+    # Additional features for XGBoost
+    adj_water = [[0] * W for _ in range(H)]
+    adj_forest = [[0] * W for _ in range(H)]
+    adj_mountain = [[0] * W for _ in range(H)]
+    adj8_water = [[0] * W for _ in range(H)]
+    adj8_sett = [[0] * W for _ in range(H)]
+    adj8_forest = [[0] * W for _ in range(H)]
+    n_sett_d1 = [[0] * W for _ in range(H)]
+    n_sett_d2 = [[0] * W for _ in range(H)]
+    n_sett_d5 = [[0] * W for _ in range(H)]
+
+    for y in range(H):
+        for x in range(W):
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < W and 0 <= ny < H:
+                    t = grid[ny][nx]
+                    if t == 10: adj_water[y][x] += 1
+                    elif t == 4: adj_forest[y][x] += 1
+                    elif t == 5: adj_mountain[y][x] += 1
+            for ddx in range(-1, 2):
+                for ddy in range(-1, 2):
+                    if ddx == 0 and ddy == 0: continue
+                    nx, ny = x + ddx, y + ddy
+                    if 0 <= nx < W and 0 <= ny < H:
+                        t = grid[ny][nx]
+                        if t == 10: adj8_water[y][x] += 1
+                        elif t in (1, 2): adj8_sett[y][x] += 1
+                        elif t == 4: adj8_forest[y][x] += 1
+
+    for y in range(H):
+        for x in range(W):
+            for s in settlements:
+                d = abs(x - s["x"]) + abs(y - s["y"])
+                if d <= 1: n_sett_d1[y][x] += 1
+                if d <= 2: n_sett_d2[y][x] += 1
+                if d <= 5: n_sett_d5[y][x] += 1
+
+    # Distance to nearest port
+    port_setts = [s for s in settlements if s.get("has_port")]
+    d_port = [[99] * W for _ in range(H)]
+    for s in port_setts:
+        for y in range(H):
+            for x in range(W):
+                d = abs(x - s["x"]) + abs(y - s["y"])
+                if d < d_port[y][x]:
+                    d_port[y][x] = d
+
+    n_total_sett = len(settlements)
+    n_total_ports = len(port_setts)
+
     return {"dg": dg, "coastal": coastal, "adj_sett": adj_sett,
-            "n_sett_d3": n_sett_d3, "grid": grid, "settlements": settlements}
+            "n_sett_d3": n_sett_d3, "grid": grid, "settlements": settlements,
+            "adj_water": adj_water, "adj_forest": adj_forest,
+            "adj_mountain": adj_mountain, "adj8_water": adj8_water,
+            "adj8_sett": adj8_sett, "adj8_forest": adj8_forest,
+            "n_sett_d1": n_sett_d1, "n_sett_d2": n_sett_d2,
+            "n_sett_d5": n_sett_d5, "d_port": d_port,
+            "n_total_sett": n_total_sett, "n_total_ports": n_total_ports}
 
 
 def cell_knn_key(x, y, grids):
@@ -246,6 +310,81 @@ def hybrid_prior(x, y, S, grids, training_db):
 
     combined = [blend * knn_p[i] + (1 - blend) * lin_p[i] for i in range(NC)]
     return fnorm(combined)
+
+
+def xgb_features(x, y, S, grids):
+    """Extract 20 features for XGBoost model."""
+    t = grids["grid"][y][x]
+    tc = 2 if t in (1, 2) else (1 if t == 4 else 0)
+    d = grids["dg"][y][x]
+    adj_e4 = sum(1 for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]
+                 if 0 <= x + dx < W and 0 <= y + dy < H
+                 and grids["grid"][y + dy][x + dx] in (0, 11))
+
+    ns_port = 0
+    nearest = min(grids["settlements"],
+                  key=lambda s: abs(x - s["x"]) + abs(y - s["y"]))
+    if nearest.get("has_port"):
+        ns_port = 1
+
+    return [
+        S,                              # 0
+        tc,                             # 1
+        d,                              # 2
+        grids["adj_water"][y][x],       # 3
+        adj_e4,                         # 4
+        grids["adj_sett"][y][x],        # 5
+        grids["adj_forest"][y][x],      # 6
+        grids["adj_mountain"][y][x],    # 7
+        grids["adj8_water"][y][x],      # 8
+        grids["adj8_sett"][y][x],       # 9
+        grids["adj8_forest"][y][x],     # 10
+        grids["n_sett_d1"][y][x],       # 11
+        grids["n_sett_d2"][y][x],       # 12
+        grids["n_sett_d3"][y][x],       # 13
+        grids["n_sett_d5"][y][x],       # 14
+        ns_port,                        # 15
+        grids["d_port"][y][x],          # 16
+        grids["n_total_sett"],          # 17
+        grids["n_total_ports"],         # 18
+        min(x, y, W - 1 - x, H - 1 - y),  # 19: d_edge
+    ]
+
+
+def xgb_prior(x, y, S, grids, xgb_models):
+    """XGBoost model prediction."""
+    if not xgb_models:
+        return None
+    feats = np.array([xgb_features(x, y, S, grids)])
+    preds = [model.predict(feats)[0] for model in xgb_models]
+    return fnorm(preds)
+
+
+def ensemble_prior(x, y, S, grids, training_db, xgb_models):
+    """Ensemble: XGBoost + kNN + Linear (best of all worlds)."""
+    t = grids["grid"][y][x]
+    if t == 10:
+        return [1.0 - 5 * FLOOR, FLOOR, FLOOR, FLOOR, FLOOR, FLOOR]
+    if t == 5:
+        return [FLOOR, FLOOR, FLOOR, FLOOR, FLOOR, 1.0 - 5 * FLOOR]
+
+    d = grids["dg"][y][x]
+    if d > 8:
+        # Far cells: use linear model (near-deterministic)
+        lin_cat = cell_linear_cat(x, y, grids)
+        return linear_prior(lin_cat, S)
+
+    # Get all three model predictions
+    hyb_p = hybrid_prior(x, y, S, grids, training_db)
+
+    if xgb_models and HAS_XGB:
+        xgb_p = xgb_prior(x, y, S, grids, xgb_models)
+        if xgb_p:
+            # Ensemble: 50% XGBoost + 50% hybrid (kNN+Linear)
+            combined = [0.5 * xgb_p[i] + 0.5 * hyb_p[i] for i in range(NC)]
+            return fnorm(combined)
+
+    return hyb_p
 
 
 # ── Viewport Placement ──────────────────────────────────────────────────
@@ -425,14 +564,14 @@ def spatial_borrow(x, y, grid_obs, grids):
 
 # ── Prediction Building ─────────────────────────────────────────────────
 
-def build_predictions(grids, grid_obs, S, training_db):
-    """Build per-cell predictions using hybrid prior + observations."""
+def build_predictions(grids, grid_obs, S, training_db, xgb_models=None):
+    """Build per-cell predictions using ensemble prior + observations."""
     preds = [[[0.0] * NC for _ in range(W)] for _ in range(H)]
     stats = {"obs": 0, "spatial": 0, "model": 0}
 
     for y in range(H):
         for x in range(W):
-            prior = hybrid_prior(x, y, S, grids, training_db)
+            prior = ensemble_prior(x, y, S, grids, training_db, xgb_models)
             obs = grid_obs.get((x, y), [])
 
             if len(obs) >= 1:
@@ -494,7 +633,26 @@ def load_cache(round_id):
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main():
-    print("=== Astar Island Solver v14 — Ultimate Hybrid ===\n")
+    print("=== Astar Island Solver v15 — Ensemble (XGB+kNN+Linear) ===\n")
+
+    # Load XGBoost models
+    xgb_models = None
+    if HAS_XGB:
+        xgb_models = []
+        for c in range(NC):
+            fpath = f"xgb_class{c}.json"
+            if os.path.exists(fpath):
+                model = xgb.XGBRegressor()
+                model.load_model(fpath)
+                xgb_models.append(model)
+            else:
+                print(f"WARNING: {fpath} not found!")
+                xgb_models = None
+                break
+        if xgb_models:
+            print(f"XGBoost: loaded {len(xgb_models)} class models")
+    else:
+        print("XGBoost: not available (fallback to kNN+Linear)")
 
     # Load training database
     if not os.path.exists(TRAINING_DB_FILE):
@@ -625,7 +783,7 @@ def main():
     for seed_idx in range(n_seeds):
         preds, stats = build_predictions(
             all_grids[seed_idx], all_grid_obs[seed_idx],
-            S_global, training_db
+            S_global, training_db, xgb_models
         )
         all_preds.append(preds)
         print(f"  Seed {seed_idx}: {stats}")
@@ -655,7 +813,7 @@ def main():
         for seed_idx in range(n_seeds):
             preds, _ = build_predictions(
                 all_grids[seed_idx], all_grid_obs[seed_idx],
-                S_alt, training_db
+                S_alt, training_db, xgb_models
             )
             try:
                 api_post("/submit", {
@@ -673,7 +831,7 @@ def main():
     for seed_idx in range(n_seeds):
         preds, _ = build_predictions(
             all_grids[seed_idx], all_grid_obs[seed_idx],
-            S_global, training_db
+            S_global, training_db, xgb_models
         )
         try:
             api_post("/submit", {

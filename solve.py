@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Astar Island solver v8 — Concentrated queries + Jeffreys prior + Spatial borrowing."""
+"""Astar Island solver v9 — Per-settlement survival model + physics-based predictions."""
 
 import json
 import math
@@ -15,63 +15,14 @@ TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhOGMxN2M1OC1lYzg0LTQ0Mj
 BASE = "https://api.ainm.no/astar-island"
 HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 
-NC = 6
+NC = 6  # Classes: 0=empty, 1=settlement, 2=port, 3=ruin, 4=forest, 5=mountain
 H, W = 40, 40
 VP = 15
-FLOOR = 0.002
-JEFFREYS_ALPHA = 0.5  # Jeffreys prior for Dirichlet
+FLOOR = 0.001  # Lower floor — let predictions be more confident
 
 GRID_TO_CLASS = {11: 0, 0: 0, 10: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5}
 
-# GT-calibrated priors from 11 rounds of ground truth analysis
-CAL = {
-    ("s", 0, False): [0.474, 0.272, 0.002, 0.024, 0.226, 0.002],
-    ("s", 0, True):  [0.516, 0.073, 0.145, 0.018, 0.246, 0.002],
-    ("e", 1, False): [0.740, 0.179, 0.002, 0.016, 0.060, 0.002],
-    ("e", 1, True):  [0.822, 0.056, 0.068, 0.011, 0.041, 0.002],
-    ("e", 2, False): [0.767, 0.167, 0.002, 0.016, 0.046, 0.002],
-    ("e", 2, True):  [0.869, 0.044, 0.055, 0.008, 0.023, 0.002],
-    ("e", 3, False): [0.797, 0.145, 0.002, 0.014, 0.040, 0.002],
-    ("e", 3, True):  [0.901, 0.035, 0.039, 0.006, 0.017, 0.002],
-    ("e", 4, False): [0.819, 0.129, 0.002, 0.012, 0.035, 0.002],
-    ("e", 4, True):  [0.916, 0.029, 0.033, 0.005, 0.014, 0.002],
-    ("e", 5, False): [0.870, 0.096, 0.002, 0.010, 0.021, 0.002],
-    ("e", 5, True):  [0.947, 0.022, 0.018, 0.003, 0.008, 0.002],
-    ("e", 6, False): [0.901, 0.075, 0.002, 0.007, 0.013, 0.002],
-    ("e", 6, True):  [0.961, 0.017, 0.013, 0.002, 0.004, 0.002],
-    ("e", 7, False): [0.933, 0.051, 0.002, 0.004, 0.008, 0.002],
-    ("e", 7, True):  [0.972, 0.012, 0.009, 0.002, 0.003, 0.002],
-    ("e", 8, False): [0.953, 0.036, 0.002, 0.003, 0.004, 0.002],
-    ("e", 8, True):  [0.981, 0.008, 0.005, 0.002, 0.002, 0.002],
-    ("e", 9, False): [0.972, 0.020, 0.002, 0.002, 0.002, 0.002],
-    ("e", 9, True):  [0.987, 0.005, 0.002, 0.002, 0.002, 0.002],
-    ("e", 10, False): [0.979, 0.013, 0.002, 0.002, 0.002, 0.002],
-    ("e", 10, True):  [0.989, 0.003, 0.002, 0.002, 0.002, 0.002],
-    ("e", 99, False): [0.987, 0.005, 0.002, 0.002, 0.002, 0.002],
-    ("e", 99, True):  [0.990, 0.002, 0.002, 0.002, 0.002, 0.002],
-    ("f", 1, False): [0.133, 0.183, 0.002, 0.017, 0.662, 0.002],
-    ("f", 1, True):  [0.126, 0.086, 0.108, 0.016, 0.662, 0.002],
-    ("f", 2, False): [0.101, 0.174, 0.002, 0.016, 0.704, 0.002],
-    ("f", 2, True):  [0.084, 0.076, 0.095, 0.014, 0.729, 0.002],
-    ("f", 3, False): [0.085, 0.146, 0.002, 0.015, 0.750, 0.002],
-    ("f", 3, True):  [0.067, 0.071, 0.078, 0.012, 0.770, 0.002],
-    ("f", 4, False): [0.077, 0.135, 0.002, 0.013, 0.770, 0.002],
-    ("f", 4, True):  [0.062, 0.057, 0.064, 0.010, 0.805, 0.002],
-    ("f", 5, False): [0.048, 0.103, 0.002, 0.010, 0.836, 0.002],
-    ("f", 5, True):  [0.040, 0.051, 0.044, 0.007, 0.856, 0.002],
-    ("f", 6, False): [0.027, 0.077, 0.002, 0.008, 0.885, 0.002],
-    ("f", 6, True):  [0.022, 0.040, 0.031, 0.005, 0.900, 0.002],
-    ("f", 7, False): [0.019, 0.056, 0.002, 0.005, 0.917, 0.002],
-    ("f", 7, True):  [0.018, 0.034, 0.026, 0.004, 0.916, 0.002],
-    ("f", 8, False): [0.012, 0.041, 0.002, 0.003, 0.940, 0.002],
-    ("f", 8, True):  [0.015, 0.025, 0.016, 0.003, 0.940, 0.002],
-    ("f", 9, False): [0.006, 0.028, 0.002, 0.003, 0.960, 0.002],
-    ("f", 9, True):  [0.006, 0.013, 0.007, 0.002, 0.971, 0.002],
-    ("f", 10, False): [0.002, 0.013, 0.002, 0.002, 0.979, 0.002],
-    ("f", 10, True):  [0.003, 0.011, 0.005, 0.002, 0.977, 0.002],
-    ("f", 99, False): [0.002, 0.003, 0.002, 0.002, 0.989, 0.002],
-    ("f", 99, True):  [0.002, 0.005, 0.002, 0.002, 0.987, 0.002],
-}
+CLASS_NAMES = ['empty', 'settlement', 'port', 'ruin', 'forest', 'mountain']
 
 
 def api_get(path):
@@ -87,27 +38,34 @@ def api_post(path, data):
 
 
 def fnorm(probs):
+    """Normalize probabilities with floor."""
     p = [max(v, FLOOR) for v in probs]
     s = sum(p)
     return [v / s for v in p]
 
 
 def tcat(code):
-    if code == 5: return "m"
-    if code == 4: return "f"
-    if code in (1, 2, 3): return "s"
-    return "e"
+    """Terrain category from grid code."""
+    if code == 5: return "m"   # mountain
+    if code == 4: return "f"   # forest
+    if code in (1, 2, 3): return "s"  # settlement/port/ruin
+    return "e"  # empty/ocean/plains
+
+
+def is_ocean(x, y, grid):
+    return 0 <= x < W and 0 <= y < H and grid[y][x] == 10
 
 
 def is_coastal(x, y, grid):
     for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
         nx, ny = x+dx, y+dy
-        if 0 <= nx < W and 0 <= ny < H and grid[ny][nx] == 10:
+        if is_ocean(nx, ny, grid):
             return True
     return False
 
 
 def dist_grid(settlements):
+    """Manhattan distance to nearest settlement for each cell."""
     dg = [[999]*W for _ in range(H)]
     for s in settlements:
         sx, sy = s["x"], s["y"]
@@ -119,99 +77,425 @@ def dist_grid(settlements):
     return dg
 
 
-def get_cal_prior(tc, d, coastal):
-    if tc == "m":
-        return fnorm([0, 0, 0, 0, 0, 1])
-    dk = min(d, 10) if d <= 10 else 99
-    key = (tc, dk, coastal)
-    if key in CAL:
-        return fnorm(CAL[key])
-    key2 = (tc, dk, not coastal)
-    if key2 in CAL:
-        return fnorm(CAL[key2])
-    key3 = (tc, 99, coastal)
-    if key3 in CAL:
-        return fnorm(CAL[key3])
-    if tc == "f":
-        return fnorm([0.01, 0.01, 0.005, 0.005, 0.97, 0.005])
-    return fnorm([0.97, 0.01, 0.005, 0.005, 0.005, 0.005])
+# ── Settlement Feature Analysis ─────────────────────────────────────────
+
+def count_terrain_radius(x, y, grid, terrain_code, radius):
+    """Count cells of a terrain type within Manhattan distance radius."""
+    count = 0
+    for dy in range(-radius, radius+1):
+        for dx in range(-radius, radius+1):
+            if abs(dx)+abs(dy) > radius or (dx == 0 and dy == 0):
+                continue
+            nx, ny = x+dx, y+dy
+            if 0 <= nx < W and 0 <= ny < H and grid[ny][nx] == terrain_code:
+                count += 1
+    return count
 
 
-def best_viewport(settlements):
-    """Find the single best viewport covering the most dynamic area."""
+def compute_settlement_features(settlement, grid, all_settlements):
+    """Compute local features for a settlement that predict its survival."""
+    x, y = settlement["x"], settlement["y"]
+
+    # Food supply: forests nearby
+    forests_r2 = count_terrain_radius(x, y, grid, 4, 2)
+    forests_r4 = count_terrain_radius(x, y, grid, 4, 4)
+
+    # Natural defense: mountains nearby
+    mountains_r3 = count_terrain_radius(x, y, grid, 5, 3)
+
+    # Coastal access
+    coastal = is_coastal(x, y, grid)
+
+    # Competition: nearby rival settlements
+    rival_dists = []
+    for s2 in all_settlements:
+        if s2["x"] == x and s2["y"] == y:
+            continue
+        d = abs(s2["x"] - x) + abs(s2["y"] - y)
+        rival_dists.append(d)
+
+    n_rivals_r4 = sum(1 for d in rival_dists if d <= 4)
+    n_rivals_r6 = sum(1 for d in rival_dists if d <= 6)
+    n_rivals_r8 = sum(1 for d in rival_dists if d <= 8)
+    min_rival = min(rival_dists) if rival_dists else 99
+
+    # Empty space to expand into
+    empty_r3 = count_terrain_radius(x, y, grid, 11, 3)
+
+    return {
+        "forests_r2": forests_r2,
+        "forests_r4": forests_r4,
+        "mountains_r3": mountains_r3,
+        "coastal": coastal,
+        "has_port": settlement.get("has_port", False),
+        "n_rivals_r4": n_rivals_r4,
+        "n_rivals_r6": n_rivals_r6,
+        "n_rivals_r8": n_rivals_r8,
+        "min_rival_dist": min_rival,
+        "empty_r3": empty_r3,
+    }
+
+
+def predict_settlement_survival(features):
+    """Predict survival probability based on local geography.
+
+    The simulation runs 50 years with growth, conflict, trade, winter, environment.
+    - More forests → more food → better survival
+    - More rivals nearby → more raiding → worse survival
+    - Coastal → port/trade → better survival
+    - Mountains → natural defense → better survival
+    """
+    # Start at neutral logit
+    logit = 0.0  # sigmoid(0) = 0.5
+
+    # Food supply is critical - forests within r2 are directly harvestable
+    food = features["forests_r2"]
+    logit += 0.20 * (food - 2)  # avg ~2 forests in r2
+
+    # Broader food (r4)
+    logit += 0.05 * (features["forests_r4"] - 6)
+
+    # Competition kills
+    logit -= 0.25 * features["n_rivals_r4"]   # very close rivals are dangerous
+    logit -= 0.10 * features["n_rivals_r6"]   # medium-range raids
+
+    # Isolation is safety
+    if features["min_rival_dist"] >= 8:
+        logit += 0.6
+    elif features["min_rival_dist"] >= 5:
+        logit += 0.3
+
+    # Coastal = trade = wealth = better survival
+    if features["coastal"]:
+        logit += 0.25
+
+    # Port = already established trade
+    if features["has_port"]:
+        logit += 0.35
+
+    # Mountains give natural defense
+    logit += 0.08 * features["mountains_r3"]
+
+    # Empty space to expand
+    logit += 0.02 * features["empty_r3"]
+
+    survival = 1.0 / (1.0 + math.exp(-logit))
+    return max(0.05, min(0.95, survival))
+
+
+def predict_port_rate(features, survival):
+    """Predict port probability given survival."""
+    if not features["coastal"]:
+        return 0.02  # Very unlikely without coast
+    if features["has_port"]:
+        return 0.60  # Had port initially, likely to keep it
+    # Coastal without port: prosperous settlements build ports
+    # Higher survival → more wealth → more likely to build port
+    return 0.15 + 0.20 * survival
+
+
+# ── Viewport Selection ───────────────────────────────────────────────────
+
+def greedy_viewports(settlements, n_viewports):
+    """Greedily select viewports to maximize settlement coverage."""
     if not settlements:
-        return (12, 12)
+        return [(12, 12)]
 
-    best_score, best_pos = -1, (0, 0)
-    for vy in range(0, H-VP+1):
-        for vx in range(0, W-VP+1):
-            score = 0
-            for s in settlements:
-                sx, sy = s["x"], s["y"]
-                if vx <= sx < vx+VP and vy <= sy < vy+VP:
-                    # Settlement in viewport - high value
-                    score += 10
-                    # Bonus for cells near settlement also in viewport
-                    for r in range(1, 5):
-                        for ddx in range(-r, r+1):
-                            for ddy in range(-r, r+1):
-                                if abs(ddx)+abs(ddy) == r:
-                                    nx, ny = sx+ddx, sy+ddy
-                                    if vx <= nx < vx+VP and vy <= ny < vy+VP:
-                                        score += 0.3
-            if score > best_score:
-                best_score = score
-                best_pos = (vx, vy)
-    return best_pos
+    sett_positions = [(s["x"], s["y"]) for s in settlements]
+    covered = set()
+    viewports = []
 
+    for _ in range(n_viewports):
+        best_score, best_pos = -1, (0, 0)
+        for vy in range(0, H - VP + 1):
+            for vx in range(0, W - VP + 1):
+                # Count uncovered settlements in this viewport
+                new_covered = 0
+                dyn_score = 0
+                for sx, sy in sett_positions:
+                    if vx <= sx < vx + VP and vy <= sy < vy + VP:
+                        if (sx, sy) not in covered:
+                            new_covered += 1
+                        # Also value dynamic area around settlement
+                        for r in range(1, 4):
+                            for ddx in range(-r, r + 1):
+                                for ddy in range(-r, r + 1):
+                                    if abs(ddx) + abs(ddy) <= r:
+                                        nx, ny = sx + ddx, sy + ddy
+                                        if vx <= nx < vx + VP and vy <= ny < vy + VP:
+                                            dyn_score += 0.05
 
-def second_viewport(settlements, first_vp):
-    """Find second viewport covering settlements NOT in first viewport."""
-    fvx, fvy = first_vp
-    uncovered = [s for s in settlements
-                 if not (fvx <= s["x"] < fvx+VP and fvy <= s["y"] < fvy+VP)]
+                score = new_covered * 10 + dyn_score
+                if score > best_score:
+                    best_score = score
+                    best_pos = (vx, vy)
 
-    if not uncovered:
-        return first_vp  # All covered, just repeat first
+        viewports.append(best_pos)
+        vx, vy = best_pos
+        for sx, sy in sett_positions:
+            if vx <= sx < vx + VP and vy <= sy < vy + VP:
+                covered.add((sx, sy))
 
-    best_score, best_pos = -1, first_vp
-    for vy in range(0, H-VP+1):
-        for vx in range(0, W-VP+1):
-            score = 0
-            for s in uncovered:
-                sx, sy = s["x"], s["y"]
-                if vx <= sx < vx+VP and vy <= sy < vy+VP:
-                    score += 10
-                    for r in range(1, 5):
-                        for ddx in range(-r, r+1):
-                            for ddy in range(-r, r+1):
-                                if abs(ddx)+abs(ddy) == r:
-                                    nx, ny = sx+ddx, sy+ddy
-                                    if vx <= nx < vx+VP and vy <= ny < vy+VP:
-                                        score += 0.3
-            if score > best_score:
-                best_score = score
-                best_pos = (vx, vy)
-    return best_pos
+    return viewports
 
 
-def jeffreys_posterior(obs_counts, n_obs):
-    """Dirichlet posterior with Jeffreys prior (alpha=0.5)."""
-    alpha = JEFFREYS_ALPHA
-    total = n_obs + NC * alpha
-    return [(obs_counts[c] + alpha) / total for c in range(NC)]
+# ── Prediction Building ─────────────────────────────────────────────────
+
+def build_settlement_model(state):
+    """Build per-settlement survival and port predictions from map topology."""
+    grid = state["grid"]
+    settlements = state["settlements"]
+
+    model = {}
+    for s in settlements:
+        features = compute_settlement_features(s, grid, settlements)
+        survival = predict_settlement_survival(features)
+        port_rate = predict_port_rate(features, survival)
+        model[(s["x"], s["y"])] = {
+            "survival": survival,
+            "port_rate": port_rate,
+            "features": features,
+        }
+
+    return model
 
 
-def spatial_borrow(x, y, grid_obs, grid, dg, max_radius=3):
+def update_model_with_observations(model, sett_snapshots, settlements):
+    """Update settlement model with actual simulation observations."""
+    n_snaps = len(sett_snapshots)
+    if n_snaps == 0:
+        return model
+
+    for s in settlements:
+        sx, sy = s["x"], s["y"]
+        alive_count = 0
+        port_count = 0
+        observed = False
+
+        for snap in sett_snapshots:
+            found = None
+            for ss in snap:
+                if ss["x"] == sx and ss["y"] == sy:
+                    found = ss
+                    break
+
+            if found is not None:
+                observed = True
+                if found.get("alive", True):
+                    alive_count += 1
+                    if found.get("has_port"):
+                        port_count += 1
+
+        if observed and (sx, sy) in model:
+            # Blend model prediction with observed data
+            obs_survival = alive_count / n_snaps
+            obs_port = port_count / alive_count if alive_count > 0 else 0
+
+            # Weight: more observations → trust data more
+            w = min(0.9, n_snaps / (n_snaps + 3))
+            model[(sx, sy)]["survival"] = w * obs_survival + (1 - w) * model[(sx, sy)]["survival"]
+            model[(sx, sy)]["port_rate"] = w * obs_port + (1 - w) * model[(sx, sy)]["port_rate"]
+            model[(sx, sy)]["observed"] = True
+            model[(sx, sy)]["n_obs"] = n_snaps
+
+    return model
+
+
+def predict_cell(x, y, grid, sett_model, dg):
+    """Predict class distribution for a single cell based on settlement model."""
+    terrain = grid[y][x]
+    tc = tcat(terrain)
+
+    # Mountain: always static
+    if tc == "m":
+        return [FLOOR, FLOOR, FLOOR, FLOOR, FLOOR, 1.0]
+
+    # Ocean: always stays empty (class 0)
+    if terrain == 10:
+        return [1.0, FLOOR, FLOOR, FLOOR, FLOOR, FLOOR]
+
+    d_nearest = dg[y][x]
+    coastal = is_coastal(x, y, grid)
+    is_forest = (terrain == 4)
+
+    # Collect influence from all nearby settlements
+    p_becomes_sett = 0.0
+    p_becomes_port = 0.0
+    p_becomes_ruin = 0.0
+    p_expansion_from_any = 0.0
+
+    for (sx, sy), sm in sett_model.items():
+        d = abs(x - sx) + abs(y - sy)
+        if d > 12:
+            continue  # Too far to influence
+
+        survival = sm["survival"]
+        port_rate = sm["port_rate"]
+
+        if d == 0:
+            # THIS IS the settlement cell itself
+            p_sett = survival * (1 - port_rate)
+            p_port = survival * port_rate
+            # When settlement dies:
+            p_ruin_dead = 0.20
+            p_forest_dead = 0.35 if is_forest else 0.25
+            p_empty_dead = 1.0 - p_ruin_dead - p_forest_dead
+
+            return fnorm([
+                (1 - survival) * p_empty_dead,
+                p_sett,
+                p_port,
+                (1 - survival) * p_ruin_dead,
+                (1 - survival) * p_forest_dead,
+                0.0
+            ])
+
+        # Expansion probability from this settlement
+        # Decays with distance, higher for forest (food expansion), lower for ocean adjacents
+        if d <= 1:
+            exp_base = 0.22
+        elif d <= 2:
+            exp_base = 0.14
+        elif d <= 3:
+            exp_base = 0.08
+        elif d <= 4:
+            exp_base = 0.05
+        elif d <= 5:
+            exp_base = 0.03
+        elif d <= 7:
+            exp_base = 0.015
+        elif d <= 10:
+            exp_base = 0.005
+        else:
+            exp_base = 0.001
+
+        # Forest terrain: settlement expands preferentially toward food
+        if is_forest:
+            exp_base *= 1.4
+
+        # Expansion probability = settlement survives AND expands this far
+        p_expand = survival * exp_base
+
+        # Port expansion: coastal cells near port settlements are prime port locations
+        if coastal:
+            p_port_expand = exp_base * survival * (0.15 if port_rate > 0.3 else 0.06)
+        else:
+            p_port_expand = 0.0
+
+        # Ruin probability: when settlement dies, ruins may appear nearby
+        if d <= 1:
+            ruin_base = 0.04
+        elif d <= 2:
+            ruin_base = 0.02
+        elif d <= 3:
+            ruin_base = 0.008
+        else:
+            ruin_base = 0.002
+        p_ruin_here = (1 - survival) * ruin_base
+
+        # Accumulate (using probabilistic OR: 1 - prod(1-p))
+        p_expansion_from_any = 1 - (1 - p_expansion_from_any) * (1 - p_expand)
+        p_becomes_port = 1 - (1 - p_becomes_port) * (1 - p_port_expand)
+        p_becomes_ruin = 1 - (1 - p_becomes_ruin) * (1 - p_ruin_here)
+
+    p_becomes_sett = max(0, p_expansion_from_any - p_becomes_port)
+
+    # Base terrain probability (what happens if no settlement influence)
+    if is_forest:
+        p_base_forest = 0.85
+        p_base_empty = 0.10
+    elif terrain == 11:  # Plains
+        p_base_empty = 0.90
+        p_base_forest = 0.05
+    else:
+        p_base_empty = 0.95
+        p_base_forest = 0.02
+
+    # Final distribution: combine settlement influence with terrain base
+    total_sett_influence = p_becomes_sett + p_becomes_port + p_becomes_ruin
+    base_weight = max(0, 1.0 - total_sett_influence * 1.3)
+
+    p = [0.0] * NC
+    p[0] = base_weight * p_base_empty + (1 - base_weight) * 0.1  # empty
+    p[1] = p_becomes_sett                                         # settlement
+    p[2] = p_becomes_port                                         # port
+    p[3] = p_becomes_ruin                                         # ruin
+    p[4] = base_weight * p_base_forest + (1 - base_weight) * 0.05  # forest
+    p[5] = 0.0                                                     # mountain
+
+    return fnorm(p)
+
+
+def build_predictions(state, sett_model, grid_obs=None):
+    """Build full prediction grid for one seed."""
+    grid = state["grid"]
+    settlements = state["settlements"]
+    dg_mat = dist_grid(settlements)
+
+    preds = [[[0.0]*NC for _ in range(W)] for _ in range(H)]
+    stats = {"model": 0, "jeffreys": 0, "spatial": 0}
+
+    for y in range(H):
+        for x in range(W):
+            # If we have direct observations, use them
+            obs = grid_obs.get((x, y), []) if grid_obs else []
+
+            if len(obs) >= 3:
+                # Jeffreys posterior: let data dominate
+                obs_counts = [0] * NC
+                for o in obs:
+                    obs_counts[o] += 1
+                alpha = 0.5
+                total = len(obs) + NC * alpha
+                pred = [(obs_counts[c] + alpha) / total for c in range(NC)]
+                preds[y][x] = fnorm(pred)
+                stats["jeffreys"] += 1
+
+            elif len(obs) >= 1:
+                # Few observations: blend with model prediction
+                obs_counts = [0] * NC
+                for o in obs:
+                    obs_counts[o] += 1
+                model_pred = predict_cell(x, y, grid, sett_model, dg_mat)
+
+                # Light prior weight — let observations have influence
+                pw = 1.0
+                pred = [(obs_counts[c] + pw * model_pred[c]) / (len(obs) + pw)
+                        for c in range(NC)]
+                preds[y][x] = fnorm(pred)
+                stats["jeffreys"] += 1
+
+            else:
+                # No observations: try spatial borrowing, then use model
+                borrowed = False
+                if grid_obs:
+                    pseudo_counts, total_w = spatial_borrow(x, y, grid_obs, grid, dg_mat)
+                    if total_w >= 1.5:
+                        model_pred = predict_cell(x, y, grid, sett_model, dg_mat)
+                        eff_n = min(total_w * 0.5, 2.0)
+                        norm_pseudo = [pseudo_counts[c] / total_w for c in range(NC)]
+                        pred = [(eff_n * norm_pseudo[c] + 1.5 * model_pred[c]) / (eff_n + 1.5)
+                                for c in range(NC)]
+                        preds[y][x] = fnorm(pred)
+                        stats["spatial"] += 1
+                        borrowed = True
+
+                if not borrowed:
+                    preds[y][x] = fnorm(predict_cell(x, y, grid, sett_model, dg_mat))
+                    stats["model"] += 1
+
+    return preds, stats
+
+
+def spatial_borrow(x, y, grid_obs, grid, dg):
     """Borrow observations from nearby observed cells with similar features."""
     tc = tcat(grid[y][x])
     d = dg[y][x]
-    coastal = is_coastal(x, y, grid)
 
     pseudo_counts = [0.0] * NC
     total_weight = 0.0
 
-    for r in range(1, max_radius + 1):
+    for r in range(1, 4):
         for ddx in range(-r, r + 1):
             for ddy in range(-r, r + 1):
                 if abs(ddx) + abs(ddy) != r:
@@ -222,37 +506,30 @@ def spatial_borrow(x, y, grid_obs, grid, dg, max_radius=3):
                 if (nx, ny) not in grid_obs:
                     continue
 
-                # Check feature similarity
                 n_tc = tcat(grid[ny][nx])
                 n_d = dg[ny][nx]
-                n_coastal = is_coastal(nx, ny, grid)
 
-                # Same terrain type and similar distance
                 if n_tc != tc:
                     continue
                 if abs(n_d - d) > 2:
                     continue
 
-                # Weight by distance and feature match
                 dist = abs(ddx) + abs(ddy)
                 w = 1.0 / (1 + dist)
-                if n_coastal == coastal:
-                    w *= 1.5
                 if abs(n_d - d) == 0:
-                    w *= 1.5
+                    w *= 1.3
 
                 for o in grid_obs[(nx, ny)]:
                     pseudo_counts[o] += w
                     total_weight += w
 
-    if total_weight < 1.0:
-        return None
-
     return pseudo_counts, total_weight
 
 
+# ── Main ─────────────────────────────────────────────────────────────────
+
 def main():
-    print("=== Astar Island Solver v8 (Concentrated + Jeffreys + Spatial) ===\n")
+    print("=== Astar Island Solver v9 (Settlement Model + Physics) ===\n")
 
     # 1. Active round
     print("[1] Fetching rounds...")
@@ -283,54 +560,76 @@ def main():
         n_p = sum(1 for st in s["settlements"] if st["has_port"])
         print(f"  Seed {i}: {n_s} settlements ({n_p} ports)")
 
+    # 4. Build settlement models from map topology
+    print("\n[4] Building settlement survival models...")
+    sett_models = []
+    for seed_idx in range(n_seeds):
+        model = build_settlement_model(states[seed_idx])
+        sett_models.append(model)
+
+        survs = [m["survival"] for m in model.values()]
+        ports = [m["port_rate"] for m in model.values()]
+        print(f"  Seed {seed_idx}: avg_survival={sum(survs)/len(survs):.2f}, "
+              f"avg_port={sum(ports)/len(ports):.2f}, "
+              f"min_surv={min(survs):.2f}, max_surv={max(survs):.2f}")
+
     if remaining <= 0:
-        print("\n  No queries left!")
-        all_preds = build_prior_only_predictions(states)
+        print("\n  No queries left — using model-only predictions")
+        all_preds = []
+        for seed_idx in range(n_seeds):
+            preds, stats = build_predictions(states[seed_idx], sett_models[seed_idx])
+            all_preds.append(preds)
+            print(f"  Seed {seed_idx}: {stats}")
         submit(round_id, all_preds)
+        check_results(round_id)
         return
 
-    # 4. Allocate queries — concentrate on fewer viewports
-    print(f"\n[4] Allocating {remaining} queries...")
+    # 5. Allocate queries across seeds
+    print(f"\n[5] Allocating {remaining} queries...")
     base = remaining // n_seeds
     alloc = [base] * n_seeds
     for i in range(remaining - sum(alloc)):
         alloc[i] += 1
     print(f"  Allocation: {alloc}")
 
-    # 5. Run simulations — CONCENTRATED viewports for max observations per cell
-    print(f"\n[5] Running simulations (concentrated strategy)...")
+    # 6. Run simulations with smart viewport placement
+    print(f"\n[6] Running simulations...")
     all_grid_obs = []
-    all_sett_stats = []
+    all_sett_snapshots = []
 
     for seed_idx in range(n_seeds):
         state = states[seed_idx]
         settlements = state["settlements"]
         n_q = alloc[seed_idx]
 
-        # Phase 1: Scout with 1 query to find best viewport
-        vp1 = best_viewport(settlements)
-        vp2 = second_viewport(settlements, vp1)
+        # Select viewports to maximize settlement coverage
+        n_vps = min(3, max(1, n_q // 3))
+        vps = greedy_viewports(settlements, n_vps)
 
-        # Check how many settlements are uncovered by vp1
-        covered_by_vp1 = sum(1 for s in settlements
-                            if vp1[0] <= s["x"] < vp1[0]+VP and vp1[1] <= s["y"] < vp1[1]+VP)
-        total_setts = len(settlements)
-        uncovered = total_setts - covered_by_vp1
+        # Count coverage
+        sett_positions = [(s["x"], s["y"]) for s in settlements]
+        covered = set()
+        for vx, vy in vps:
+            for sx, sy in sett_positions:
+                if vx <= sx < vx+VP and vy <= sy < vy+VP:
+                    covered.add((sx, sy))
 
-        # Strategy: concentrate most queries on best viewport
-        # Only use second viewport if many settlements are uncovered
-        if uncovered >= 2 and n_q >= 4:
-            # Split: 70% on vp1, 30% on vp2
-            n_vp1 = max(n_q * 7 // 10, 2)
-            n_vp2 = n_q - n_vp1
-            queries = [(vp1)] * n_vp1 + [(vp2)] * n_vp2
+        # Distribute queries across viewports — more on viewport 1
+        queries = []
+        if n_vps == 1:
+            queries = [vps[0]] * n_q
+        elif n_vps == 2:
+            n1 = (n_q + 1) // 2
+            n2 = n_q - n1
+            queries = [vps[0]] * n1 + [vps[1]] * n2
         else:
-            # All queries on single viewport
-            queries = [vp1] * n_q
+            per = n_q // n_vps
+            for i, vp in enumerate(vps):
+                count = per + (1 if i < n_q - per * n_vps else 0)
+                queries.extend([vp] * count)
 
-        n_unique = len(set(queries))
-        print(f"  Seed {seed_idx}: {n_q} queries on {n_unique} viewport(s), "
-              f"covering {covered_by_vp1}/{total_setts} settlements in primary")
+        print(f"  Seed {seed_idx}: {n_q}q on {n_vps} vp(s), "
+              f"covering {len(covered)}/{len(settlements)} settlements")
 
         grid_obs = defaultdict(list)
         sett_snapshots = []
@@ -352,276 +651,48 @@ def main():
                             grid_obs[(cx, cy)].append(GRID_TO_CLASS.get(cell, 0))
 
                 sett_snapshots.append(result.get("settlements", []))
-
             except Exception as e:
                 print(f"    Q{qi+1} ERR: {e}")
 
-        n_cells = sum(1 for v in grid_obs.values() if v)
+        n_cells = len(grid_obs)
         max_o = max((len(v) for v in grid_obs.values()), default=0)
-        print(f"    → {n_cells} cells, max {max_o} obs/cell, {len(sett_snapshots)} snapshots")
+        print(f"    → {n_cells} cells, max {max_o} obs/cell")
 
         all_grid_obs.append(grid_obs)
-        all_sett_stats.append(sett_snapshots)
+        all_sett_snapshots.append(sett_snapshots)
 
-    # 6. Analyze settlement stats
-    print(f"\n[6] Analyzing settlement stats...")
-    all_sett_analysis = []
-
+    # 7. Update settlement models with observed data
+    print(f"\n[7] Updating models with observations...")
     for seed_idx in range(n_seeds):
-        settlements = states[seed_idx]["settlements"]
-        snapshots = all_sett_stats[seed_idx]
-        n_snaps = len(snapshots)
+        sett_models[seed_idx] = update_model_with_observations(
+            sett_models[seed_idx],
+            all_sett_snapshots[seed_idx],
+            states[seed_idx]["settlements"]
+        )
+        survs = [m["survival"] for m in sett_models[seed_idx].values()]
+        n_obs = sum(1 for m in sett_models[seed_idx].values() if m.get("observed", False))
+        print(f"  Seed {seed_idx}: {n_obs} observed, avg_surv={sum(survs)/len(survs):.2f}")
 
-        sett_analysis = {}
-        for s in settlements:
-            sx, sy = s["x"], s["y"]
-            alive_count = 0
-            port_count = 0
-            pops = []
-            owners = []
-
-            for snap in snapshots:
-                found = None
-                for ss in snap:
-                    if ss["x"] == sx and ss["y"] == sy:
-                        found = ss
-                        break
-
-                if found and found.get("alive", True):
-                    alive_count += 1
-                    if found.get("has_port"):
-                        port_count += 1
-                    pops.append(found.get("population", 0))
-                    owners.append(found.get("owner_id", -1))
-
-            survival_rate = alive_count / n_snaps if n_snaps > 0 else 0.5
-            port_rate = port_count / alive_count if alive_count > 0 else 0
-
-            sett_analysis[(sx, sy)] = {
-                "survival": survival_rate,
-                "port_rate": port_rate,
-                "alive_count": alive_count,
-                "n_snaps": n_snaps,
-                "has_port_initial": s.get("has_port", False),
-            }
-
-        all_sett_analysis.append(sett_analysis)
-
-        alive_rates = [a["survival"] for a in sett_analysis.values()]
-        if alive_rates:
-            print(f"  Seed {seed_idx}: {len(settlements)} settlements, "
-                  f"avg survival={sum(alive_rates)/len(alive_rates):.2f}")
-
-    # 7. Build predictions using Jeffreys posterior + spatial borrowing
-    print(f"\n[7] Building predictions...")
+    # 8. Build predictions
+    print(f"\n[8] Building predictions...")
     all_preds = []
-
     for seed_idx in range(n_seeds):
-        grid = states[seed_idx]["grid"]
-        settlements = states[seed_idx]["settlements"]
-        dg = dist_grid(settlements)
-        grid_obs = all_grid_obs[seed_idx]
-        sett_analysis = all_sett_analysis[seed_idx]
-
-        preds = [[[0.0]*NC for _ in range(W)] for _ in range(H)]
-        n_jeffreys = 0
-        n_spatial = 0
-        n_sett_pred = 0
-        n_prior = 0
-
-        for y in range(H):
-            for x in range(W):
-                terrain = grid[y][x]
-                tc = tcat(terrain)
-
-                # Mountain: always static
-                if tc == "m":
-                    preds[y][x] = fnorm([0, 0, 0, 0, 0, 1])
-                    continue
-
-                d = dg[y][x]
-                dk = min(d, 10) if d <= 10 else 99
-                coastal = is_coastal(x, y, grid)
-
-                obs = grid_obs.get((x, y), [])
-                n_obs = len(obs)
-
-                # Settlement cell: use settlement stats + observations
-                if (x, y) in sett_analysis:
-                    sa = sett_analysis[(x, y)]
-                    surv = sa["survival"]
-                    pr = sa["port_rate"]
-
-                    # Settlement-based prior
-                    p_empty = (1 - surv) * 0.60
-                    p_sett = surv * (1 - pr)
-                    p_port = surv * pr
-                    p_ruin = (1 - surv) * 0.10
-                    p_forest = (1 - surv) * 0.30
-                    p_mount = 0.0
-                    sett_prior = [p_empty, p_sett, p_port, p_ruin, p_forest, p_mount]
-
-                    if n_obs >= 3:
-                        # Enough observations: use Jeffreys posterior
-                        obs_counts = [0]*NC
-                        for o in obs: obs_counts[o] += 1
-                        pred = jeffreys_posterior(obs_counts, n_obs)
-                    elif n_obs >= 1:
-                        # Few observations: light Bayesian with settlement prior
-                        obs_counts = [0]*NC
-                        for o in obs: obs_counts[o] += 1
-                        pw = 1.5
-                        pred = [(obs_counts[c] + pw*sett_prior[c]) / (n_obs + pw) for c in range(NC)]
-                    else:
-                        pred = sett_prior
-
-                    preds[y][x] = fnorm(pred)
-                    n_sett_pred += 1
-                    continue
-
-                # Non-settlement cells with observations
-                if n_obs >= 3:
-                    # Enough observations: use pure Jeffreys posterior
-                    obs_counts = [0]*NC
-                    for o in obs: obs_counts[o] += 1
-                    preds[y][x] = fnorm(jeffreys_posterior(obs_counts, n_obs))
-                    n_jeffreys += 1
-                elif n_obs >= 1:
-                    # Few observations: light Bayesian blend with calibrated prior
-                    obs_counts = [0]*NC
-                    for o in obs: obs_counts[o] += 1
-                    prior = get_cal_prior(tc, d, coastal)
-
-                    # Adjust prior based on nearest settlement health
-                    if d <= 4:
-                        best_sa = None
-                        best_d = 999
-                        for (sx, sy), sa in sett_analysis.items():
-                            dd = abs(x-sx) + abs(y-sy)
-                            if dd < best_d:
-                                best_d = dd
-                                best_sa = sa
-                        if best_sa:
-                            surv = best_sa["survival"]
-                            surv_ratio = max(0.3, min(2.0, surv / 0.55))
-                            adjusted = prior[:]
-                            adjusted[1] *= surv_ratio
-                            adjusted[2] *= surv_ratio
-                            excess = (adjusted[1] - prior[1]) + (adjusted[2] - prior[2])
-                            adjusted[0] = max(FLOOR, adjusted[0] - excess)
-                            prior = fnorm(adjusted)
-
-                    # Light prior weight — let data dominate more
-                    pw = 1.5
-                    pred = [(obs_counts[c] + pw*prior[c]) / (n_obs + pw) for c in range(NC)]
-                    preds[y][x] = fnorm(pred)
-                    n_jeffreys += 1
-                else:
-                    # No direct observations — try spatial borrowing
-                    borrowed = spatial_borrow(x, y, grid_obs, grid, dg)
-                    if borrowed is not None:
-                        pseudo_counts, total_w = borrowed
-                        # Use borrowed observations with Jeffreys-like posterior
-                        # But scale down: borrowed data is weaker than direct
-                        effective_n = min(total_w, 3.0)  # Cap effective observations
-                        prior = get_cal_prior(tc, d, coastal)
-
-                        # Adjust prior for settlement health
-                        if d <= 4:
-                            best_sa = None
-                            best_d = 999
-                            for (sx, sy), sa in sett_analysis.items():
-                                dd = abs(x-sx) + abs(y-sy)
-                                if dd < best_d:
-                                    best_d = dd
-                                    best_sa = sa
-                            if best_sa:
-                                surv = best_sa["survival"]
-                                surv_ratio = max(0.3, min(2.0, surv / 0.55))
-                                adjusted = prior[:]
-                                adjusted[1] *= surv_ratio
-                                adjusted[2] *= surv_ratio
-                                excess = (adjusted[1] - prior[1]) + (adjusted[2] - prior[2])
-                                adjusted[0] = max(FLOOR, adjusted[0] - excess)
-                                prior = fnorm(adjusted)
-
-                        # Blend borrowed observations with prior
-                        pw = 2.0
-                        norm_pseudo = [pseudo_counts[c] / total_w for c in range(NC)] if total_w > 0 else [1.0/NC]*NC
-                        pred = [(effective_n * norm_pseudo[c] + pw * prior[c]) / (effective_n + pw) for c in range(NC)]
-                        preds[y][x] = fnorm(pred)
-                        n_spatial += 1
-                    else:
-                        # Pure prior
-                        prior = get_cal_prior(tc, d, coastal)
-
-                        # Adjust for settlement health
-                        if d <= 4:
-                            best_sa = None
-                            best_d = 999
-                            for (sx, sy), sa in sett_analysis.items():
-                                dd = abs(x-sx) + abs(y-sy)
-                                if dd < best_d:
-                                    best_d = dd
-                                    best_sa = sa
-                            if best_sa:
-                                surv = best_sa["survival"]
-                                surv_ratio = max(0.3, min(2.0, surv / 0.55))
-                                adjusted = prior[:]
-                                adjusted[1] *= surv_ratio
-                                adjusted[2] *= surv_ratio
-                                excess = (adjusted[1] - prior[1]) + (adjusted[2] - prior[2])
-                                adjusted[0] = max(FLOOR, adjusted[0] - excess)
-                                prior = fnorm(adjusted)
-
-                        preds[y][x] = prior[:]
-                        n_prior += 1
-
+        preds, stats = build_predictions(
+            states[seed_idx],
+            sett_models[seed_idx],
+            all_grid_obs[seed_idx]
+        )
         all_preds.append(preds)
-        print(f"  Seed {seed_idx}: {n_sett_pred} settlement, {n_jeffreys} Jeffreys, "
-              f"{n_spatial} spatial, {n_prior} prior-only")
+        print(f"  Seed {seed_idx}: {stats}")
 
-    # 8. Submit
-    print(f"\n[8] Submitting...")
+    # 9. Submit
+    print(f"\n[9] Submitting...")
     submit(round_id, all_preds)
 
-    # 9. Check results
-    print(f"\n[9] Final check...")
-    try:
-        my_rounds = api_get("/my-rounds")
-        for r in my_rounds:
-            if r.get("id") == round_id:
-                info = {k: v for k, v in r.items()
-                        if k in ("round_number", "round_score", "seed_scores",
-                                 "rank", "total_teams", "seeds_submitted",
-                                 "queries_used")}
-                print(f"  {json.dumps(info, indent=2)}")
-                break
-    except Exception as e:
-        print(f"  {e}")
+    # 10. Check results
+    check_results(round_id)
 
     print("\nDone!")
-
-
-def build_prior_only_predictions(states):
-    """Predictions using only calibrated priors (no queries)."""
-    all_preds = []
-    for state in states:
-        grid = state["grid"]
-        settlements = state["settlements"]
-        dg = dist_grid(settlements)
-        preds = [[[0.0]*NC for _ in range(W)] for _ in range(H)]
-        for y in range(H):
-            for x in range(W):
-                tc = tcat(grid[y][x])
-                if tc == "m":
-                    preds[y][x] = fnorm([0, 0, 0, 0, 0, 1])
-                else:
-                    d = dg[y][x]
-                    coastal = is_coastal(x, y, grid)
-                    preds[y][x] = get_cal_prior(tc, d, coastal)
-        all_preds.append(preds)
-    return all_preds
 
 
 def submit(round_id, all_preds):
@@ -639,6 +710,22 @@ def submit(round_id, all_preds):
                 print(f"    {e.response.text[:300]}")
             except Exception:
                 pass
+
+
+def check_results(round_id):
+    print(f"\n[*] Final check...")
+    try:
+        my_rounds = api_get("/my-rounds")
+        for r in my_rounds:
+            if r.get("id") == round_id:
+                info = {k: v for k, v in r.items()
+                        if k in ("round_number", "round_score", "seed_scores",
+                                 "rank", "total_teams", "seeds_submitted",
+                                 "queries_used")}
+                print(f"  {json.dumps(info, indent=2)}")
+                break
+    except Exception as e:
+        print(f"  {e}")
 
 
 if __name__ == "__main__":

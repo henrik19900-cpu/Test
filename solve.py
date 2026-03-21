@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Astar Island solver for NM i AI 2026 — optimized with calibrated priors."""
+"""Astar Island solver v5 — auto-detect viewport, pooled + per-cell predictions."""
 
 import json
 import math
@@ -15,40 +15,22 @@ HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 GRID_TO_CLASS = {11: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 10: 0}
 NUM_CLASSES = 6
 H, W = 40, 40
-VP_SIZE = 15
+PROB_FLOOR = 0.004
 
-# ── Calibrated priors from ground truth analysis of 9 completed rounds ──
-# Key: (terrain_category, distance_bucket, is_coastal)
-# Values: [empty, settlement, port, ruin, forest, mountain]
-CALIBRATED_PRIORS = {
-    # Empty/plains cells
-    ("empty", "d0", False):   [0.4778, 0.2697, 0.0000, 0.0245, 0.2280, 0.0000],
-    ("empty", "d0", True):    [0.5110, 0.0770, 0.1440, 0.0172, 0.2507, 0.0000],
-    ("empty", "d1-2", False): [0.7550, 0.1757, 0.0000, 0.0160, 0.0533, 0.0000],
-    ("empty", "d1-2", True):  [0.7661, 0.0744, 0.1032, 0.0140, 0.0422, 0.0000],
-    ("empty", "d3-4", False): [0.8744, 0.0843, 0.0000, 0.0089, 0.0325, 0.0000],
-    ("empty", "d3-4", True):  [0.8906, 0.0428, 0.0328, 0.0071, 0.0267, 0.0000],
-    ("empty", "d5-6", False): [0.9277, 0.0469, 0.0000, 0.0053, 0.0200, 0.0000],
-    ("empty", "d5-6", True):  [0.9385, 0.0197, 0.0193, 0.0045, 0.0180, 0.0000],
-    ("empty", "d7+", False):  [0.9625, 0.0262, 0.0000, 0.0034, 0.0079, 0.0000],
-    ("empty", "d7+", True):   [0.9719, 0.0109, 0.0085, 0.0021, 0.0066, 0.0000],
-    # Forest cells
-    ("forest", "d1-2", False): [0.1199, 0.1896, 0.0000, 0.0167, 0.6737, 0.0000],
-    ("forest", "d1-2", True):  [0.1040, 0.0921, 0.1247, 0.0167, 0.6625, 0.0000],
-    ("forest", "d3-4", False): [0.0668, 0.0901, 0.0000, 0.0092, 0.8339, 0.0000],
-    ("forest", "d3-4", True):  [0.0573, 0.0457, 0.0324, 0.0073, 0.8574, 0.0000],
-    ("forest", "d5-6", False): [0.0436, 0.0499, 0.0000, 0.0060, 0.9005, 0.0000],
-    ("forest", "d5-6", True):  [0.0477, 0.0243, 0.0223, 0.0057, 0.8999, 0.0000],
-    ("forest", "d7+", False):  [0.0174, 0.0285, 0.0000, 0.0033, 0.9508, 0.0000],
-    ("forest", "d7+", True):   [0.0149, 0.0109, 0.0079, 0.0021, 0.9642, 0.0000],
-    # Settlement cells (d=0 by definition)
-    ("settlement", "d0", False): [0.4778, 0.2697, 0.0000, 0.0245, 0.2280, 0.0000],
-    ("settlement", "d0", True):  [0.5110, 0.0770, 0.1440, 0.0172, 0.2507, 0.0000],
-    # Port cells (d=0, always coastal)
-    ("port", "d0", True):        [0.5253, 0.0771, 0.1203, 0.0175, 0.2599, 0.0000],
+# Fallback priors (average across 10 completed rounds)
+FALLBACK_PRIORS = {
+    ("settlement", "d0"):  [0.49, 0.25, 0.01, 0.02, 0.22, 0.01],
+    ("port", "d0"):        [0.53, 0.08, 0.12, 0.02, 0.24, 0.01],
+    ("empty", "d0"):       [0.49, 0.20, 0.03, 0.02, 0.25, 0.01],
+    ("empty", "d1-2"):     [0.76, 0.14, 0.02, 0.01, 0.05, 0.01],
+    ("empty", "d3-4"):     [0.88, 0.06, 0.01, 0.01, 0.03, 0.01],
+    ("empty", "d5-6"):     [0.93, 0.03, 0.01, 0.005, 0.02, 0.005],
+    ("empty", "d7+"):      [0.97, 0.01, 0.005, 0.003, 0.007, 0.005],
+    ("forest", "d1-2"):    [0.11, 0.14, 0.03, 0.02, 0.68, 0.02],
+    ("forest", "d3-4"):    [0.06, 0.07, 0.01, 0.01, 0.84, 0.01],
+    ("forest", "d5-6"):    [0.05, 0.04, 0.01, 0.005, 0.90, 0.005],
+    ("forest", "d7+"):     [0.02, 0.02, 0.005, 0.003, 0.95, 0.005],
 }
-# Floor value to avoid KL catastrophe
-PROB_FLOOR = 0.005
 
 
 def api_get(path):
@@ -63,8 +45,16 @@ def api_post(path, data):
     return r.json()
 
 
+def floor_normalize(probs):
+    floored = [max(p, PROB_FLOOR) for p in probs]
+    total = sum(floored)
+    result = [p / total for p in floored]
+    result = [max(p, PROB_FLOOR) for p in result]
+    total = sum(result)
+    return [p / total for p in result]
+
+
 def precompute_distances(settlements):
-    """Precompute min manhattan distance to any settlement for entire grid."""
     dist = [[999] * W for _ in range(H)]
     for s in settlements:
         sx, sy = s["x"], s["y"]
@@ -77,7 +67,6 @@ def precompute_distances(settlements):
 
 
 def precompute_coastal(grid):
-    """Precompute coastal status for entire grid."""
     coastal = [[False] * W for _ in range(H)]
     for y in range(H):
         for x in range(W):
@@ -109,153 +98,124 @@ def terrain_category(terrain_code):
         return "port"
     elif terrain_code == 4:
         return "forest"
-    else:  # 11 = empty/plains
+    else:
         return "empty"
 
 
-def get_calibrated_prior(terrain, d, coastal):
-    """Get calibrated prior from ground truth analysis."""
+def cell_key(terrain, d):
     tc = terrain_category(terrain)
     db = dist_bucket(d)
-
-    # Settlement/port are always d0
-    if tc == "settlement":
-        key = ("settlement", "d0", coastal)
-    elif tc == "port":
-        key = ("port", "d0", True)
-    elif tc == "forest":
-        # Forest at d=0 doesn't exist in calibration data (it's a settlement cell)
-        # Use d1-2 as fallback
-        if db == "d0":
-            db = "d1-2"
-        key = (tc, db, coastal)
-    else:
-        key = ("empty", db, coastal)
-
-    prior = CALIBRATED_PRIORS.get(key)
-    if prior is None:
-        # Fallback: try without coastal distinction
-        key_fallback = (key[0], key[1], False)
-        prior = CALIBRATED_PRIORS.get(key_fallback)
-    if prior is None:
-        # Ultimate fallback
-        prior = [0.85, 0.05, 0.01, 0.01, 0.07, 0.01]
-
-    # Apply floor and normalize (floor after normalization to ensure min)
-    floored = [max(p, PROB_FLOOR) for p in prior]
-    total = sum(floored)
-    result = [p / total for p in floored]
-    # Re-floor after normalization
-    result = [max(p, PROB_FLOOR) for p in result]
-    total = sum(result)
-    return [p / total for p in result]
+    if tc == "forest" and db == "d0":
+        db = "d1-2"
+    return (tc, db)
 
 
-def compute_dynamic_value(grid, dist_grid, coastal_grid):
-    """Compute expected entropy/dynamism per cell for viewport planning."""
+# ── Viewport strategy ──────────────────────────────────────────────────
+
+def detect_max_viewport(round_id, seed_idx):
+    """Try progressively smaller viewports to find the maximum allowed size."""
+    for size in [40, 30, 20, 15]:
+        try:
+            result = api_post("/simulate", {
+                "round_id": round_id,
+                "seed_index": seed_idx,
+                "viewport_x": 0,
+                "viewport_y": 0,
+                "viewport_width": size,
+                "viewport_height": size,
+            })
+            grid_data = result.get("grid", [])
+            actual_h = len(grid_data)
+            actual_w = len(grid_data[0]) if grid_data else 0
+            print(f"  Viewport {size}x{size} → got {actual_w}x{actual_h}")
+            return size, result
+        except requests.exceptions.HTTPError as e:
+            error_text = ""
+            try:
+                error_text = e.response.text
+            except:
+                pass
+            if "viewport" in error_text.lower() or "size" in error_text.lower():
+                print(f"  Viewport {size}x{size} rejected: {error_text[:100]}")
+                continue
+            else:
+                # Other error (budget, auth, etc.) — re-raise
+                raise
+    return 15, None  # Fallback
+
+
+def compute_dynamic_value(grid, dist_grid):
     value = [[0.0] * W for _ in range(H)]
     for y in range(H):
         for x in range(W):
             terrain = grid[y][x]
-            if terrain in (10, 5):  # Ocean/Mountain: static, no value
+            if terrain in (10, 5):
                 continue
             d = dist_grid[y][x]
-            # Value based on expected entropy (from calibrated priors)
             if d == 0:
-                value[y][x] = 5.0  # Settlement cells: very dynamic
+                value[y][x] = 5.0
             elif d <= 2:
                 value[y][x] = 3.0
             elif d <= 4:
-                value[y][x] = 1.5
+                value[y][x] = 1.0
             elif d <= 6:
-                value[y][x] = 0.5
-            # else: 0 (very far, almost static)
-
-            # Coastal bonus: ports are interesting
-            if coastal_grid[y][x] and d <= 3:
-                value[y][x] *= 1.5
+                value[y][x] = 0.3
     return value
 
 
-def plan_two_phase_viewports(seed_state, n_queries):
-    """Two-phase viewport strategy: broad coverage first, then repeats for variance."""
-    grid = seed_state["grid"]
-    dist_grid = precompute_distances(seed_state["settlements"])
-    coastal_grid = precompute_coastal(grid)
-    value = compute_dynamic_value(grid, dist_grid, coastal_grid)
-
-    # Phase 1: Find unique viewport positions (60% of budget)
-    n_unique = max(2, int(n_queries * 0.55))
-    n_repeat = n_queries - n_unique
-
-    unique_viewports = []
+def find_viewports(value, n_viewports, vp_size):
+    """Greedy viewport placement for maximum coverage."""
+    viewports = []
     coverage = [[0] * W for _ in range(H)]
+    step = max(1, vp_size // 5)
 
-    for _ in range(n_unique):
+    for _ in range(n_viewports):
         best_score = -1
         best_pos = None
-        # Step by 1 for finer resolution
-        for vy in range(0, H - VP_SIZE + 1):
-            for vx in range(0, W - VP_SIZE + 1):
+        for vy in range(0, H - vp_size + 1, step):
+            for vx in range(0, W - vp_size + 1, step):
                 score = 0.0
-                for dy in range(VP_SIZE):
-                    for dx in range(VP_SIZE):
+                for dy in range(vp_size):
+                    for dx in range(vp_size):
                         v = value[vy + dy][vx + dx]
                         c = coverage[vy + dy][vx + dx]
-                        score += v / (1 + c * 2)  # Stronger penalty for overlap
+                        score += v / (1 + c * 5)
                 if score > best_score:
                     best_score = score
                     best_pos = (vx, vy)
         if best_pos is None or best_score <= 0:
             break
-        unique_viewports.append(best_pos)
+        viewports.append(best_pos)
         vx, vy = best_pos
-        for dy in range(VP_SIZE):
-            for dx in range(VP_SIZE):
+        for dy in range(vp_size):
+            for dx in range(vp_size):
                 coverage[vy + dy][vx + dx] += 1
-
-    # Phase 2: Repeat the most valuable viewports
-    # Score each unique viewport by how many dynamic cells it covers
-    vp_scores = []
-    for vx, vy in unique_viewports:
-        score = sum(
-            value[vy + dy][vx + dx]
-            for dy in range(VP_SIZE)
-            for dx in range(VP_SIZE)
-        )
-        vp_scores.append(score)
-
-    # Distribute repeats proportionally to value
-    repeat_viewports = []
-    if vp_scores and n_repeat > 0:
-        total_score = sum(vp_scores)
-        if total_score > 0:
-            for i, score in enumerate(vp_scores):
-                n_reps = round(n_repeat * score / total_score)
-                repeat_viewports.extend([unique_viewports[i]] * n_reps)
-        # Trim or pad
-        while len(repeat_viewports) > n_repeat:
-            repeat_viewports.pop()
-        while len(repeat_viewports) < n_repeat:
-            # Add the highest-value viewport
-            best_idx = vp_scores.index(max(vp_scores))
-            repeat_viewports.append(unique_viewports[best_idx])
-
-    all_viewports = unique_viewports + repeat_viewports
-    return all_viewports
+    return viewports
 
 
-def allocate_queries(initial_states, total_budget=50):
-    """Allocate queries proportionally to settlement count, min 7 per seed."""
+def allocate_queries(initial_states, total_budget, vp_size):
+    """Allocate queries. With full-grid viewport, split evenly."""
+    n_seeds = len(initial_states)
+    if vp_size >= 40:
+        # Full grid: split evenly across seeds
+        base = total_budget // n_seeds
+        allocations = [base] * n_seeds
+        for i in range(total_budget - sum(allocations)):
+            allocations[i] += 1
+        return allocations
+
+    # Proportional to dynamic cell count
     complexities = []
     for s in initial_states:
-        n = len(s["settlements"])
-        # Also consider settlement density (more clustered = more interesting)
-        complexities.append(n)
+        dist_grid = precompute_distances(s["settlements"])
+        n_dynamic = sum(
+            1 for y in range(H) for x in range(W)
+            if s["grid"][y][x] not in (10, 5) and dist_grid[y][x] <= 6
+        )
+        complexities.append(n_dynamic)
 
     total_c = sum(complexities)
     allocations = [max(7, round(total_budget * c / total_c)) for c in complexities]
-
     while sum(allocations) > total_budget:
         idx = allocations.index(max(allocations))
         allocations[idx] -= 1
@@ -265,127 +225,118 @@ def allocate_queries(initial_states, total_budget=50):
     return allocations
 
 
-def run_simulations(round_id, initial_states, allocations):
-    """Run simulation queries with two-phase viewport strategy."""
+def collect_observations(result, observations):
+    """Parse simulation grid into observations dict."""
+    grid_data = result.get("grid", [])
+    vx = result.get("viewport_x", 0)
+    vy = result.get("viewport_y", 0)
+    for dy, row in enumerate(grid_data):
+        for dx, cell_code in enumerate(row):
+            cx, cy = vx + dx, vy + dy
+            if 0 <= cx < W and 0 <= cy < H:
+                cls = GRID_TO_CLASS.get(cell_code, 0)
+                observations[(cx, cy)].append(cls)
+
+
+def run_simulations(round_id, initial_states, allocations, vp_size, first_result=None, first_seed=0):
+    """Run simulation queries. Use full-grid viewport if possible."""
     all_observations = []
-    all_settlement_stats = []
 
     for seed_idx, (state, n_queries) in enumerate(zip(initial_states, allocations)):
         observations = defaultdict(list)
-        settlement_stats = []
 
-        viewports = plan_two_phase_viewports(state, n_queries)
-        unique_count = len(set(viewports))
-        print(f"  Seed {seed_idx}: {n_queries} queries, {unique_count} unique viewports")
+        # Count the first detection query if it was for this seed
+        start_qi = 0
+        if first_result is not None and seed_idx == first_seed:
+            collect_observations(first_result, observations)
+            start_qi = 1
+            n_queries -= 1
 
-        for qi, (vx, vy) in enumerate(viewports):
-            print(f"    Q{qi + 1}/{n_queries} ({vx},{vy})", end=" ")
-            try:
-                result = api_post("/simulate", {
-                    "round_id": round_id,
-                    "seed_index": seed_idx,
-                    "viewport_x": vx,
-                    "viewport_y": vy,
-                    "viewport_width": VP_SIZE,
-                    "viewport_height": VP_SIZE,
-                })
-            except Exception as e:
-                print(f"ERR: {e}")
-                continue
+        if vp_size >= 40:
+            # Full-grid mode: just repeat (0,0) viewport
+            for qi in range(n_queries):
+                try:
+                    result = api_post("/simulate", {
+                        "round_id": round_id,
+                        "seed_index": seed_idx,
+                        "viewport_x": 0,
+                        "viewport_y": 0,
+                        "viewport_width": vp_size,
+                        "viewport_height": vp_size,
+                    })
+                    collect_observations(result, observations)
+                    if (qi + 1) % 10 == 0 or qi == n_queries - 1:
+                        print(f"    Seed {seed_idx}: {start_qi + qi + 1}/{allocations[seed_idx]} done")
+                except Exception as e:
+                    print(f"    Q{qi+1} ERR: {e}")
+        else:
+            # Viewport mode: maximize coverage
+            dist_grid = precompute_distances(state["settlements"])
+            value = compute_dynamic_value(state["grid"], dist_grid)
+            viewports = find_viewports(value, n_queries, vp_size)
 
-            grid_data = result.get("grid", [])
-            actual_vx = result.get("viewport_x", vx)
-            actual_vy = result.get("viewport_y", vy)
-
-            for dy, row in enumerate(grid_data):
-                for dx, cell_code in enumerate(row):
-                    cx, cy = actual_vx + dx, actual_vy + dy
-                    if 0 <= cx < W and 0 <= cy < H:
-                        cls = GRID_TO_CLASS.get(cell_code, 0)
-                        observations[(cx, cy)].append(cls)
-
-            # Collect settlement stats if available
-            if "settlements" in result:
-                for s in result["settlements"]:
-                    settlement_stats.append(s)
-
-            print(f"ok", end="")
-            if (qi + 1) % 5 == 0 or qi == n_queries - 1:
-                print()
-            else:
-                print(" | ", end="")
+            print(f"  Seed {seed_idx}: {n_queries} queries, {len(set(viewports))} unique")
+            for qi, (vx, vy) in enumerate(viewports):
+                try:
+                    result = api_post("/simulate", {
+                        "round_id": round_id,
+                        "seed_index": seed_idx,
+                        "viewport_x": vx,
+                        "viewport_y": vy,
+                        "viewport_width": vp_size,
+                        "viewport_height": vp_size,
+                    })
+                    collect_observations(result, observations)
+                    if (qi + 1) % 10 == 0 or qi == n_queries - 1:
+                        print(f"    Seed {seed_idx}: {start_qi + qi + 1}/{allocations[seed_idx]} done")
+                except Exception as e:
+                    print(f"    Q{qi+1} ERR: {e}")
 
         all_observations.append(observations)
-        all_settlement_stats.append(settlement_stats)
-
-    return all_observations, all_settlement_stats
+    return all_observations
 
 
-def spatial_smooth(predictions, observations, grid, dist_grid, radius=2):
-    """Apply spatial smoothing: borrow information from nearby observed cells."""
-    smoothed = [[[0.0] * NUM_CLASSES for _ in range(W)] for _ in range(H)]
+def learn_round_priors(initial_states, all_observations):
+    """Pool observations by (terrain, dist_bucket) → round-specific priors."""
+    group_counts = defaultdict(lambda: [0] * NUM_CLASSES)
+    group_totals = defaultdict(int)
 
-    for y in range(H):
-        for x in range(W):
+    for state, observations in zip(initial_states, all_observations):
+        grid = state["grid"]
+        dist_grid = precompute_distances(state["settlements"])
+
+        for (x, y), obs_list in observations.items():
             terrain = grid[y][x]
-            if terrain in (10, 5):  # Static cells, no smoothing
-                smoothed[y][x] = predictions[y][x][:]
+            if terrain in (10, 5):
                 continue
+            d = dist_grid[y][x]
+            key = cell_key(terrain, d)
+            for obs in obs_list:
+                group_counts[key][obs] += 1
+                group_totals[key] += 1
 
-            obs = observations.get((x, y), [])
-            if len(obs) >= 2:
-                # Enough direct observations, no need to smooth
-                smoothed[y][x] = predictions[y][x][:]
-                continue
+    round_priors = {}
+    for key in group_counts:
+        total = group_totals[key]
+        if total >= 5:
+            probs = [group_counts[key][c] / total for c in range(NUM_CLASSES)]
+            round_priors[key] = floor_normalize(probs)
 
-            # Collect weighted neighbor observations
-            neighbor_weight = 0.0
-            neighbor_probs = [0.0] * NUM_CLASSES
+    print("  Learned priors:")
+    print(f"  {'Key':<25} {'N':>6}  Empty  Settl  Port   Ruin   Forest Mount")
+    for key in sorted(round_priors.keys()):
+        n = group_totals[key]
+        p = round_priors[key]
+        print(f"  {str(key):<25} {n:>6}  {p[0]:.3f}  {p[1]:.3f}  {p[2]:.3f}  {p[3]:.3f}  {p[4]:.3f}  {p[5]:.3f}")
 
-            for ny in range(max(0, y - radius), min(H, y + radius + 1)):
-                for nx in range(max(0, x - radius), min(W, x + radius + 1)):
-                    if nx == x and ny == y:
-                        continue
-                    if grid[ny][nx] in (10, 5):
-                        continue
-                    n_obs = observations.get((nx, ny), [])
-                    if not n_obs:
-                        continue
-                    # Weight by inverse distance and similar terrain
-                    d = abs(nx - x) + abs(ny - y)
-                    same_terrain = 1.0 if grid[ny][nx] == terrain else 0.5
-                    same_dist = 1.0 if abs(dist_grid[ny][nx] - dist_grid[y][x]) <= 1 else 0.5
-                    w = same_terrain * same_dist / d
-
-                    # Count-based distribution from neighbor
-                    counts = [0] * NUM_CLASSES
-                    for o in n_obs:
-                        counts[o] += 1
-                    n_total = len(n_obs)
-                    for c in range(NUM_CLASSES):
-                        neighbor_probs[c] += w * counts[c] / n_total
-                    neighbor_weight += w
-
-            if neighbor_weight > 0:
-                # Blend: own prediction (weight=1) + neighbor info
-                own_weight = 1.0 if len(obs) == 0 else 2.0
-                total_weight = own_weight + neighbor_weight * 0.3  # Reduce neighbor influence
-                blended = [
-                    (own_weight * predictions[y][x][c] + 0.3 * neighbor_probs[c]) / total_weight
-                    for c in range(NUM_CLASSES)
-                ]
-                # Floor and normalize
-                blended = [max(p, PROB_FLOOR) for p in blended]
-                total = sum(blended)
-                smoothed[y][x] = [p / total for p in blended]
-            else:
-                smoothed[y][x] = predictions[y][x][:]
-
-    return smoothed
+    return round_priors
 
 
-def build_predictions(initial_states, all_observations, all_settlement_stats):
-    """Build predictions using calibrated priors + observations + spatial smoothing."""
+def build_predictions(initial_states, all_observations, round_priors, full_grid_mode):
+    """Build predictions.
+    - full_grid_mode: per-cell Bayesian with pooled prior (many obs per cell)
+    - viewport mode: pooled priors for most cells, per-cell only if 8+ obs
+    """
     all_predictions = []
 
     for seed_idx, (state, observations) in enumerate(zip(initial_states, all_observations)):
@@ -395,49 +346,55 @@ def build_predictions(initial_states, all_observations, all_settlement_stats):
         coastal_grid = precompute_coastal(grid)
 
         predictions = [[[0.0] * NUM_CLASSES for _ in range(W)] for _ in range(H)]
+        n_percell = 0
+        n_pooled = 0
 
         for y in range(H):
             for x in range(W):
                 terrain = grid[y][x]
-                obs = observations.get((x, y), [])
-                d = dist_grid[y][x]
-                coastal = coastal_grid[y][x]
 
-                if terrain == 10:  # Ocean
-                    pred = [0.98, 0.004, 0.004, 0.004, 0.004, 0.004]
-                elif terrain == 5:  # Mountain
-                    pred = [0.004, 0.004, 0.004, 0.004, 0.004, 0.98]
-                elif len(obs) > 0:
-                    # Bayesian: calibrated prior + observations
-                    prior = get_calibrated_prior(terrain, d, coastal)
-                    # Use Jeffreys-style prior weight: less weight = trust observations more
-                    # With calibrated priors, we can trust them more (weight=2)
-                    prior_weight = 2.0
+                if terrain == 10:
+                    predictions[y][x] = [0.98, 0.004, 0.004, 0.004, 0.004, 0.004]
+                    continue
+                elif terrain == 5:
+                    predictions[y][x] = [0.004, 0.004, 0.004, 0.004, 0.004, 0.98]
+                    continue
+
+                d = dist_grid[y][x]
+                key = cell_key(terrain, d)
+                obs = observations.get((x, y), [])
+
+                # Get group prior
+                prior = round_priors.get(key)
+                if prior is None:
+                    prior = FALLBACK_PRIORS.get(key, [0.80, 0.05, 0.01, 0.01, 0.10, 0.03])
+                    prior = floor_normalize(prior)
+
+                min_obs = 3 if full_grid_mode else 8
+
+                if len(obs) >= min_obs:
+                    # Per-cell Bayesian with pooled round prior
                     counts = [0] * NUM_CLASSES
                     for o in obs:
                         counts[o] += 1
                     N = len(obs)
-                    pred = [
-                        (counts[c] + prior_weight * prior[c]) / (N + prior_weight)
-                        for c in range(NUM_CLASSES)
-                    ]
+                    # Prior weight: use more prior for few observations, less for many
+                    # With full grid: N~10, prior_weight=1 → 91% observation, 9% prior
+                    # With full grid: N~50, prior_weight=1 → 98% observation, 2% prior
+                    pw = 1.0
+                    pred = [(counts[c] + pw * prior[c]) / (N + pw) for c in range(NUM_CLASSES)]
+                    predictions[y][x] = floor_normalize(pred)
+                    n_percell += 1
                 else:
-                    # No observations: use calibrated prior directly
-                    pred = get_calibrated_prior(terrain, d, coastal)
-
-                # Floor and normalize
-                pred = [max(p, PROB_FLOOR) for p in pred]
-                total = sum(pred)
-                pred = [p / total for p in pred]
-                predictions[y][x] = pred
-
-        # Apply spatial smoothing for cells with few observations
-        predictions = spatial_smooth(predictions, observations, grid, dist_grid)
+                    # Use pooled round prior
+                    predictions[y][x] = prior[:]
+                    n_pooled += 1
 
         all_predictions.append(predictions)
         n_obs = sum(1 for v in observations.values() if v)
-        n_multi = sum(1 for v in observations.values() if len(v) >= 2)
-        print(f"  Seed {seed_idx}: {n_obs} observed cells ({n_multi} with 2+ obs)")
+        max_obs = max((len(v) for v in observations.values()), default=0)
+        print(f"  Seed {seed_idx}: {n_obs} cells obs (max {max_obs}/cell), "
+              f"{n_percell} per-cell, {n_pooled} pooled")
 
     return all_predictions
 
@@ -464,7 +421,7 @@ def submit_predictions(round_id, all_predictions):
 
 
 def main():
-    print("=== Astar Island Solver v2 (Calibrated) ===\n")
+    print("=== Astar Island Solver v5 (Auto-detect + Adaptive) ===\n")
 
     # 1. Get active round
     print("[1] Fetching rounds...")
@@ -475,7 +432,7 @@ def main():
         sys.exit(1)
     round_info = active[0]
     round_id = round_info["id"]
-    print(f"  Active: round #{round_info['round_number']} (closes {round_info['closes_at']})")
+    print(f"  Round #{round_info['round_number']} (closes {round_info['closes_at']})")
 
     # 2. Check budget
     print("\n[2] Checking budget...")
@@ -492,33 +449,47 @@ def main():
         n_ports = sum(1 for st in s["settlements"] if st["has_port"])
         print(f"  Seed {i}: {n_set} settlements ({n_ports} ports)")
 
-    # 4-5. Run simulations
-    all_settlement_stats = [[] for _ in range(5)]
-    if remaining > 0:
-        print(f"\n[4] Allocating {remaining} queries...")
-        allocations = allocate_queries(initial_states, remaining)
+    if remaining <= 0:
+        print("\n  No queries left!")
+        all_observations = [defaultdict(list) for _ in range(len(initial_states))]
+        round_priors = {}
+        full_grid_mode = False
+    else:
+        # 4. Detect maximum viewport size (costs 1 query)
+        print(f"\n[4] Detecting max viewport size (1 query)...")
+        vp_size, first_result = detect_max_viewport(round_id, 0)
+        remaining -= 1
+        full_grid_mode = (vp_size >= 40)
+        print(f"  Using viewport: {vp_size}x{vp_size}" +
+              (" (FULL GRID!)" if full_grid_mode else ""))
+
+        # 5. Allocate and run queries
+        print(f"\n[5] Allocating {remaining} queries...")
+        allocations = allocate_queries(initial_states, remaining, vp_size)
         print(f"  Allocation: {allocations}")
 
-        print("\n[5] Running simulations...")
-        all_observations, all_settlement_stats = run_simulations(
-            round_id, initial_states, allocations
+        print(f"\n[6] Running simulations...")
+        all_observations = run_simulations(
+            round_id, initial_states, allocations, vp_size,
+            first_result=first_result, first_seed=0
         )
-    else:
-        print("\n  No queries left, using calibrated priors only.")
-        all_observations = [defaultdict(list) for _ in range(5)]
 
-    # 6. Build predictions
-    print("\n[6] Building predictions...")
+        # 6. Learn round-specific priors
+        print(f"\n[7] Learning round-specific priors...")
+        round_priors = learn_round_priors(initial_states, all_observations)
+
+    # 7. Build predictions
+    print(f"\n[8] Building predictions...")
     all_predictions = build_predictions(
-        initial_states, all_observations, all_settlement_stats
+        initial_states, all_observations, round_priors, full_grid_mode
     )
 
-    # 7. Submit
-    print("\n[7] Submitting...")
+    # 8. Submit
+    print(f"\n[9] Submitting...")
     results = submit_predictions(round_id, all_predictions)
 
-    # 8. Check results
-    print("\n[8] Final check...")
+    # 9. Check results
+    print(f"\n[10] Final check...")
     try:
         my_rounds = api_get("/my-rounds")
         for r in my_rounds:

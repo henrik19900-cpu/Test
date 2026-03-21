@@ -66,15 +66,29 @@ LINEAR_MODEL = {
 
 
 def api_get(path):
-    r = requests.get(f"{BASE}{path}", headers=HEADERS, timeout=30, verify=False)
-    r.raise_for_status()
-    return r.json()
+    for attempt in range(4):
+        try:
+            r = requests.get(f"{BASE}{path}", headers=HEADERS, timeout=30, verify=False)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            if r.status_code == 429 and attempt < 3:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise
 
 
 def api_post(path, data):
-    r = requests.post(f"{BASE}{path}", headers=HEADERS, json=data, timeout=30, verify=False)
-    r.raise_for_status()
-    return r.json()
+    for attempt in range(4):
+        try:
+            r = requests.post(f"{BASE}{path}", headers=HEADERS, json=data, timeout=30, verify=False)
+            r.raise_for_status()
+            return r.json()
+        except requests.exceptions.HTTPError as e:
+            if r.status_code == 429 and attempt < 3:
+                time.sleep(2 ** (attempt + 1))
+                continue
+            raise
 
 
 def fnorm(probs, floor=FLOOR):
@@ -702,12 +716,11 @@ def bayesian_update(prior, obs_counts, n_obs):
 
 # ── Spatial Borrowing ────────────────────────────────────────────────────
 
-def spatial_borrow(x, y, grid_obs, grids):
+def spatial_borrow(x, y, grid_obs, grids, obs_index=None):
     """Borrow from nearby observed cells with similar terrain context.
 
-    v18: Extended radius to 6 (was 4) — critical for unobserved cells which
-    are the main bottleneck. Relaxed distance-to-settlement filter to 3 (was 2).
-    Higher n_eff cap (2.5 vs 2.0) since spatial info is better than pure model.
+    v18: Uses obs_index for fast neighbor lookup instead of iterating all radii.
+    Extended effective radius to 6 (was 4), relaxed d-filter to 3 (was 2).
     """
     t = grids["grid"][y][x]
     d = grids["dg"][y][x]
@@ -718,50 +731,56 @@ def spatial_borrow(x, y, grid_obs, grids):
     pseudo = [0.0] * NC
     tw = 0.0
 
-    for r in range(1, 7):  # v18: radius 6 (was 4)
-        for ddx in range(-r, r + 1):
-            for ddy in range(-r, r + 1):
-                if abs(ddx) + abs(ddy) != r:
-                    continue
-                nx, ny = x + ddx, y + ddy
-                if not (0 <= nx < W and 0 <= ny < H):
-                    continue
-                if (nx, ny) not in grid_obs:
-                    continue
+    # v18: Use index if available, else fall back to radius scan
+    candidates = []
+    if obs_index is not None:
+        # Fast: scan only observed cells within bounding box
+        for nx in range(max(0, x - 6), min(W, x + 7)):
+            for ny in range(max(0, y - 6), min(H, y + 7)):
+                if (nx, ny) in grid_obs:
+                    manhattan = abs(nx - x) + abs(ny - y)
+                    if 1 <= manhattan <= 6:
+                        candidates.append((nx, ny, manhattan))
+    else:
+        for r in range(1, 7):
+            for ddx in range(-r, r + 1):
+                for ddy in range(-r, r + 1):
+                    if abs(ddx) + abs(ddy) != r:
+                        continue
+                    nx, ny = x + ddx, y + ddy
+                    if 0 <= nx < W and 0 <= ny < H and (nx, ny) in grid_obs:
+                        candidates.append((nx, ny, r))
 
-                nt = grids["grid"][ny][nx]
-                n_tc = "s" if nt in (1, 2) else ("f" if nt == 4 else "e")
-                if n_tc != tc:
-                    continue
+    for nx, ny, dist_val in candidates:
+        nt = grids["grid"][ny][nx]
+        n_tc = "s" if nt in (1, 2) else ("f" if nt == 4 else "e")
+        if n_tc != tc:
+            continue
 
-                nd = grids["dg"][ny][nx]
-                if abs(nd - d) > 3:  # v18: relaxed from 2 to 3
-                    continue
+        nd = grids["dg"][ny][nx]
+        if abs(nd - d) > 3:
+            continue
 
-                dist_val = abs(ddx) + abs(ddy)
-                w = 1.0 / (1 + dist_val) ** 1.5
+        w = 1.0 / (1 + dist_val) ** 1.5
 
-                # Distance-to-settlement similarity bonus
-                if nd == d:
-                    w *= 2.0
-                elif abs(nd - d) == 1:
-                    w *= 1.2
+        if nd == d:
+            w *= 2.0
+        elif abs(nd - d) == 1:
+            w *= 1.2
 
-                # Terrain context similarity: coastal match
-                n_coastal = grids["coastal"][ny][nx]
-                if n_coastal == is_coastal:
-                    w *= 1.3
+        n_coastal = grids["coastal"][ny][nx]
+        if n_coastal == is_coastal:
+            w *= 1.3
 
-                # Adjacent settlement count similarity
-                n_adj_s = grids["adj_sett"][ny][nx]
-                if n_adj_s == adj_s:
-                    w *= 1.2
-                elif abs(n_adj_s - adj_s) <= 1:
-                    w *= 1.05
+        n_adj_s = grids["adj_sett"][ny][nx]
+        if n_adj_s == adj_s:
+            w *= 1.2
+        elif abs(n_adj_s - adj_s) <= 1:
+            w *= 1.05
 
-                for o in grid_obs[(nx, ny)]:
-                    pseudo[o] += w
-                    tw += w
+        for o in grid_obs[(nx, ny)]:
+            pseudo[o] += w
+            tw += w
 
     return pseudo, tw
 
@@ -867,14 +886,13 @@ def build_predictions(grids, grid_obs, S, training_db, xgb_models=None,
 
             if len(obs) >= 1:
                 # v18: Unified Bayesian update for all observed cells
-                # No special deep-obs case — standard alpha schedule works well
                 obs_counts = [0] * NC
                 for o in obs:
                     obs_counts[o] += 1
                 preds[y][x] = bayesian_update(prior, obs_counts, len(obs))
                 stats["obs"] += 1
             elif grids["dg"][y][x] <= 7 and grid_obs:  # v18: extended from 5 to 7
-                pseudo, tw = spatial_borrow(x, y, grid_obs, grids)
+                pseudo, tw = spatial_borrow(x, y, grid_obs, grids, obs_index=True)
                 if tw >= 0.8:  # v18: lower threshold (was 1.0)
                     n_eff = min(tw * 0.35, 2.5)  # v18: higher cap (was 2.0)
                     norm_p = [pseudo[c] / tw for c in range(NC)]
@@ -1043,7 +1061,7 @@ def main():
             grid_obs = all_grid_obs[seed_idx]
             for vi, (vx, vy) in enumerate(vps):
                 n_reps = q_per_vp + (1 if vi < extra else 0)
-                for _ in range(n_reps):
+                for rep in range(n_reps):
                     try:
                         result = api_post("/simulate", {
                             "round_id": round_id,
@@ -1056,6 +1074,7 @@ def main():
                                 cx, cy = vx + dx, vy + dy
                                 if 0 <= cx < W and 0 <= cy < H:
                                     grid_obs[(cx, cy)].append(GRID_TO_CLASS.get(cell, 0))
+                        time.sleep(0.3)  # v18: rate limit protection
                     except Exception as e:
                         print(f"    ERR: {e}")
 

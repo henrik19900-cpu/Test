@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""Astar Island solver v15 — Ensemble (XGBoost + kNN + Linear).
+"""Astar Island solver v16 — Enhanced Ensemble with per-seed S.
 
-Model-only CV scores: XGBoost=79.4, kNN+Linear=81.0, Ensemble≈82+
-With observations (alpha=5-8): +6-16 points → expected 87-95
-
-Key features:
-- 3-model ensemble: XGBoost + kNN(rich) + Linear
-- XGBoost trained on 76K cells with 20 spatial features
-- Optimized Bayesian updating (alpha=5-8 from CV)
-- Two-phase queries: S estimation → deep observation
-- Multi-S fallback submissions
+v16 improvements over v15:
+1. Per-seed S estimation (instead of global)
+2. Better spatial borrowing (terrain context similarity, higher n_eff cap)
+3. Dynamic ensemble weighting per cell (data-driven blend)
+4. Entropy-based viewport placement (query uncertain cells)
+5. Adaptive floor (0.005 base), concentrated multi-S around estimate
 """
 
 import json
@@ -40,7 +37,7 @@ TRAINING_DB_FILE = "training_db.json"
 NC = 6
 H, W = 40, 40
 VP = 15
-FLOOR = 0.01
+FLOOR = 0.005
 GRID_TO_CLASS = {11: 0, 0: 0, 10: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5}
 
 # ── Linear model (fallback) ─────────────────────────────────────────────
@@ -74,8 +71,8 @@ def api_post(path, data):
     return r.json()
 
 
-def fnorm(probs):
-    p = [max(float(v), FLOOR) for v in probs]
+def fnorm(probs, floor=FLOOR):
+    p = [max(float(v), floor) for v in probs]
     s = sum(p)
     return [v / s for v in p]
 
@@ -361,7 +358,13 @@ def xgb_prior(x, y, S, grids, xgb_models):
 
 
 def ensemble_prior(x, y, S, grids, training_db, xgb_models):
-    """Ensemble: XGBoost + kNN + Linear (best of all worlds)."""
+    """Ensemble: XGBoost + kNN + Linear with dynamic per-cell weighting.
+
+    v16: Weight models based on terrain type, distance, and data availability.
+    - Near settlements (d<=2): kNN has more relevant training data → favor hybrid
+    - Forest/empty far cells: XGB generalizes better → favor XGB
+    - Extreme S values: linear extrapolates better → reduce kNN
+    """
     t = grids["grid"][y][x]
     if t == 10:
         return [1.0 - 5 * FLOOR, FLOOR, FLOOR, FLOOR, FLOOR, FLOOR]
@@ -370,18 +373,47 @@ def ensemble_prior(x, y, S, grids, training_db, xgb_models):
 
     d = grids["dg"][y][x]
     if d > 8:
-        # Far cells: use linear model (near-deterministic)
         lin_cat = cell_linear_cat(x, y, grids)
         return linear_prior(lin_cat, S)
 
-    # Get all three model predictions
     hyb_p = hybrid_prior(x, y, S, grids, training_db)
 
     if xgb_models and HAS_XGB:
         xgb_p = xgb_prior(x, y, S, grids, xgb_models)
         if xgb_p:
-            # Ensemble: 50% XGBoost + 50% hybrid (kNN+Linear)
-            combined = [0.5 * xgb_p[i] + 0.5 * hyb_p[i] for i in range(NC)]
+            # Dynamic weighting based on cell context
+            tc = "s" if t in (1, 2) else ("f" if t == 4 else "e")
+
+            # Base: 50/50
+            w_xgb = 0.5
+
+            # Settlement cells: kNN has rich history → favor hybrid
+            if tc == "s":
+                w_xgb = 0.35
+            # Close to settlements: kNN also good
+            elif d <= 2:
+                w_xgb = 0.40
+            # Far cells: XGB generalizes better
+            elif d >= 5:
+                w_xgb = 0.60
+
+            # Extreme S: XGB trained on all S values, more robust
+            if S < 0.1 or S > 0.6:
+                w_xgb = min(w_xgb + 0.15, 0.75)
+
+            # Check kNN data availability
+            knn_key = cell_knn_key(x, y, grids)
+            entries = training_db.get(knn_key, [])
+            n_close = sum(1 for e in entries if abs(e[0] - S) < 0.15)
+            if n_close < 10:
+                w_xgb = min(w_xgb + 0.15, 0.80)  # less kNN data → lean XGB
+
+            # Disagreement bonus: if models disagree a lot, hedge toward equal
+            max_diff = max(abs(xgb_p[i] - hyb_p[i]) for i in range(NC))
+            if max_diff > 0.3:
+                w_xgb = 0.5  # large disagreement → equal weight (hedge)
+
+            combined = [w_xgb * xgb_p[i] + (1 - w_xgb) * hyb_p[i] for i in range(NC)]
             return fnorm(combined)
 
     return hyb_p
@@ -389,26 +421,61 @@ def ensemble_prior(x, y, S, grids, training_db, xgb_models):
 
 # ── Viewport Placement ──────────────────────────────────────────────────
 
-def place_viewports(grids, n_vps):
-    """Greedy viewport placement maximizing coverage of dynamic cells."""
+def cell_entropy(prior):
+    """Shannon entropy of a probability distribution (higher = more uncertain)."""
+    h = 0.0
+    for p in prior:
+        if p > 1e-9:
+            h -= p * math.log(p)
+    return h
+
+
+def place_viewports(grids, n_vps, S=0.3, training_db=None, xgb_models=None,
+                    grid_obs=None):
+    """Entropy-aware viewport placement.
+
+    v16: Combines settlement proximity value with model uncertainty (entropy).
+    Cells where the model is uncertain get higher value → queries go where
+    they help most.
+    """
     dg = grids["dg"]
 
     cell_value = {}
     for y in range(H):
         for x in range(W):
-            if grids["grid"][y][x] in (10, 5):
+            t = grids["grid"][y][x]
+            if t in (10, 5):
                 continue
             d = dg[y][x]
+
+            # Base value from distance
             if d == 0:
-                cell_value[(x, y)] = 10.0
+                base = 10.0
             elif d == 1:
-                cell_value[(x, y)] = 7.0
+                base = 7.0
             elif d == 2:
-                cell_value[(x, y)] = 4.0
+                base = 4.0
             elif d == 3:
-                cell_value[(x, y)] = 1.5
+                base = 1.5
             elif d <= 5:
-                cell_value[(x, y)] = 0.5
+                base = 0.5
+            else:
+                continue
+
+            # Entropy bonus: uncertain cells are more valuable to observe
+            if training_db is not None:
+                prior = ensemble_prior(x, y, S, grids, training_db, xgb_models)
+                ent = cell_entropy(prior)
+                # Max entropy for 6 classes is ln(6) ≈ 1.79
+                ent_bonus = 1.0 + ent / 1.79  # range [1.0, 2.0]
+                base *= ent_bonus
+
+            # Reduce value if already observed
+            if grid_obs and (x, y) in grid_obs:
+                n_obs = len(grid_obs[(x, y)])
+                base *= 0.3 / (1 + n_obs)  # diminishing returns
+
+            cell_value[(x, y)] = base
 
     viewports = []
     covered = set()
@@ -441,11 +508,44 @@ def place_viewports(grids, n_vps):
 
 # ── S Estimation ─────────────────────────────────────────────────────────
 
+def estimate_S_single(grid_obs, grids):
+    """Estimate S for a single seed from its observations."""
+    alive = 0
+    total = 0
+    for s in grids["settlements"]:
+        key = (s["x"], s["y"])
+        if key in grid_obs:
+            for o in grid_obs[key]:
+                if o in (1, 2):
+                    alive += 1
+                total += 1
+    if total >= 3:
+        return alive / total, total
+    # Fallback: d<=2 zone
+    alive2 = 0
+    total2 = 0
+    for (x, y), obs_list in grid_obs.items():
+        d = grids["dg"][y][x]
+        t = grids["grid"][y][x]
+        if d <= 2 and t not in (10, 5):
+            for o in obs_list:
+                if o in (1, 2):
+                    alive2 += 1
+                total2 += 1
+    if total2 >= 5:
+        return min(alive2 / total2 * 1.1, 1.0), total2
+    return None, 0
+
+
 def estimate_S(all_grid_obs, all_grids):
-    """Estimate settlement survival rate from observations across ALL seeds."""
+    """Estimate per-seed S with global fallback.
+
+    Returns (S_global, S_per_seed) where S_per_seed[i] may differ from global
+    if seed has enough observations.
+    """
+    # Global estimate
     alive_total = 0
     obs_total = 0
-
     for seed_idx, grids in enumerate(all_grids):
         grid_obs = all_grid_obs[seed_idx]
         for s in grids["settlements"]:
@@ -457,31 +557,43 @@ def estimate_S(all_grid_obs, all_grids):
                     obs_total += 1
 
     if obs_total >= 5:
-        direct = alive_total / obs_total
-        print(f"  S estimate from {obs_total} settlement observations: {direct:.3f}")
-        return direct
+        S_global = alive_total / obs_total
+    else:
+        # Fallback: d<=2 zone
+        alive2 = 0
+        total2 = 0
+        for seed_idx, grids in enumerate(all_grids):
+            grid_obs = all_grid_obs[seed_idx]
+            for (x, y), obs_list in grid_obs.items():
+                d = grids["dg"][y][x]
+                t = grids["grid"][y][x]
+                if d <= 2 and t not in (10, 5):
+                    for o in obs_list:
+                        if o in (1, 2):
+                            alive2 += 1
+                        total2 += 1
+        if total2 >= 10:
+            S_global = min(alive2 / total2 * 1.1, 1.0)
+        else:
+            S_global = 0.3
 
-    # Fallback: use d<=2 zone
-    alive2 = 0
-    total2 = 0
-    for seed_idx, grids in enumerate(all_grids):
-        grid_obs = all_grid_obs[seed_idx]
-        for (x, y), obs_list in grid_obs.items():
-            d = grids["dg"][y][x]
-            t = grids["grid"][y][x]
-            if d <= 2 and t not in (10, 5):
-                for o in obs_list:
-                    if o in (1, 2):
-                        alive2 += 1
-                    total2 += 1
+    print(f"  S_global = {S_global:.3f} (from {obs_total} settlement obs)")
 
-    if total2 >= 10:
-        S = alive2 / total2 * 1.1  # scale factor
-        print(f"  S estimate from {total2} d<=2 observations: {S:.3f}")
-        return min(S, 1.0)
+    # Per-seed S: blend seed-specific with global
+    S_per_seed = []
+    for seed_idx in range(len(all_grids)):
+        S_seed, n_obs = estimate_S_single(all_grid_obs[seed_idx], all_grids[seed_idx])
+        if S_seed is not None and n_obs >= 8:
+            # Blend: weight seed-specific more with more observations
+            w_seed = min(n_obs / 30.0, 0.8)  # cap at 80% seed-specific
+            S_blend = w_seed * S_seed + (1 - w_seed) * S_global
+            S_per_seed.append(S_blend)
+            print(f"  Seed {seed_idx}: S={S_blend:.3f} (seed={S_seed:.3f}, n={n_obs}, w={w_seed:.2f})")
+        else:
+            S_per_seed.append(S_global)
+            print(f"  Seed {seed_idx}: S={S_global:.3f} (using global)")
 
-    print(f"  WARNING: insufficient observations for S estimation, using fallback")
-    return 0.3
+    return S_global, S_per_seed
 
 
 # ── Bayesian Updating ────────────────────────────────────────────────────
@@ -520,10 +632,16 @@ def bayesian_update(prior, obs_counts, n_obs):
 # ── Spatial Borrowing ────────────────────────────────────────────────────
 
 def spatial_borrow(x, y, grid_obs, grids):
-    """Borrow from nearby observed cells with similar terrain."""
+    """Borrow from nearby observed cells with similar terrain context.
+
+    v16: Also considers coastal similarity and adjacent settlement count
+    for better terrain-context matching. Increased n_eff cap to 2.0.
+    """
     t = grids["grid"][y][x]
     d = grids["dg"][y][x]
     tc = "s" if t in (1, 2) else ("f" if t == 4 else "e")
+    is_coastal = grids["coastal"][y][x]
+    adj_s = grids["adj_sett"][y][x]
 
     pseudo = [0.0] * NC
     tw = 0.0
@@ -550,10 +668,24 @@ def spatial_borrow(x, y, grid_obs, grids):
 
                 dist_val = abs(ddx) + abs(ddy)
                 w = 1.0 / (1 + dist_val) ** 1.5
+
+                # Distance-to-settlement similarity bonus
                 if nd == d:
                     w *= 2.0
                 elif abs(nd - d) == 1:
                     w *= 1.2
+
+                # Terrain context similarity: coastal match
+                n_coastal = grids["coastal"][ny][nx]
+                if n_coastal == is_coastal:
+                    w *= 1.3
+
+                # Adjacent settlement count similarity
+                n_adj_s = grids["adj_sett"][ny][nx]
+                if n_adj_s == adj_s:
+                    w *= 1.2
+                elif abs(n_adj_s - adj_s) <= 1:
+                    w *= 1.05
 
                 for o in grid_obs[(nx, ny)]:
                     pseudo[o] += w
@@ -583,7 +715,8 @@ def build_predictions(grids, grid_obs, S, training_db, xgb_models=None):
             elif grids["dg"][y][x] <= 5 and grid_obs:
                 pseudo, tw = spatial_borrow(x, y, grid_obs, grids)
                 if tw >= 1.0:
-                    n_eff = min(tw * 0.3, 1.0)
+                    # v16: higher n_eff cap (2.0) for better spatial influence
+                    n_eff = min(tw * 0.35, 2.0)
                     norm_p = [pseudo[c] / tw for c in range(NC)]
                     alpha0 = 3.0
                     pred = [(n_eff * norm_p[c] + alpha0 * prior[c]) / (n_eff + alpha0)
@@ -633,7 +766,7 @@ def load_cache(round_id):
 # ── Main ─────────────────────────────────────────────────────────────────
 
 def main():
-    print("=== Astar Island Solver v15 — Ensemble (XGB+kNN+Linear) ===\n")
+    print("=== Astar Island Solver v16 — Enhanced Ensemble ===\n")
 
     # Load XGBoost models
     xgb_models = None
@@ -726,7 +859,10 @@ def main():
             q_per_vp = n_q // n_vps
             extra = n_q - n_vps * q_per_vp
 
-            vps = place_viewports(all_grids[seed_idx], n_vps)
+            vps = place_viewports(all_grids[seed_idx], n_vps,
+                                  S=0.3, training_db=training_db,
+                                  xgb_models=xgb_models,
+                                  grid_obs=all_grid_obs[seed_idx])
 
             # Coverage stats
             covered_setts = set()
@@ -771,25 +907,25 @@ def main():
 
     # ── PHASE 2: Estimate S ───────────────────────────────────────────
 
-    print("\n--- Phase 2: Estimating S ---")
-    S_global = estimate_S(all_grid_obs, all_grids)
-    print(f"  S_global = {S_global:.3f}")
+    print("\n--- Phase 2: Estimating S (per-seed) ---")
+    S_global, S_per_seed = estimate_S(all_grid_obs, all_grids)
 
     # ── PHASE 3: Build and submit predictions ─────────────────────────
 
-    print("\n--- Phase 3: Building predictions ---")
+    print("\n--- Phase 3: Building predictions (per-seed S) ---")
 
     all_preds = []
     for seed_idx in range(n_seeds):
+        S_seed = S_per_seed[seed_idx]
         preds, stats = build_predictions(
             all_grids[seed_idx], all_grid_obs[seed_idx],
-            S_global, training_db, xgb_models
+            S_seed, training_db, xgb_models
         )
         all_preds.append(preds)
-        print(f"  Seed {seed_idx}: {stats}")
+        print(f"  Seed {seed_idx} (S={S_seed:.3f}): {stats}")
 
     # Submit main prediction
-    print("\nSubmitting main prediction (S={:.3f})...".format(S_global))
+    print("\nSubmitting main prediction (per-seed S)...")
     for seed_idx, preds in enumerate(all_preds):
         try:
             result = api_post("/submit", {
@@ -797,17 +933,25 @@ def main():
                 "seed_index": seed_idx,
                 "prediction": preds,
             })
-            print(f"  Seed {seed_idx}: {result.get('status', 'unknown')}")
+            print(f"  Seed {seed_idx} (S={S_per_seed[seed_idx]:.3f}): {result.get('status', 'unknown')}")
         except requests.exceptions.HTTPError as e:
             print(f"  Seed {seed_idx} ERROR: {e}")
 
     # ── PHASE 4: Multi-S fallback submissions ─────────────────────────
 
-    print("\n--- Phase 4: Multi-S fallback submissions ---")
-    # Submit with alternative S values for safety
-    S_alternatives = [i * 0.1 for i in range(11)]  # 0.0, 0.1, ..., 1.0
-    # Remove the one closest to S_global (already submitted)
-    S_alternatives = [s for s in S_alternatives if abs(s - S_global) > 0.05]
+    print("\n--- Phase 4: Concentrated multi-S fallback submissions ---")
+    # v16: Concentrate fallback S values around our estimate
+    # More density near S_global, fewer at extremes
+    S_offsets = [-0.25, -0.15, -0.10, -0.05, 0.05, 0.10, 0.15, 0.25, 0.40, 0.60]
+    S_alternatives = sorted(set(
+        max(0.0, min(1.0, S_global + off)) for off in S_offsets
+        if abs(off) > 0.02  # skip if too close to already submitted
+    ))
+    # Also add a few extreme values for safety
+    for s_ext in [0.0, 0.5, 1.0]:
+        if all(abs(s_ext - s) > 0.04 for s in S_alternatives + [S_global]):
+            S_alternatives.append(s_ext)
+    S_alternatives.sort()
 
     for S_alt in S_alternatives:
         for seed_idx in range(n_seeds):
@@ -823,15 +967,15 @@ def main():
                 })
             except Exception:
                 pass
-        print(f"  S={S_alt:.1f}: submitted")
+        print(f"  S={S_alt:.3f}: submitted")
         time.sleep(0.2)
 
-    # Re-submit with best S as final submission (in case only last counts)
-    print(f"\nRe-submitting with best S={S_global:.3f} as final...")
+    # Re-submit with per-seed S as final submission (in case only last counts)
+    print(f"\nRe-submitting with per-seed S as final...")
     for seed_idx in range(n_seeds):
         preds, _ = build_predictions(
             all_grids[seed_idx], all_grid_obs[seed_idx],
-            S_global, training_db, xgb_models
+            S_per_seed[seed_idx], training_db, xgb_models
         )
         try:
             api_post("/submit", {

@@ -41,7 +41,23 @@ https://github.com/bjornj12/golf-coach/releases/latest og dra den inn i
 
 ## Innlogging (engangsjobb)
 
-Si **"log in to Trackman"** til Claude. Et browser-vindu åpnes (isolert profil),
+> Innloggingen **må skje på din egen maskin** — den åpner et nettleservindu der
+> du skriver inn Trackman-brukeren din. En remote Claude Code-sesjon i skyen har
+> ingen skjerm du kan se det vinduet på, og tokenet ville forsvunnet med
+> containeren.
+
+Alt-i-ett, lokalt:
+
+```bash
+bash scripts/setup-trackman.sh
+```
+
+Skriptet installerer `uv` hvis den mangler, installerer `golf-coach[login]` og
+åpner nettleseren. Trenger ikke Chrome — Playwright henter Chromium selv.
+
+### Eller: si det til Claude
+
+Si **"log in to Trackman"** til Claude (lokal Claude Code eller Claude Desktop). Et browser-vindu åpnes (isolert profil),
 du logger inn én gang med din Trackman-konto (Apple/Google-innlogging fungerer
 også). Tokenet caches i `~/.golf-coach/token.json` (mode `0600`) og fornyes
 selv. Passordet ditt ser eller lagrer verktøyet aldri.

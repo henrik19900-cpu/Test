@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "golf-coach": {
+      "command": "uvx",
+      "args": ["golf-coach"],
+      "env": {
+        "TRACKMAN_TOKEN": "${TRACKMAN_TOKEN:-}"
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@
 //
 // Notasjon som i Haug. exercise = 'american' | 'european'. Theta er per år når kalendertiden går.
 
+import { cbnd } from '../math/normal.js';
 import { gbsm, isCall } from './bsm.js';
 
 export function isAmerican(exercise) {
@@ -218,6 +219,45 @@ export function twoAssetPayoff(kind, call, { Q1 = 1, Q2 = 1, X1, X2 }) {
   }
 }
 
+// Margrabe (1978): retten til å bytte Q1 enheter av S1 mot Q2 enheter av S2, max(Q2·S2 − Q1·S1, 0).
+export function margrabe({ S1, S2, Q1 = 1, Q2 = 1, T, r, b1, b2, v1, v2, rho }) {
+  const vr = Math.sqrt(Math.max(v1 * v1 + v2 * v2 - 2 * rho * v1 * v2, 0));
+  return gbsm({ type: 'call', S: Q2 * S2, X: Q1 * S1, T, r: r - b1, b: b2 - b1, v: vr });
+}
+
+// Stulz (1982): call/put på maksimum eller minimum av Q1·S1 og Q2·S2 med innløsningskurs X.
+export function stulzMinMax({ kind = 'max', type = 'call', S1, S2, Q1 = 1, Q2 = 1, X, T, r, b1, b2, v1, v2, rho }) {
+  const A = Q1 * S1;
+  const B = Q2 * S2;
+  const sq = Math.sqrt(T);
+  const vr = Math.sqrt(Math.max(v1 * v1 + v2 * v2 - 2 * rho * v1 * v2, 1e-300));
+  const rho1 = (v1 - rho * v2) / vr;
+  const rho2 = (v2 - rho * v1) / vr;
+  const c1 = Math.exp((b1 - r) * T);
+  const c2 = Math.exp((b2 - r) * T);
+  const disc = Math.exp(-r * T);
+  const d = (Math.log(A / B) + (b1 - b2 + vr * vr / 2) * T) / (vr * sq);
+  const callAt = (K) => {
+    if (!(K > 0)) {
+      // Verdien av max/min selv: min = A − (A − B)+, max = B + (A − B)+.
+      const ex = gbsm({ type: 'call', S: A, X: B, T, r: r - b2, b: b1 - b2, v: vr });
+      return kind === 'min' ? A * c1 - ex : B * c2 + ex;
+    }
+    const y1 = (Math.log(A / K) + (b1 + v1 * v1 / 2) * T) / (v1 * sq);
+    const y2 = (Math.log(B / K) + (b2 + v2 * v2 / 2) * T) / (v2 * sq);
+    if (kind === 'min') {
+      return A * c1 * cbnd(y1, -d, -rho1) + B * c2 * cbnd(y2, d - vr * sq, -rho2)
+        - K * disc * cbnd(y1 - v1 * sq, y2 - v2 * sq, rho);
+    }
+    return A * c1 * cbnd(y1, d, rho1) + B * c2 * cbnd(y2, -d + vr * sq, rho2)
+      - K * disc * (1 - cbnd(-y1 + v1 * sq, -y2 + v2 * sq, rho));
+  };
+  if (kind !== 'min' && kind !== 'max') throw new Error(`Ukjent type: ${kind}`);
+  const call = callAt(X);
+  if (isCall(type)) return call;
+  return X * disc - callAt(0) + call;
+}
+
 // Fire grener med sannsynlighet 1/4: S1 → S1·e^{μ1Δt ± σ1√Δt},
 // S2 → S2·e^{μ2Δt + σ2√Δt(±ρ ± √(1−ρ²))}, μi = bi − σi²/2.
 export function threeDimTree({
@@ -296,13 +336,36 @@ export function linearSkewVol(K, S, v, skew) {
   return Math.max(0.01, v + skew * (K - S));
 }
 
-// Bygger treet nivå for nivå fra europeiske opsjonspriser (GBSM med σ(K)) og Arrow-Debreu-priser.
-// Nivå i har i+1 noder (stigende). Returnerer nodeprisene, sannsynlighetene og antall overstyrte noder.
+// Europeisk opsjon i et CRR-tre med m steg à Δt, regnet som binomisk sum (O(m)).
+export function crrEuropeanSum(call, S, K, m, dt, r, b, v) {
+  const u = Math.exp(v * Math.sqrt(dt));
+  const d = 1 / u;
+  const p = (Math.exp(b * dt) - d) / (u - d);
+  if (!(p > 0 && p < 1)) {
+    throw new Error('Sannsynligheten i treet havner utenfor (0, 1). Øk antall steg eller endre parametrene.');
+  }
+  const lp = Math.log(p);
+  const lq = Math.log(1 - p);
+  let logC = 0;
+  let sum = 0;
+  for (let k = 0; k <= m; k++) {
+    if (k > 0) logC += Math.log((m - k + 1) / k);
+    const s = S * u ** (2 * k - m);
+    const pay = call ? s - K : K - s;
+    if (pay > 0) sum += Math.exp(logC + k * lp + (m - k) * lq) * pay;
+  }
+  return Math.exp(-r * m * dt) * sum;
+}
+
+// Bygger treet nivå for nivå fra europeiske opsjonspriser og Arrow-Debreu-priser. Som hos
+// Derman og Kani prises opsjonene i et CRR-tre med samme tidssteg og volatiliteten σ(K), slik at
+// flat volatilitet gir nøyaktig CRR-treet. Nivå i har i+1 noder (stigende). Returnerer
+// nodeprisene, overgangssannsynlighetene og antall noder som måtte overstyres (arbitrasjekontroll).
 export function buildDermanKani({ S, T, r, b, v, skew = 0, n = 5 }) {
   if (!(S > 0)) throw new Error('Spotprisen må være positiv.');
   if (!(T > 0)) throw new Error('Tid til forfall må være positiv.');
   if (!(v > 0)) throw new Error('Volatiliteten må være positiv.');
-  checkSteps(n, 1, 400);
+  checkSteps(n, 1, 150);
   const dt = T / n;
   const growth = Math.exp(b * dt);
   const er = Math.exp(r * dt);
@@ -310,13 +373,13 @@ export function buildDermanKani({ S, T, r, b, v, skew = 0, n = 5 }) {
   const probs = [];
   let lambda = [1];
   let overrides = 0;
-  const price = (call, K, t) => gbsm({ type: call ? 'call' : 'put', S, X: K, T: t, r, b, v: linearSkewVol(K, S, v, skew) });
+  const price = (call, K, steps) => crrEuropeanSum(call, S, K, steps, dt, r, b, linearSkewVol(K, S, v, skew));
 
   for (let i = 0; i < n; i++) {
     const s = nodes[i];
     const m = i + 1; // antall noder på nivå i
     const F = s.map((x) => x * growth);
-    const t = (i + 1) * dt;
+    const t = i + 1; // antall CRR-steg til forfallet for opsjonene på dette nivået
     const next = new Float64Array(m + 1);
     // Summer av λ(F − K) over noder over/under en gitt node.
     const sumAbove = (j, K) => {

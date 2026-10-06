@@ -77,10 +77,11 @@ export function bawAmerican(p) {
   const { type = 'call', S, X, T, r, b, v } = p;
   const call = isCall(type);
   const european = gbsm({ type, S, X, T, r, b, v });
-  if (T === 0) return result(european, european, { critical: call ? X : X });
+  // critical = null betyr at tidlig innløsning aldri lønner seg.
+  if (T === 0) return result(european, european, { critical: X });
   // Call: aldri tidlig innløsning når b ≥ r. Put: aldri tidlig innløsning når r ≤ 0.
-  if (call && b >= r) return result(european, european, { critical: Infinity });
-  if (!call && r <= 0) return result(european, european, { critical: 0 });
+  if (call && b >= r) return result(european, european, { critical: null });
+  if (!call && r <= 0) return result(european, european, { critical: null });
   const carry = Math.exp((b - r) * T);
   if (call) {
     const { crit, q2 } = bawCriticalCall({ X, T, r, b, v });
@@ -142,7 +143,7 @@ function psi(S, T, gamma, H, I2, I1, t1, r, b, v) {
 
 function bs1993Call(S, X, T, r, b, v) {
   const european = gbsm({ type: 'call', S, X, T, r, b, v });
-  if (b >= r || T === 0) return { price: european, european, boundary: Infinity };
+  if (b >= r || T === 0) return { price: european, european, boundary: null };
   const v2 = v * v;
   const beta = bsBeta(r, b, v2);
   const Binf = beta / (beta - 1) * X;
@@ -162,7 +163,7 @@ function bs1993Call(S, X, T, r, b, v) {
 
 function bs2002Call(S, X, T, r, b, v) {
   const european = gbsm({ type: 'call', S, X, T, r, b, v });
-  if (b >= r || T === 0) return { price: european, european, I1: Infinity, I2: Infinity, t1: 0 };
+  if (b >= r || T === 0) return { price: european, european, I1: null, I2: null, t1: null };
   const v2 = v * v;
   const t1 = 0.5 * (Math.sqrt(5) - 1) * T;
   const beta = bsBeta(r, b, v2);
@@ -205,7 +206,7 @@ export function bsAmerican1993(p) {
   const q = putCallTransform({ S, X, T, r, b, v });
   const c = bs1993Call(q.S, q.X, q.T, q.r, q.b, q.v);
   // Call-grensen I i transformert rom svarer til put-grensen S·X / I.
-  return result(c.price, c.european, { boundary: S * X / c.boundary });
+  return result(c.price, c.european, { boundary: c.boundary === null ? null : S * X / c.boundary });
 }
 
 // Bjerksund og Stensland (2002). Put via put-call-transformasjonen.
@@ -219,6 +220,7 @@ export function bsAmerican2002(p) {
   }
   const q = putCallTransform({ S, X, T, r, b, v });
   const c = bs2002Call(q.S, q.X, q.T, q.r, q.b, q.v);
+  if (c.I1 === null) return result(c.price, c.european, { I1: null, I2: null, t1: null });
   return result(c.price, c.european, { I1: S * X / c.I1, I2: S * X / c.I2, t1: c.t1 });
 }
 

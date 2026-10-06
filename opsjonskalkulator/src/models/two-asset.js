@@ -388,14 +388,14 @@ export function twoAssetBarrier({ type = 'call', kind, S1, S2, X, H, T, r, b1, b
 }
 
 // Partial-time to-aktiva-barriere (Bermin 1996): barrieren på S2 overvåkes bare fra 0 til t1.
+// t1 ≥ T betyr at barrieren overvåkes hele løpetiden.
 export function partialTwoAssetBarrier({ type = 'call', kind, S1, S2, X, H, T, t1, r, b1, b2, v1, v2, rho }) {
   const call = isCall(type);
   const { down, out } = parseBarrierKind(kind);
   if (!(t1 > 0)) throw new Error('Overvåkingsperioden t1 må være større enn null.');
-  if (t1 > T) throw new Error('Overvåkingsperioden t1 kan ikke være lengre enn T.');
   const vanilla = gbsm({ type, S: S1, X, T, r, b: b1, v: v1 });
   if (down ? S2 <= H : S2 >= H) return out ? 0 : vanilla; // barrieren er allerede truffet
-  const o = twoAssetOut(call, down, { S1, S2, X, H, T, t1, r, b1, b2, v1, v2, rho });
+  const o = twoAssetOut(call, down, { S1, S2, X, H, T, t1: Math.min(t1, T), r, b1, b2, v1, v2, rho });
   return out ? o : vanilla - o;
 }
 

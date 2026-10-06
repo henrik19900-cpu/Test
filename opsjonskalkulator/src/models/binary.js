@@ -11,7 +11,7 @@
 
 import { cnd } from '../math/normal.js';
 import { isCall, d1d2 } from './bsm.js';
-import { expCnd, ikedaKunitomoProb } from './barriers.js';
+import { expCnd, ikedaKunitomoProb, hitDiscountValue, integrateLogTime } from './barriers.js';
 
 function checkCommon({ S, T, v }) {
   if (!(S > 0)) throw new Error('Spotprisen S må være positiv.');
@@ -122,13 +122,9 @@ function bbTerms(eta, phi, S, X, H, K, T, r, b, v) {
     A4: expCnd(pS, eta * y2),
     B4: cash * expCnd(pX, eta * (y2 - vst)),
   };
-  // A5: K betalt ved treff, K·E[e^{−rτ}; τ ≤ T].
+  // A5: K betalt ved treff, K·E[e^{−rτ}; τ ≤ T] (lukket form, numerisk ved svært negativ rente).
   t.A5 = (Km) => {
-    const lam2 = mu * mu + 2 * r / v2;
-    if (lam2 < 0) throw new Error('Betaling ved treff krever μ² + 2r/σ² ≥ 0 (for negativ rente r).');
-    const lam = Math.sqrt(lam2);
-    const z = lnHS / vst + lam * vst;
-    return Km * (expCnd((mu + lam) * lnHS, eta * z) + expCnd((mu - lam) * lnHS, eta * (z - 2 * lam * vst)));
+    return Km * hitDiscountValue({ a: lnHS, nu: b - v2 / 2, v, rate: r, T });
   };
   return t;
 }
@@ -236,17 +232,33 @@ function sinhRatio(gamma, p, q) {
 }
 
 // E[e^{−ρτ}; barrieren (øvre hvis upper) treffes først og før T], ρ = rate.
-export function firstHitValue({ upper, S, L, U, T, b, v, rate }) {
+// method = 'image' | 'eigen' velger rekke (begge eksakte); standard er den som konvergerer raskest.
+// Ved γ² < 0 (svært negativ rente) eller method = 'numeric' integreres tettheten til første
+// treff (bilderekke) numerisk over tid.
+export function firstHitValue({ upper, S, L, U, T, b, v, rate, method = 'auto' }) {
   const v2 = v * v;
   const c = (b - v2 / 2) / v2;
   const Z = Math.log(U / L);
   const x = Math.log(S / L);
   const g2 = (c * c * v2 + 2 * rate) / v2; // γ² = (ν² + 2ρσ²)/σ⁴
-  if (g2 < 0) throw new Error('Betaling ved treff krever ν² + 2rσ² ≥ 0 (for negativ rente r).');
-  const gamma = Math.sqrt(g2);
   const lnGirsanov = upper ? c * (Z - x) : -c * x;
   const sdT = v * Math.sqrt(T);
-  if (sdT / Z < 0.5) {
+  const dist = (n) => (upper ? (2 * n + 1) * Z - x : x + 2 * n * Z);
+  if (g2 < 0 || method === 'numeric') {
+    const nMax = Math.ceil((10 * sdT + Z) / (2 * Z)) + 1;
+    const dens = (t) => {
+      let s = 0;
+      for (let n = -nMax; n <= nMax; n++) {
+        const a = dist(n);
+        s += a / (v * Math.sqrt(2 * Math.PI * t * t * t)) * Math.exp(-a * a / (2 * v2 * t));
+      }
+      return Math.exp(lnGirsanov - (rate + 0.5 * c * c * v2) * t) * s;
+    };
+    const near = upper ? Z - x : x;
+    return integrateLogTime(dens, near * near / (200 * v2), T);
+  }
+  const gamma = Math.sqrt(g2);
+  if (method === 'image' || (method === 'auto' && sdT / Z < 0.5)) {
     // Bilderekke: summen av førstepasseringsverdier for speilede startpunkter.
     const psi = (a) => expCnd(lnGirsanov - gamma * a, (-a + gamma * v2 * T) / sdT)
       + expCnd(lnGirsanov + gamma * a, (-a - gamma * v2 * T) / sdT);

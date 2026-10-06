@@ -73,7 +73,7 @@ export default [
     group: BAR,
     name: 'Dobbel barriereopsjon',
     authors: 'Ikeda og Kunitomo (1992)',
-    description: 'Opsjon med nedre og øvre barriere. Knock-out dør hvis spot treffer en av barrierene, knock-in blir levende. Barrierene kan krummes eksponentielt: L·e^{δ2·t} og U·e^{δ1·t}.',
+    description: 'Opsjon med nedre og øvre barriere: knock-out dør og knock-in blir levende hvis spot treffer en av dem. Barrierene kan krummes eksponentielt som L·e^{δ2·t} og U·e^{δ1·t}.',
     payoff: 'Knock-out: max(S_T − X, 0) hvis spot holder seg mellom barrierene hele tiden. Knock-in = vanilla − knock-out.',
     inputs: [
       callPut('call'),
@@ -146,7 +146,7 @@ export default [
     group: BAR,
     name: 'Soft-barrier-opsjon',
     authors: 'Hart og Ross (1994)',
-    description: 'Barrieren er et område fra L til U. Opsjonen slås gradvis inn eller ut etter hvor langt spot har gått inn i området. Med L = U blir den en vanlig barriereopsjon.',
+    description: 'Barrieren er et område fra L til U, og opsjonen slås gradvis inn eller ut etter hvor langt spot har gått inn i området. Med L = U blir den en vanlig barriereopsjon.',
     payoff: 'Ned-og-inn call: max(S_T − X, 0) · min(max((U − min S)/(U − L), 0), 1). Opp-og-inn put tilsvarende med (max S − L)/(U − L).',
     inputs: [
       select('kind', 'Type', [

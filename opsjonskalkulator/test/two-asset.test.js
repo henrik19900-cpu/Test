@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { close, withinMC, mcTwoAssets, mcTwoAssetPaths, bridgeHitProb } from './helpers.js';
 import { cnd } from '../src/math/normal.js';
 import { createRng } from '../src/math/rng.js';
+import { gaussLegendreComposite } from '../src/math/integrate.js';
+import { brent } from '../src/math/solvers.js';
 import { gbsm } from '../src/models/bsm.js';
 import * as M from '../src/models/two-asset.js';
 import catalog from '../src/catalog/ch05-two-asset.js';
@@ -108,6 +110,30 @@ function mcTwoAssetBarrier(p, { steps = 20, n = 40000, seed = 7 } = {}) {
 }
 
 const KINDS = ['down-out', 'up-out', 'down-in', 'up-in'];
+const npdf = (z) => Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+
+// Uavhengig beregning av to-aktiva-barrierer ved numerisk integrasjon: speilingsprinsippet gir
+// tettheten til x = ln(S2(t1)/S2) for stier som ikke har truffet H, og gitt W2(t1) er ln S1(T)
+// normalfordelt, så den indre forventningen er en Black-Scholes-formel. Ingen bivariat normal.
+function barrierByIntegration({ type, kind, S1, S2, X, H, T, t1 = T, r, b1, b2, v1, v2, rho }) {
+  const down = kind.startsWith('down');
+  const mu1 = b1 - v1 * v1 / 2;
+  const mu2 = b2 - v2 * v2 / 2;
+  const h = Math.log(H / S2);
+  const sd = v2 * Math.sqrt(t1);
+  const s = v1 * Math.sqrt(T - rho * rho * t1);
+  const img = Math.exp(2 * mu2 * h / (v2 * v2));
+  const f = (x) => {
+    const q = (npdf((x - mu2 * t1) / sd) - img * npdf((x - 2 * h - mu2 * t1) / sd)) / sd;
+    const m = Math.log(S1) + mu1 * T + v1 * rho * (x - mu2 * t1) / v2;
+    const d = (m - Math.log(X) + s * s) / s;
+    const fwd = Math.exp(m + s * s / 2);
+    return q * (type === 'call' ? fwd * cnd(d) - X * cnd(d - s) : X * cnd(s - d) - fwd * cnd(-d));
+  };
+  const span = 12 * sd + Math.abs(mu2) * t1;
+  const out = Math.exp(-r * T) * (down ? gaussLegendreComposite(f, h, h + span, 60, 20) : gaussLegendreComposite(f, h - span, h, 60, 20));
+  return kind.endsWith('out') ? out : vanilla(type, S1, X, T, r, b1, v1) - out;
+}
 
 // --- Bokas eksempler ------------------------------------------------------------------------
 
@@ -334,6 +360,25 @@ test('Bytteopsjon på bytteopsjon mot MC og paritet', () => {
     close(val('cc') - val('pc'), mar('call') - pv, 1e-9);
     close(val('cp') - val('pp'), mar('put') - pv, 1e-9);
   }
+  // Numerisk integrasjon over forholdet P = S1/S2 ved t1 (aktivum 2 som numeraire).
+  for (const Q of [0.03, 0.12, 0.4]) {
+    for (const kind of ['cc', 'pc', 'cp', 'pp']) {
+      const v = M.ratioVol(p.v1, p.v2, p.rho);
+      const rr = p.r - p.b2;
+      const bb = p.b1 - p.b2;
+      const under = kind[1] === 'c' ? 'call' : 'put';
+      const u = (z) => gbsm({ type: under, S: p.S1 / p.S2 * Math.exp((bb - v * v / 2) * p.t1 + v * Math.sqrt(p.t1) * z), X: 1, T: tau, r: rr, b: bb, v }) - Q;
+      const g = (z) => npdf(z) * Math.max(kind[0] === 'c' ? u(z) : -u(z), 0);
+      let integral;
+      if (u(-12) * u(12) < 0) {
+        const zs = brent(u, -12, 12);
+        integral = gaussLegendreComposite(g, -12, zs, 40, 20) + gaussLegendreComposite(g, zs, 12, 40, 20);
+      } else {
+        integral = gaussLegendreComposite(g, -12, 12, 80, 20);
+      }
+      close(M.exchangeOnExchange({ kind, ...p, Q }).price, p.S2 * Math.exp(-rr * p.t1) * integral, 1e-9, `integrasjon ${kind} Q=${Q}`);
+    }
+  }
   // Q over maksverdien til den underliggende omvendte opsjonen: call på put er verdiløs.
   const big = M.exchangeOnExchange({ kind: 'cp', ...p, Q: 5 });
   assert.equal(big.price, 0);
@@ -352,6 +397,34 @@ test('Opsjoner på maks/min av to aktiva mot MC', () => {
           M.maxMinOption({ type, kind, ...p }), 4, 0, `${type} ${kind}`);
       }
     }
+  }
+});
+
+test('Maks/min mot numerisk integrasjon over S2(T)', () => {
+  // Gitt S2(T) = s2 er S1(T) lognormal med forventning A og logvolatilitet s, så
+  // E[(maks − X)⁺ | s2] og E[(min − X)⁺ | s2] er Black-Scholes-uttrykk.
+  for (const p of [{ ...BASE, X: 97 }, { ...BASE, rho: -0.7, X: 110 }, { S1: 100, S2: 105, X: 98, T: 0.5, r: 0.05, b1: -0.01, b2: -0.04, v1: 0.11, v2: 0.16, rho: 0.63 }]) {
+    const sT = Math.sqrt(p.T);
+    const s = p.v1 * sT * Math.sqrt(1 - p.rho * p.rho);
+    const A = (z) => p.S1 * Math.exp(p.b1 * p.T - 0.5 * p.v1 * p.v1 * p.T * p.rho * p.rho + p.v1 * sT * p.rho * z);
+    const s2 = (z) => p.S2 * Math.exp((p.b2 - 0.5 * p.v2 * p.v2) * p.T + p.v2 * sT * z);
+    const d1 = (a, K) => (Math.log(a / K) + 0.5 * s * s) / s;
+    const part = (a, K) => a * cnd(d1(a, K)) - p.X * cnd(d1(a, K) - s); // E[(S1 − X)·1{S1 > K}], K ≥ X
+    const fMax = (z) => {
+      const a = A(z);
+      const k = s2(z);
+      return npdf(z) * (part(a, Math.max(p.X, k)) + Math.max(k - p.X, 0) * cnd(-(d1(a, k) - s)));
+    };
+    const fMin = (z) => {
+      const a = A(z);
+      const k = s2(z);
+      if (k <= p.X) return 0;
+      return npdf(z) * (part(a, p.X) - part(a, k) + (k - p.X) * cnd(d1(a, k) - s));
+    };
+    const zk = (Math.log(p.X / p.S2) - (p.b2 - 0.5 * p.v2 * p.v2) * p.T) / (p.v2 * sT); // s2(zk) = X
+    const integ = (f) => Math.exp(-p.r * p.T) * (gaussLegendreComposite(f, -12, zk, 40, 20) + gaussLegendreComposite(f, zk, 12, 40, 20));
+    close(M.maxMinOption({ type: 'call', kind: 'max', ...p }), integ(fMax), 1e-9, 'call på maks');
+    close(M.maxMinOption({ type: 'call', kind: 'min', ...p }), integ(fMin), 1e-9, 'call på min');
   }
 });
 
@@ -417,6 +490,22 @@ test('To-aktiva-barriere (Heynen og Kat) mot MC med brownsk bro', () => {
   }
 });
 
+test('To-aktiva-barrierer (full og partial-time) mot numerisk integrasjon', () => {
+  const mkt = { S1: 100, S2: 95, T: 0.75, r: 0.05, b1: 0.02, b2: 0.04, v1: 0.25, v2: 0.35 };
+  for (const rho of [-0.8, 0, 0.6]) {
+    for (const t1 of [0.3, 0.75]) {
+      for (const kind of KINDS) {
+        for (const type of ['call', 'put']) {
+          for (const X of [80, 120]) {
+            const p = { type, kind, ...mkt, rho, X, H: kind.startsWith('down') ? 88 : 110, t1 };
+            close(M.partialTwoAssetBarrier(p), barrierByIntegration(p), 1e-9, `${kind} ${type} ρ=${rho} t1=${t1} X=${X}`);
+          }
+        }
+      }
+    }
+  }
+});
+
 test('To-aktiva-barriere: identiteter', () => {
   for (const type of ['call', 'put']) {
     const van = vanilla(type, BASE.S1, 97, BASE.T, BASE.r, BASE.b1, BASE.v1);
@@ -449,7 +538,8 @@ test('Partial-time to-aktiva-barriere (Bermin) mot MC og identiteter', () => {
   const p = { type: 'call', kind: 'down-out', ...BASE, X: 97, H: 88 };
   close(M.partialTwoAssetBarrier({ ...p, rho: 0, t1: 0.3 }), van * survivalProb(BASE.S2, 88, 0.3, BASE.b2, BASE.v2), 1e-10, 'ρ = 0');
   close(M.partialTwoAssetBarrier({ ...p, t1: 1e-10 }), van, 1e-8, 't1 → 0');
-  assert.throws(() => M.partialTwoAssetBarrier({ ...p, t1: 1 }), /t1/);
+  close(M.partialTwoAssetBarrier({ ...p, t1: 2 }), M.twoAssetBarrier(p), 1e-14, 't1 > T gir overvåking hele løpetiden');
+  assert.throws(() => M.partialTwoAssetBarrier({ ...p, t1: 0 }), /t1/);
 });
 
 test('Margrabe-barriere mot MC (brownsk bro på S1/S2) og identiteter', () => {
@@ -534,8 +624,10 @@ test('Katalogen: alle typer gir endelige og glatte tall over grafområdet', () =
       const xs = key ? Array.from({ length: 31 }, (_, i) => p[key] * (0.5 + i / 30)) : [null];
       for (const x of xs) {
         const q = key ? { ...p, [key]: x } : p;
-        for (const [label, val] of Object.entries(c.compute(q))) {
-          assert.ok(Number.isFinite(val), `${c.id} ${JSON.stringify(cb)} ${key}=${x}: «${label}» = ${val}`);
+        const entries = Object.entries(c.compute(q));
+        assert.ok(Number.isFinite(entries[0][1]), `${c.id} ${JSON.stringify(cb)} ${key}=${x}: hovedresultatet er ${entries[0][1]}`);
+        for (const [label, val] of entries) {
+          assert.ok(typeof val === 'string' || Number.isFinite(val), `${c.id} ${JSON.stringify(cb)} ${key}=${x}: «${label}» = ${val}`);
         }
       }
     }

@@ -109,12 +109,14 @@ export function haugHaugVol({ type = 'call', S, X, T, r, v, divs }) {
   return { price: gbsm({ type, S: Sadj, X, T, r, b: r, v: vAdj }), Sadj, pv, vAdj };
 }
 
-// Bos, Gairat og Shepeleva (2003): andreordens volatilitetsjustering brukt sammen med S − PV(D).
+// Bos, Gairat og Shepeleva (2003): volatilitetsjustering brukt sammen med S − PV(D).
+// Justeringen er gjennomsnittet av den lokale variansen σ²(1 + PV_t/S*_t)² til escrowed-prosessen
+// under en brownsk bro fra S* = S − PV(D) til X. Derfor er s = ln(S − PV(D)) og x = ln(X e^{−rT}).
 export function bgsVol({ type = 'call', S, X, T, r, v, divs }) {
   checkCommon({ S, X, T, v });
   const { Sadj, pv } = adjustedSpot(S, divs, r);
   const sqT = Math.sqrt(T);
-  const s = Math.log(S);
+  const s = Math.log(Sadj);
   const x = Math.log(X * Math.exp(-r * T));
   const z1 = (s - x) / (v * sqT) + v * sqT / 2;
   const z2 = (s - x) / (v * sqT) + v * sqT;
@@ -209,88 +211,112 @@ function normalIntegral(g, cuts) {
   return total / Math.sqrt(2 * Math.PI);
 }
 
+// Knekkpunkter for kvadraturen. Hver «egenskap» er et sted (kurs) der integranden har en knekk
+// (scale = 0) eller en utglattet knekk med bredde `scale` i ln S. Smale egenskaper får tette paneler.
+const CLUSTER = [-8, -4, -2, -1, 0, 1, 2, 4, 8];
+function cutsFor(features, drift, sd) {
+  const cuts = [];
+  for (const f of features) {
+    if (!(f.at > 0)) continue;
+    const zc = (Math.log(f.at) - drift) / sd;
+    if (f.scale === 0) {
+      cuts.push(zc);
+      continue;
+    }
+    const w = f.scale / sd;
+    if (w >= 1.2 || zc < -Z_MAX - 8 * w || zc > Z_MAX + 8 * w) continue;
+    for (const c of CLUSTER) cuts.push(zc + c * w);
+  }
+  return cuts;
+}
+
 // Felles motor. american = true gir amerikansk call (innløsning rett før hvert utbytte).
-// Returnerer pris og de kritiske aksjekursene (cum utbytte) for tidlig innløsning.
-function hhlEngine({ type, S, X, T, r, v, divs, american, gridSize = 241 }) {
+// Verdifunksjonen rett etter hvert utbytte lagres på et gitter i ln S (kubisk spline), og
+// forventningen over neste periode regnes med Gauss-Legendre. Returnerer pris og de kritiske
+// aksjekursene (cum utbytte) for tidlig innløsning.
+function hhlEngine({ type, S, X, T, r, v, divs, american }) {
   const call = isCall(type);
   const n = divs.length;
   const mu = r - 0.5 * v * v;
   const zeroValue = (tau) => (call ? 0 : X * Math.exp(-r * tau));
-  // Verdien rett etter utbytte k (eks utbytte) som funksjon av kursen s. Nivå n er analytisk.
-  let exValue = (s) => (s > 0 ? gbsm({ type, S: s, X, T: T - divs[n - 1].t, r, b: r, v }) : zeroValue(T - divs[n - 1].t));
+  const tauLast = T - divs[n - 1].t;
+  // Verdien rett etter siste utbytte er analytisk (GBSM); knekken i utbetalingen er glattet ut.
+  let exValue = (s) => (s > 0 ? gbsm({ type, S: s, X, T: tauLast, r, b: r, v }) : zeroValue(tauLast));
+  let exFeatures = [{ at: X * Math.exp(-mu * tauLast), scale: v * Math.sqrt(tauLast) }];
   const critical = new Array(n).fill(Infinity);
 
-  // Verdien rett før utbytte k (cum) som funksjon av kursen, og knekkpunktene.
-  const cumFactory = (k, ex) => {
-    const { D } = divs[k];
-    const tau = T - divs[k].t;
+  for (let k = n - 1; k >= 0; k--) {
+    const { D, t } = divs[k];
+    const tau = T - t;
+    const ex = exValue;
+    // Kritisk kurs (cum) for amerikansk call: S − X = verdien av å beholde opsjonen.
     let crit = Infinity;
     if (american && call) {
-      const f = (s) => s - X - ex(s - D);
-      let hi = Math.max(2 * X, 2 * D);
-      for (let i = 0; i < 80 && f(hi) <= 0; i++) hi *= 1.5;
-      if (f(hi) > 0 && f(X) < 0) crit = brent(f, X, hi, { tol: 1e-10 * X });
-      else if (f(X) >= 0) crit = X;
+      const f = (s) => s - X - (s > D ? ex(s - D) : zeroValue(tau));
+      if (f(X) >= 0) {
+        crit = X;
+      } else {
+        let hi = Math.max(2 * X, 2 * D);
+        for (let i = 0; i < 80 && f(hi) <= 0; i++) hi *= 1.5;
+        if (f(hi) > 0) crit = brent(f, X, hi, { tol: 1e-10 * X });
+      }
     }
+    critical[k] = crit;
     const cum = (s) => {
       const cont = s > D ? ex(s - D) : zeroValue(tau);
       return s >= crit ? Math.max(s - X, cont) : cont;
     };
-    return { cum, kinks: [D, crit].filter(Number.isFinite), crit };
-  };
+    const cumFeatures = exFeatures.map((f) => ({ at: f.at + D, scale: f.scale * f.at / (f.at + D) }));
+    cumFeatures.push({ at: D, scale: 0 });
+    if (Number.isFinite(crit)) cumFeatures.push({ at: crit, scale: 0 });
 
-  for (let k = n - 1; k >= 1; k--) {
-    const { cum, kinks, crit } = cumFactory(k, exValue);
-    critical[k] = crit;
-    const dt = divs[k].t - divs[k - 1].t;
+    const t0 = k > 0 ? divs[k - 1].t : 0;
+    const dt = t - t0;
     const sd = v * Math.sqrt(dt);
+    const df = Math.exp(-r * dt);
+    const expect = (s0) => {
+      const drift = Math.log(s0) + mu * dt;
+      return df * normalIntegral((z) => cum(Math.exp(drift + sd * z)), cutsFor(cumFeatures, drift, sd));
+    };
+    if (k === 0) {
+      let price = expect(S);
+      if (american && call) price = Math.max(price, S - X);
+      return { price, critical };
+    }
+
     // Gitter for kursen rett etter utbytte k−1, sentrert om terminkursen eks utbytte.
-    const tk = divs[k - 1].t;
-    const sdk = v * Math.sqrt(tk);
-    const paid = divs.slice(0, k).reduce((acc, d) => acc + d.D * Math.exp(r * (tk - d.t)), 0);
-    const hiS = S * Math.exp(mu * tk + 9 * sdk) - paid;
-    let loS = S * Math.exp(mu * tk - 9 * sdk) - paid;
+    const sdk = v * Math.sqrt(t0);
+    const paid = divs.slice(0, k).reduce((acc, d) => acc + d.D * Math.exp(r * (t0 - d.t)), 0);
+    const hiS = S * Math.exp(mu * t0 + 9 * sdk) - paid;
+    const v0 = zeroValue(T - t0);
     if (!(hiS > 0)) {
       // Aksjen er så godt som sikkert likvidert; verdien er konstant.
-      const val = zeroValue(T - tk);
-      exValue = () => val;
+      exValue = () => v0;
+      exFeatures = [];
       continue;
     }
-    loS = Math.max(loS, hiS * 1e-4);
+    const loS = Math.max(S * Math.exp(mu * t0 - 9 * sdk) - paid, hiS * 1e-4);
+    exFeatures = cumFeatures.map((f) => ({ at: f.at * Math.exp(-mu * dt), scale: Math.hypot(f.scale, sd) }));
+    // Gitteravstanden må løse opp den smaleste egenskapen innenfor gitteret.
+    let minScale = Infinity;
+    for (const f of exFeatures) if (f.at > loS && f.at < hiS) minScale = Math.min(minScale, f.scale);
     const y0 = Math.log(loS);
-    const h = (Math.log(hiS) - y0) / (gridSize - 1);
-    const vals = new Float64Array(gridSize);
-    const df = Math.exp(-r * dt);
-    for (let i = 0; i < gridSize; i++) {
-      const s0 = Math.exp(y0 + i * h);
-      const drift = Math.log(s0) + mu * dt;
-      const cuts = kinks.map((K) => (Math.log(K) - drift) / sd);
-      vals[i] = df * normalIntegral((z) => cum(Math.exp(drift + sd * z)), cuts);
-    }
+    const range = Math.log(hiS) - y0;
+    const size = Math.min(4001, Math.max(241, Math.ceil(range / (minScale / 5)) + 1));
+    const h = range / (size - 1);
+    const vals = new Float64Array(size);
+    for (let i = 0; i < size; i++) vals[i] = expect(Math.exp(y0 + i * h));
     const spline = makeSpline(y0, h, vals);
-    const v0 = zeroValue(T - tk);
-    const vLo = vals[0];
-    const vHi = vals[gridSize - 1];
-    const sHi = Math.exp(y0 + (gridSize - 1) * h);
-    const sHi2 = Math.exp(y0 + (gridSize - 2) * h);
-    const slopeHi = (vHi - vals[gridSize - 2]) / (sHi - sHi2);
+    const sHi = Math.exp(y0 + (size - 1) * h);
+    const slopeHi = (vals[size - 1] - vals[size - 2]) / (sHi - Math.exp(y0 + (size - 2) * h));
     exValue = (s) => {
       if (!(s > 0)) return v0;
-      if (s < loS) return v0 + (vLo - v0) * s / loS;
-      if (s > sHi) return vHi + slopeHi * (s - sHi);
+      if (s < loS) return v0 + (vals[0] - v0) * s / loS;
+      if (s > sHi) return vals[size - 1] + slopeHi * (s - sHi);
       return spline(Math.log(s));
     };
   }
-
-  const first = cumFactory(0, exValue);
-  critical[0] = first.crit;
-  const t1 = divs[0].t;
-  const sd = v * Math.sqrt(t1);
-  const drift = Math.log(S) + mu * t1;
-  const cuts = first.kinks.map((K) => (Math.log(K) - drift) / sd);
-  let price = Math.exp(-r * t1) * normalIntegral((z) => first.cum(Math.exp(drift + sd * z)), cuts);
-  if (american && call) price = Math.max(price, S - X);
-  return { price, critical };
+  throw new Error('Intern feil i HHL-rekursjonen.');
 }
 
 export function hhlEuropean({ type = 'call', S, X, T, r, v, divs }) {
@@ -455,44 +481,51 @@ export function dividendTree({ type = 'call', exercise = 'american', S, X, T, r,
     if (call) return 0;
     return american ? X : X * Math.exp(-r * (T - j * dt));
   };
-  let V = new Float64Array(n + 1);
-  let s = S * d ** n;
+  // Gitteret utvides med K noder på hver side, slik at kursen etter et tidlig utbytte fortsatt
+  // ligger innenfor nodene. Node a på steg j har kurs S·d^(j+2K)·u^(2a), a = 0..j+2K.
+  const totalD = divs.reduce((acc, x) => acc + x.D, 0);
+  const K = Math.min(n, Math.ceil(-Math.log(1 - Math.min(0.9, totalD / S)) / (2 * v * Math.sqrt(dt))) + 3);
+  const width = n + 2 * K + 1;
+  const V = new Float64Array(width);
+  const C = new Float64Array(width);
   const Dn = divAt.get(n) ?? 0;
-  for (let i = 0; i <= n; i++) {
+  let s = S * d ** (n + 2 * K);
+  for (let a = 0; a < width; a++) {
     let val = payoff(s - Dn);
     if (american && Dn > 0) val = Math.max(val, payoff(s));
-    V[i] = val;
+    V[a] = val;
     s *= u2;
   }
-  const C = new Float64Array(n + 1);
+  const logq = Math.log(u2);
   for (let j = n - 1; j >= 0; j--) {
-    s = S * d ** j;
-    for (let i = 0; i <= j; i++) {
-      let val = df * (p * V[i + 1] + (1 - p) * V[i]);
+    const top = j + 2 * K;
+    const lo = S * d ** top;
+    s = lo;
+    for (let a = 0; a <= top; a++) {
+      let val = df * (p * V[a + 1] + (1 - p) * V[a]);
       if (american) {
         const ex = payoff(s);
         if (ex > val) val = ex;
       }
-      C[i] = val;
+      C[a] = val;
       s *= u2;
     }
     const D = divAt.get(j) ?? 0;
     if (D > 0) {
-      const lo = S * d ** j;
-      const cont = C.slice(0, j + 1);
+      const cont = C.slice(0, top + 1);
       s = lo;
-      for (let i = 0; i <= j; i++) {
-        let val = interpolateTree(cont, lo, Math.log(u2), s - D, zeroValue(j));
+      for (let a = 0; a <= top; a++) {
+        let val = interpolateTree(cont, lo, logq, s - D, zeroValue(j));
         if (american) {
           const ex = payoff(s);
           if (ex > val) val = ex;
         }
-        V[i] = val;
+        V[a] = val;
         s *= u2;
       }
     } else {
-      for (let i = 0; i <= j; i++) V[i] = C[i];
+      for (let a = 0; a <= top; a++) V[a] = C[a];
     }
   }
-  return { price: V[0], model };
+  return { price: V[K], model };
 }

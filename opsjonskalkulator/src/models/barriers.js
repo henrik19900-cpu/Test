@@ -12,7 +12,7 @@
 // (knock-out: rabatten/0, knock-in: tilsvarende vanilla) i stedet for å kaste.
 
 import { cnd, cbnd } from '../math/normal.js';
-import { gaussLegendre } from '../math/integrate.js';
+import { gaussLegendre, gaussLegendreComposite } from '../math/integrate.js';
 import { gbsm, isCall, probabilityOfEverInTheMoney } from './bsm.js';
 
 // --- Numeriske hjelpere -----------------------------------------------------------
@@ -115,14 +115,43 @@ function rrTerms(phi, eta, S, X, H, K, T, r, b, v) {
   let E = 0;
   let F = 0;
   if (K !== 0) {
-    const lam2 = mu * mu + 2 * r / v2;
-    if (lam2 < 0) throw new Error('Rabatt ved treff krever μ² + 2r/σ² ≥ 0 (for negativ rente r).');
-    const lam = Math.sqrt(lam2);
-    const z = lnHS / vst + lam * vst;
     E = K * Math.exp(-r * T) * (cnd(eta * (x2 - vst)) - expCnd(pX, eta * (y2 - vst)));
-    F = K * (expCnd((mu + lam) * lnHS, eta * z) + expCnd((mu - lam) * lnHS, eta * (z - 2 * lam * vst)));
+    F = K * hitDiscountValue({ a: lnHS, nu: b - v2 / 2, v, rate: r, T });
   }
   return { A, B, C, D, E, F };
+}
+
+// ∫ f(t) dt over [tMin, T] på logaritmisk tidsakse (tettheter med topp nær t = 0).
+export function integrateLogTime(f, tMin, T) {
+  if (!(T > tMin)) return 0;
+  const s0 = Math.log(tMin);
+  const s1 = Math.log(T);
+  const panels = Math.max(8, Math.ceil(4 * (s1 - s0)));
+  return gaussLegendreComposite((s) => {
+    const t = Math.exp(s);
+    return f(t) * t;
+  }, s0, s1, panels, 16);
+}
+
+// E[e^{−ρτ}; τ ≤ T] der τ er første treff av nivået a = ln(H/S) og ln S har drift ν.
+// Lukket form (leddet F hos Reiner og Rubinstein) når μ² + 2ρ/σ² ≥ 0; ellers (negativ rente)
+// numerisk integrasjon av førstepasseringstettheten. numeric = true tvinger integrasjonen.
+export function hitDiscountValue({ a, nu, v, rate, T, numeric = false }) {
+  if (a === 0) return 1;
+  if (!(T > 0)) return 0;
+  const v2 = v * v;
+  const mu = nu / v2;
+  const lam2 = mu * mu + 2 * rate / v2;
+  if (lam2 >= 0 && !numeric) {
+    const eta = a < 0 ? 1 : -1;
+    const vst = v * Math.sqrt(T);
+    const lam = Math.sqrt(lam2);
+    const z = a / vst + lam * vst;
+    return expCnd((mu + lam) * a, eta * z) + expCnd((mu - lam) * a, eta * (z - 2 * lam * vst));
+  }
+  const dens = (t) => Math.abs(a) / (v * Math.sqrt(2 * Math.PI * t * t * t))
+    * Math.exp(-rate * t - (a - nu * t) ** 2 / (2 * v2 * t));
+  return integrateLogTime(dens, a * a / (200 * v2), T);
 }
 
 // Standard barriereopsjon. barrier = 'do' | 'uo' | 'di' | 'ui' (ned/opp, ut/inn).
@@ -395,8 +424,9 @@ function hartRossIntegral(eta, a, c, S, X, T, r, b, v) {
   const v2 = v * v;
   const vst = v * Math.sqrt(T);
   const mu = (b + v2 / 2) / v2;
-  if (Math.abs(mu - 0.5) < 1e-4 || Math.abs(mu + 0.5) < 1e-4) {
-    // Lukket form er singulær (b ≈ 0 eller b ≈ −σ²): integrer standardformelen.
+  if (Math.abs(mu - 0.5) < 1e-4 || Math.abs(mu + 0.5) < 1e-4 || c - a < 1e-3 * c) {
+    // Lukket form er singulær (b ≈ 0 eller b ≈ −σ²) eller kansellerer (svært smalt
+    // intervall): integrer standardformelen numerisk i stedet.
     const type = eta > 0 ? 'call' : 'put';
     const barrier = eta > 0 ? 'di' : 'ui';
     return gaussLegendre((H) => standardBarrier({ type, barrier, S, X, H, K: 0, T, r, b, v }), a, c, 48);

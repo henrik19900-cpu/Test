@@ -474,7 +474,7 @@ export default [
         minLength: 2,
         help: 'Én per løpetid. Den første brukes ikke, fordi korteste rente er kjent i dag.',
       }),
-      callPut('call'), exerciseSelect(), L(100), X(70),
+      callPut('call'), exerciseSelect(), L(100), X(65),
       int('kT', 'Opsjonens løpetid (antall perioder Δt)', 2, { min: 0 }),
       int('ks', 'Obligasjonens løpetid (antall perioder Δt)', 5, { min: 1 }),
     ],

@@ -28,6 +28,13 @@ const barrierKind = (def = 'down-out') => select('kind', 'Barrieretype', [
   { value: 'up-in', label: 'Opp-og-inn' },
 ], def);
 const complement = { 'down-out': 'down-in', 'up-out': 'up-in', 'down-in': 'down-out', 'up-in': 'up-out' };
+// Merknad når barrieren allerede er truffet (ut-opsjonen er da verdiløs, inn-opsjonen en vanlig opsjon).
+const withBreachNote = (res, kind, x, H) => {
+  if (kind.startsWith('down') ? x <= H : x >= H) {
+    res['Merknad'] = 'Barrieren er allerede truffet: ut-opsjonen er verdiløs og inn-opsjonen er en vanlig opsjon.';
+  }
+  return res;
+};
 
 const maxMinKind = (def = 'min') => select('kind', 'Variant', [
   { value: 'min', label: 'Minimum av de to' },
@@ -253,11 +260,11 @@ export default [
       X(100, 'Innløsningskurs X (for S1)'), num('H', 'Barriere H (for S2)', 90, pos),
       ...market({ T: 0.5, r: 0.08, b1: 0.08, b2: 0.08, v1: 0.2, v2: 0.25, rho: 0.5 }),
     ],
-    compute: (p) => ({
+    compute: (p) => withBreachNote({
       'Pris': twoAssetBarrier(p),
       'Motsatt type (inn ↔ ut)': twoAssetBarrier({ ...p, kind: complement[p.kind] }),
       'Vanilla på S1 uten barriere': gbsm({ type: p.type, S: p.S1, X: p.X, T: p.T, r: p.r, b: p.b1, v: p.v1 }),
-    }),
+    }, p.kind, p.S2, p.H),
   },
   {
     id: 'two-barrier-partial',
@@ -273,12 +280,12 @@ export default [
       num('t1', 'Barrieren overvåkes til t1 (år)', 0.25, pos),
       ...market({ T: 0.5, r: 0.08, b1: 0.08, b2: 0.08, v1: 0.2, v2: 0.25, rho: 0.5 }),
     ],
-    compute: (p) => ({
+    compute: (p) => withBreachNote({
       'Pris': partialTwoAssetBarrier(p),
       'Motsatt type (inn ↔ ut)': partialTwoAssetBarrier({ ...p, kind: complement[p.kind] }),
       'Med barriere hele løpetiden': twoAssetBarrier(p),
       'Vanilla på S1 uten barriere': gbsm({ type: p.type, S: p.S1, X: p.X, T: p.T, r: p.r, b: p.b1, v: p.v1 }),
-    }),
+    }, p.kind, p.S2, p.H),
   },
   {
     id: 'two-margrabe-barrier',
@@ -293,11 +300,11 @@ export default [
       num('H', 'Barriere H (for forholdet S1/S2)', 0.9, pos),
       ...market({ T: 0.5, r: 0.08, b1: 0.04, b2: 0.06, v1: 0.2, v2: 0.25, rho: -0.5 }),
     ],
-    compute: (p) => ({
+    compute: (p) => withBreachNote({
       'Pris': margrabeBarrier(p),
       'Motsatt type (inn ↔ ut)': margrabeBarrier({ ...p, kind: complement[p.kind] }),
       'Bytteopsjon uten barriere': exchangeEuropean(p),
-    }),
+    }, p.kind, p.S1 / p.S2, p.H),
   },
 
   // --- Binære på to aktiva ---------------------------------------------------------

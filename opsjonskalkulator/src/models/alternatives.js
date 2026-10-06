@@ -491,11 +491,12 @@ export function heston({ type = 'call', S, X, T, r, b, v0, kappa, theta, sigma, 
     const [pr, pi] = hestonPsiShifted(u, T, v0, kappa, theta, sigma, rho);
     return (pr * Math.cos(u * k) - pi * Math.sin(u * k)) / (u * u + 0.25);
   };
-  // Paneler til integranden er neglisjerbar. Paneltykkelse etter standardavviket til ln S_T.
+  // Gauss-Legendre i paneler til integranden er neglisjerbar. Panelene er høyst 4 brede, så både
+  // toppen 1/(u² + ¼) nær null og svingningene i e^{iuk} blir godt oppløst.
   const scale = Math.sqrt(Math.max(Math.max(v0, theta, vbar) * T, 1e-6));
-  const h = Math.min(Math.max(1.5 / scale, 2), 60);
+  const h = Math.min(4, Math.max(1, 1.5 / scale));
   let integral = 0;
-  for (let p = 0; p < 4000; p++) {
+  for (let p = 0; p < 20000; p++) {
     const a = p * h;
     const part = gaussLegendre(f, a, a + h, 32);
     integral += part;

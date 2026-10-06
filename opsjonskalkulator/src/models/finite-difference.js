@@ -69,7 +69,11 @@ export function finiteDifference({
   if (method === 'explicit') {
     const dtMax = 0.9 / (v * v / (dx * dx) + Math.abs(r));
     steps = Math.max(N, Math.ceil(T / dtMax));
-    if (steps > 2000000) throw new Error('Den eksplisitte metoden krever for mange tidssteg; reduser antall prissteg.');
+  }
+  if (steps * M > 1e8) {
+    throw new Error(method === 'explicit'
+      ? 'Den eksplisitte metoden krever for mange tidssteg med så mange prissteg; reduser antall prissteg M.'
+      : 'Gitteret er for stort (antall prissteg × tidssteg); reduser M eller N.');
   }
   const dt = T / steps;
 

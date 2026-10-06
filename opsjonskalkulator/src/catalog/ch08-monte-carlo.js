@@ -103,7 +103,7 @@ export default [
     chapter: 8,
     group: 'To aktiva',
     name: 'Spread, maks og min på to korrelerte aktiva',
-    authors: 'Simulering med korrelerte normaler; referanser Stulz (1982), Margrabe (1978), Kirk (1995)',
+    authors: 'Referanser: Stulz (1982), Margrabe (1978), Kirk (1995)',
     description: 'Simulerer to korrelerte lognormale aktiva ved forfall med antitetiske trekk. Sammenlignes med Stulz for maks/min, Margrabe for spread med X = 0 og Kirks tilnærming ellers.',
     payoff: 'spread: max(S1 − S2 − X, 0) · maks: max(max(S1, S2) − X, 0) · min: max(min(S1, S2) − X, 0)',
     inputs: [
@@ -130,7 +130,7 @@ export default [
       if (p.kind === 'spread') {
         if (p.X === 0) {
           const ex = margrabe(p);
-          // Put med X = 0: max(S2 − S1, 0), Margrabe med aktivaene byttet om.
+          // Put med X = 0 er max(S2 − S1, 0); verdien følger av pariteten mot Margrabe-opsjonen.
           ref = p.type === 'call' ? ex : ex - p.S1 * Math.exp((p.b1 - p.r) * p.T) + p.S2 * Math.exp((p.b2 - p.r) * p.T);
           model = 'Margrabe (1978), eksakt';
         } else {

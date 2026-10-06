@@ -603,3 +603,30 @@ test('Heston mot betinget Monte Carlo (full truncation Euler)', () => {
     assert.ok(Math.abs(h - bs) > 8 * est.se, `stokastisk volatilitet gir målbart avvik fra BSM (${h - bs} mot SE ${est.se})`);
   }
 });
+
+// --- Arbitrasjefrihet i innløsningskursen (fanger numeriske feil på 1e-10-nivå) ----------------------
+function checkStrikeShape(price, label) {
+  let prev = Infinity;
+  let prevSlope = -Infinity;
+  for (let X = 40; X <= 250; X += 2) {
+    const c = price('call', X);
+    const p = price('put', X);
+    assert.ok(p >= -1e-12 && c >= -1e-12, `${label}: negativ pris ved X=${X}`);
+    assert.ok(c <= prev + 1e-12, `${label}: call øker i X ved X=${X}`);
+    const slope = c - prev;
+    if (X > 42) assert.ok(slope >= prevSlope - 1e-10, `${label}: call ikke konveks ved X=${X}`);
+    prev = c;
+    prevSlope = slope;
+  }
+}
+
+test('Heston og CEV: priser er positive, fallende og konvekse i innløsningskursen', () => {
+  for (const [sigma, rho, T] of [[0.3, -0.7, 0.5], [1.2, 0.6, 0.1], [0.8, -0.9, 3]]) {
+    const h = { S: 100, T, r: 0.03, b: 0.01, v0: 0.04, kappa: 1.5, theta: 0.06, sigma, rho };
+    checkStrikeShape((type, X) => heston({ ...h, type, X }), `Heston σ_v=${sigma} ρ=${rho} T=${T}`);
+  }
+  for (const beta of [0, 1, 1.9, 2.1, 3]) {
+    const c = { S: 100, T: 1, r: 0.05, b: 0.03, v: 0.3 * 100 ** (1 - beta / 2), beta };
+    checkStrikeShape((type, X) => cev({ ...c, type, X }), `CEV β=${beta}`);
+  }
+});

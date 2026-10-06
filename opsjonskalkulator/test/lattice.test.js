@@ -187,11 +187,9 @@ test('Derman-Kani med skjevhet: Arrow-Debreu, termin, kalibrering og paritet', (
   const p = { S: 100, T: 1, r: 0.05, b: 0.03, v: 0.2, skew: -0.001, n: 31 };
   const tree = buildDermanKani(p);
   const dt = p.T / p.n;
-  for (let i = 0; i <= p.n; i++) {
-    // Arrow-Debreu-prisene summerer til diskonteringsfaktoren.
-    const lam = i === p.n ? tree.lambda : null;
-    if (lam) close(lam.reduce((a, x) => a + x, 0), Math.exp(-p.r * p.T), 1e-12, 'Arrow-Debreu');
-  }
+  // Arrow-Debreu-prisene på siste nivå summerer til diskonteringsfaktoren og priser terminen.
+  close(tree.lambda.reduce((a, x) => a + x, 0), Math.exp(-p.r * p.T), 1e-12, 'Arrow-Debreu');
+  close(tree.lambda.reduce((a, x, j) => a + x * tree.nodes[p.n][j], 0), p.S * Math.exp((p.b - p.r) * p.T), 1e-9, 'termin i dag');
   for (let i = 0; i < p.n; i++) {
     tree.nodes[i].forEach((s, j) => {
       const pr = tree.probs[i][j];

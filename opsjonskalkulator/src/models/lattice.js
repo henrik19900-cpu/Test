@@ -373,7 +373,9 @@ export function buildDermanKani({ S, T, r, b, v, skew = 0, n = 5 }) {
   const probs = [];
   let lambda = [1];
   let overrides = 0;
-  const price = (call, K, steps) => crrEuropeanSum(call, S, K, steps, dt, r, b, linearSkewVol(K, S, v, skew));
+  // CRR krever σ√Δt > |b|Δt for at p skal ligge i (0, 1); volatiliteten avgrenses nedad til det.
+  const volFloor = 1.05 * Math.abs(b) * Math.sqrt(dt) + 1e-6;
+  const price = (call, K, steps) => crrEuropeanSum(call, S, K, steps, dt, r, b, Math.max(volFloor, linearSkewVol(K, S, v, skew)));
 
   for (let i = 0; i < n; i++) {
     const s = nodes[i];

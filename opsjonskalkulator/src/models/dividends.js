@@ -114,6 +114,7 @@ export function haugHaugVol({ type = 'call', S, X, T, r, v, divs }) {
 // under en brownsk bro fra S* = S − PV(D) til X. Derfor er s = ln(S − PV(D)) og x = ln(X e^{−rT}).
 export function bgsVol({ type = 'call', S, X, T, r, v, divs }) {
   checkCommon({ S, X, T, v });
+  if (divs.length === 0) return { price: gbsm({ type, S, X, T, r, b: r, v }), Sadj: S, pv: 0, vAdj: v };
   const { Sadj, pv } = adjustedSpot(S, divs, r);
   const sqT = Math.sqrt(T);
   const s = Math.log(Sadj);
@@ -133,7 +134,9 @@ export function bgsVol({ type = 'call', S, X, T, r, v, divs }) {
   const adj = v * Math.sqrt(Math.PI / (2 * T)) * (
     4 * Math.exp(z1 * z1 / 2 - s) * sum1 + Math.exp(z2 * z2 / 2 - 2 * s) * sum2);
   const v2 = v * v + adj;
-  if (!(v2 > 0)) throw new Error('Den justerte variansen ble negativ.');
+  if (!Number.isFinite(v2) || !(v2 > 0)) {
+    throw new Error('Bos-Gairat-Shepeleva-justeringen bryter sammen så langt i eller ut av pengene.');
+  }
   const vAdj = Math.sqrt(v2);
   return { price: gbsm({ type, S: Sadj, X, T, r, b: r, v: vAdj }), Sadj, pv, vAdj };
 }

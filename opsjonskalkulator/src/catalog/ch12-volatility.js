@@ -32,7 +32,7 @@ export default [
     chapter: 12,
     group: 'Historisk volatilitet',
     name: 'Historisk volatilitet fra sluttkurser',
-    authors: 'Standardestimatoren (close-to-close)',
+    authors: 'Haug (2007), kap. 12',
     description: 'Standardavviket til logavkastningene ln(S_i/S_{i−1}), skalert med √(perioder per år). Intervallet bygger på at (n − 1)σ̂²/σ² er kjikvadratfordelt.',
     inputs: [prices('closes', 'Sluttkurser', CLOSE), ppy(), conf()],
     compute: (p) => {
@@ -54,7 +54,7 @@ export default [
     chapter: 12,
     group: 'Historisk volatilitet',
     name: 'Eksponentielt vektet historisk volatilitet',
-    authors: 'EWMA (RiskMetrics, λ = 0,94)',
+    authors: 'J.P. Morgan RiskMetrics (1996)',
     description: 'Avkastning i kvadrat vektes med λ^i, der i = 0 er siste periode. Vektene er normert til å summere til 1, og avkastningene sentreres ikke.',
     inputs: [
       prices('closes', 'Sluttkurser', CLOSE),
@@ -119,7 +119,7 @@ export default [
     chapter: 12,
     group: 'Historisk volatilitet',
     name: 'Konfidensintervall for volatilitet',
-    authors: 'Kjikvadratfordelingen til utvalgsvariansen',
+    authors: 'Haug (2007), kap. 12',
     description: 'For n normalfordelte avkastninger er (n − 1)σ̂²/σ² kjikvadratfordelt med n − 1 frihetsgrader. Gir et intervall for den sanne volatiliteten.',
     inputs: [
       num('sigma', 'Estimert volatilitet σ̂', 0.3, { ...positive, unit: 'rate' }),
@@ -166,7 +166,7 @@ export default [
     chapter: 12,
     group: 'Implisitt volatilitet',
     name: 'Implisitt forward-volatilitet',
-    authors: 'Additiv total varians',
+    authors: 'Haug (2007), kap. 12',
     description: 'Volatiliteten mellom T1 og T2 som implisitt ligger i to implisitte volatiliteter: σ_F² = (σ2²T2 − σ1²T1)/(T2 − T1).',
     inputs: [
       num('v1', 'Implisitt volatilitet σ1 (kort løpetid)', 0.2, { ...positive, unit: 'rate' }),
@@ -185,7 +185,7 @@ export default [
     chapter: 12,
     group: 'Korrelasjon',
     name: 'Historisk korrelasjon',
-    authors: 'Pearson; konfidensintervall: Fisher (1915)',
+    authors: 'Pearson (1896), Fisher (1915)',
     description: 'Korrelasjonen mellom logavkastningene til to prisrekker, med konfidensintervall fra Fishers z-transformasjon atanh(ρ̂) ± z_{α/2}/√(n − 3).',
     inputs: [
       list('prices1', 'Prisrekke 1', SERIES_A, { minLength: 5 }),
@@ -199,7 +199,7 @@ export default [
         'Konfidensintervall, nedre': res.lower,
         'Konfidensintervall, øvre': res.upper,
         'Antall avkastninger n': res.n,
-        't-verdi for ρ = 0': res.tStat,
+        't-verdi for ρ = 0': Number.isFinite(res.tStat) ? res.tStat : 'uendelig',
         'Volatilitet rekke 1 (årlig)': res.v1,
         'Volatilitet rekke 2 (årlig)': res.v2,
       };
@@ -234,7 +234,7 @@ export default [
     chapter: 12,
     group: 'Korrelasjon',
     name: 'Implisitt korrelasjon fra valutaopsjoner',
-    authors: 'Volatiliteten til en krysskurs',
+    authors: 'Haug (2007), kap. 12',
     description: 'Tre implisitte valutavolatiliteter bestemmer korrelasjonen: er krysskursen S1/S2, er σ₁₂² = σ1² + σ2² − 2ρσ1σ2.',
     inputs: [
       num('v1', 'Volatilitet σ1 til valutakurs S1', 0.1, { ...positive, unit: 'rate' }),
@@ -253,7 +253,7 @@ export default [
     chapter: 12,
     group: 'Korrelasjon',
     name: 'Gjennomsnittlig implisitt indekskorrelasjon',
-    authors: 'Lik parvis korrelasjon i indeksvariansen',
+    authors: 'Haug (2007), kap. 12',
     description: 'Korrelasjonen ρ̄ som gjør σ_I² = Σw_i²σ_i² + ρ̄ Σ_{i≠j} w_i w_j σ_i σ_j, gitt implisitt volatilitet for indeksen og komponentene.',
     inputs: [
       num('vIndex', 'Indeksvolatilitet σ_I', 0.18, { ...positive, unit: 'rate' }),

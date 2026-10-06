@@ -7,6 +7,15 @@ import { callPut, int, S, X, T, r, b, v } from './common.js';
 
 const NONE = 'ingen (tidlig innløsning lønner seg aldri)';
 const level = (x) => (x === null || x === undefined || !Number.isFinite(x) ? NONE : x);
+// Pris fra en tilnærming som kan være udefinert for enkelte parametre (vises da som tekst).
+const tryPrice = (fn) => {
+  try {
+    return fn().price;
+  } catch (e) {
+    return null;
+  }
+};
+const orText = (x) => (x === null ? 'ikke definert' : x);
 
 export default [
   {
@@ -92,6 +101,8 @@ export default [
     authors: 'Bjerksund og Stensland (1993), McDonald og Schroder (1998)',
     description: 'En amerikansk put er verdt det samme som en amerikansk call der spot og innløsningskurs bytter plass, renten er r − b og carry er −b: P(S, X, T, r, b, σ) = C(X, S, T, r − b, −b, σ).',
     inputs: [S(36), X(40), T(1), r(0.06), b(0.06), v(0.2), int('n', 'Antall tidssteg n (binomialtre)', 500, { min: 3, max: 5000 })],
+    // Hovedresultatet er et binomialtre (stykkevis lineært i S), så numerisk gamma gir ikke mening.
+    greeks: false,
     compute: (p) => {
       const q = putCallTransform(p);
       const putTree = crrTree({ type: 'put', exercise: 'american', S: p.S, X: p.X, T: p.T, r: p.r, b: p.b, v: p.v, n: p.n });
@@ -99,7 +110,7 @@ export default [
       return {
         'Put (binomialtre)': putTree.price,
         'Call med transformerte parametre (binomialtre)': callTree.price,
-        'Put (Bjerksund-Stensland 2002)': bsAmerican2002({ type: 'put', ...p }).price,
+        'Put (Bjerksund-Stensland 2002)': orText(tryPrice(() => bsAmerican2002({ type: 'put', ...p }))),
         'Transformert spot (= X)': q.S,
         'Transformert innløsningskurs (= S)': q.X,
         'Transformert rente r − b': q.r,
@@ -115,20 +126,23 @@ export default [
     authors: 'Haug (2007), kap. 3',
     description: 'Barone-Adesi-Whaley og Bjerksund-Stensland (1993 og 2002) mot et Cox-Ross-Rubinstein-binomialtre og den europeiske verdien.',
     inputs: [callPut('put'), S(100), X(100), T(0.5), r(0.1), b(0), v(0.35), int('n', 'Antall tidssteg n (binomialtre)', 500, { min: 3, max: 5000 })],
+    // Hovedresultatet er et binomialtre (stykkevis lineært i S), så numerisk gamma gir ikke mening.
+    greeks: false,
     compute: (p) => {
       const tree = crrTree({ ...p, exercise: 'american' }).price;
-      const baw = bawAmerican(p).price;
-      const bs93 = bsAmerican1993(p).price;
-      const bs02 = bsAmerican2002(p).price;
+      const baw = tryPrice(() => bawAmerican(p));
+      const bs93 = tryPrice(() => bsAmerican1993(p));
+      const bs02 = tryPrice(() => bsAmerican2002(p));
+      const diff = (x) => (x === null ? 'ikke definert' : x - tree);
       return {
         'Binomialtre (CRR)': tree,
-        'Barone-Adesi-Whaley': baw,
-        'Bjerksund-Stensland 1993': bs93,
-        'Bjerksund-Stensland 2002': bs02,
+        'Barone-Adesi-Whaley': orText(baw),
+        'Bjerksund-Stensland 1993': orText(bs93),
+        'Bjerksund-Stensland 2002': orText(bs02),
         'Europeisk (GBSM)': gbsm(p),
-        'Avvik BAW − tre': baw - tree,
-        'Avvik BS 1993 − tre': bs93 - tree,
-        'Avvik BS 2002 − tre': bs02 - tree,
+        'Avvik BAW − tre': diff(baw),
+        'Avvik BS 1993 − tre': diff(bs93),
+        'Avvik BS 2002 − tre': diff(bs02),
       };
     },
   },

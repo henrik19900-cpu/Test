@@ -173,6 +173,7 @@ export default [
       ...base('put'), ...divInputs(),
       int('n', 'Antall tidssteg n', 500, { min: 3, max: 5000 }),
     ],
+    greeks: false,
     compute: (p) => {
       const divs = schedule(p);
       const res = dividendTree({ ...p, divs });
@@ -199,10 +200,18 @@ export default [
         ['Bos-Gairat-Shepeleva', bgsVol],
         ['Bos-Vandermark', bosVandermark],
       ];
-      for (const [label, fn] of methods) out[label] = fn(q).price;
-      for (const [label, fn] of methods) out[`Avvik ${label}`] = fn(q).price - exact;
-      out['Amerikansk (binomialtre, 500 steg)'] = dividendTree({ ...q, exercise: 'american', n: 500 }).price;
-      if (p.type === 'call') out['Amerikansk call (HHL)'] = hhlAmericanCall(q).price;
+      const safe = (fn) => {
+        try {
+          return fn().price;
+        } catch (e) {
+          return null;
+        }
+      };
+      const prices = methods.map(([label, fn]) => [label, safe(() => fn(q))]);
+      for (const [label, x] of prices) out[label] = x ?? 'ikke definert';
+      for (const [label, x] of prices) out[`Avvik ${label}`] = x === null ? 'ikke definert' : x - exact;
+      out['Amerikansk (binomialtre, 500 steg)'] = safe(() => dividendTree({ ...q, exercise: 'american', n: 500 })) ?? 'ikke definert';
+      if (p.type === 'call' && p.r >= 0) out['Amerikansk call (HHL)'] = hhlAmericanCall(q).price;
       return out;
     },
   },

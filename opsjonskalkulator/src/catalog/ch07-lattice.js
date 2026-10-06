@@ -12,6 +12,8 @@ const exercise = (def = 'american') => select('exercise', 'Innløsning', [
 
 const steps = (def, max = 5000, label = 'Antall tidssteg n') => int('n', label, def, { min: 3, max });
 
+// Trepriser er stykkevis lineære i S, så UI-ets numeriske gamma blir misvisende. Trekalkulatorene
+// har derfor greeks: false og viser i stedet delta, gamma og theta lest av treet.
 const treeResult = (res, p, withTheta = true) => {
   const out = { 'Pris': res.price, 'Delta': res.delta, 'Gamma': res.gamma };
   if (withTheta) {
@@ -25,7 +27,7 @@ const treeResult = (res, p, withTheta = true) => {
 const fdInputs = [
   exercise('american'), callPut('put'), S(100), X(100), T(0.5), r(0.1), b(0.1), v(0.25),
   int('M', 'Antall prissteg M', 200, { min: 10, max: 5000 }),
-  int('N', 'Antall tidssteg N', 200, { min: 1, max: 100000 }),
+  int('N', 'Antall tidssteg N', 200, { min: 1, max: 20000 }),
 ];
 
 const fdCompute = (method) => (p) => {
@@ -77,6 +79,7 @@ export default [
     authors: 'Cox, Ross og Rubinstein (1979)',
     description: 'Rekombinerende binomialtre med u = e^{σ√Δt}, d = 1/u og p = (e^{bΔt} − d)/(u − d). Delta, gamma og theta leses av de første nodene i treet.',
     inputs: [exercise('american'), callPut('put'), S(100), X(95), T(0.5), r(0.08), b(0.08), v(0.3), steps(100)],
+    greeks: false,
     compute: (p) => treeResult(crrTree(p), p),
   },
   {
@@ -93,6 +96,7 @@ export default [
       ], 'lr'),
       exercise('american'), callPut('put'), S(100), X(95), T(0.5), r(0.08), b(0.08), v(0.3), steps(101),
     ],
+    greeks: false,
     compute: (p) => {
       const res = binomialTree(p);
       return { ...treeResult(res, p, false), 'Steg brukt': res.steps };
@@ -106,6 +110,7 @@ export default [
     authors: 'Boyle (1986)',
     description: 'Rekombinerende trinomialtre med u = e^{σ√(2Δt)} og sannsynligheter for opp, uendret og ned. Delta, gamma og theta leses av treet.',
     inputs: [exercise('american'), callPut('put'), S(100), X(110), T(0.5), r(0.1), b(0.1), v(0.27), steps(100)],
+    greeks: false,
     compute: (p) => {
       const res = trinomialTree(p);
       return { ...treeResult(res, p), 'Sannsynlighet opp pu': res.pu, 'Sannsynlighet uendret pm': res.pm, 'Sannsynlighet ned pd': res.pd };
@@ -137,6 +142,7 @@ export default [
       rho(-0.5),
       steps(100, 400),
     ],
+    greeks: false,
     compute: (p) => {
       const res = threeDimTree(p);
       const out = { 'Pris': res.price };
@@ -158,13 +164,17 @@ export default [
       num('skew', 'Skjevhet: endring i σ per enhet økning i K', -0.0005),
       steps(5, 150),
     ],
+    greeks: false,
     compute: (p) => {
       const res = dermanKaniTree(p);
       return {
         'Pris (implisitt tre)': res.price,
+        'CRR-tre med σ(X), samme antall steg': crrTree({ ...p, v: res.impliedVolAtX }).price,
         'GBSM med σ(X)': gbsm({ type: p.type, S: p.S, X: p.X, T: p.T, r: p.r, b: p.b, v: res.impliedVolAtX }),
         'Implisitt volatilitet σ(X)': res.impliedVolAtX,
         'Lokal volatilitet i første steg': res.localVol0,
+        'Noder etter første steg (ned / opp)': res.tree.nodes[1].map((x) => x.toFixed(4).replace('.', ',')).join(' / '),
+        'Sannsynlighet for opp i første steg': res.tree.probs[0][0],
         'Noder justert mot arbitrasje': res.tree.overrides,
       };
     },

@@ -243,6 +243,7 @@ export function perpetualAmerican({ type = 'call', S, X, r, b, v }) {
     if (!(b < r)) throw new Error('En evigvarende call krever b < r; ellers lønner det seg aldri å innløse, og verdien er ikke endelig.');
     if (!(disc >= 0)) throw new Error('Ingen løsning for denne kombinasjonen av rente og cost of carry.');
     const y1 = 0.5 - b / v2 + Math.sqrt(disc);
+    if (!(y1 > 1)) throw new Error('Ingen løsning for denne kombinasjonen av rente og cost of carry.');
     const boundary = y1 / (y1 - 1) * X;
     const price = S >= boundary ? S - X : X / (y1 - 1) * ((y1 - 1) / y1 * S / X) ** y1;
     return { price, boundary, exponent: y1 };

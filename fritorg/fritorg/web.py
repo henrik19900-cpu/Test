@@ -12,7 +12,19 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.datastructures import FormData, UploadFile
 
-from . import discovery, images, listings, messages, moderation, phone, recovery, serializers, taxonomy, users
+from . import (
+    discovery,
+    images,
+    listings,
+    messages,
+    moderation,
+    phone,
+    privacy,
+    recovery,
+    serializers,
+    taxonomy,
+    users,
+)
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
 from .errors import AppError, Conflict, NotFound, RateLimited, ValidationProblem
 from .listings import SORTS, SearchParams
@@ -766,6 +778,21 @@ def revoke_token(token_id: int, request: Request, conn: Conn, form: Form) -> Res
         return login_redirect(request)
     users.revoke_api_token(conn, user.id, token_id)
     return redirect("/min-side#nokler", flash="Nøkkelen er slettet.")
+
+
+@router.get("/min-side/data.json")
+def download_my_data(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    data = privacy.export_user(conn, user, base_url(request))
+    return JSONResponse(
+        data,
+        headers={
+            "Content-Disposition": f'attachment; filename="fritorg-data-{user.id}.json"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.get("/bekreft-epost")

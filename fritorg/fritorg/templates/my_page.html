@@ -124,7 +124,7 @@
     <input id="new-email" name="email" type="email" autocomplete="email" value="{{ user.email }}" required>
     <button type="submit" class="button">{% if mail_enabled and not user.email_verified_at %}Send bekreftelse{% else %}Lagre{% endif %}</button>
   </form>
-  <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a></p>
+  <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a> · <a href="/min-side/data.json" download>Last ned dataene dine (JSON)</a></p>
   {% if user.has_password %}
   <details id="passord">
     <summary>Bytt passord</summary>

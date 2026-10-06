@@ -7,10 +7,10 @@ import sqlite3
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import identity, images, listings, messages, phone, serializers, taxonomy, users
+from . import identity, images, listings, messages, phone, privacy, serializers, taxonomy, users
 from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
 from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized
@@ -564,6 +564,13 @@ def device_token(body: DeviceTokenIn, request: Request, conn: Conn) -> dict:
 def me(conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
     """Your account. If `verification_required` is true, verify a mobile number before posting or messaging."""
     return _account(conn, user, settings)
+
+
+@router.get("/me/export", tags=["account"], summary="All your data (GDPR)")
+def export_my_data(request: Request, conn: Conn, user: CurrentUser) -> JSONResponse:
+    """Everything Fritorg stores about the account: profile, listings, conversations, tokens and reports."""
+    data = privacy.export_user(conn, user, base_url(request))
+    return JSONResponse(data, headers={"Cache-Control": "no-store"})
 
 
 def _sms_sender(request: Request) -> phone.SmsSender:

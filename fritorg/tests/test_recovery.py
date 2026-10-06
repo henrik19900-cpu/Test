@@ -79,7 +79,8 @@ def test_tampered_and_expired_reset_tokens(app, client, outbox):
         secret = app.state.secret_key
         token = recovery.reset_token(secret, data["account"]["id"], password_hash)
         assert recovery.user_for_reset_token(conn, secret, token) is not None
-        assert recovery.user_for_reset_token(conn, secret, token[:-1] + "0") is None
+        tampered = token[:-1] + ("1" if token.endswith("0") else "0")  # always a different signature
+        assert recovery.user_for_reset_token(conn, secret, tampered) is None
         assert recovery.user_for_reset_token(conn, "another-secret", token) is None
         old = recovery.reset_token(secret, data["account"]["id"], password_hash, now=0)
         assert recovery.user_for_reset_token(conn, secret, old) is None

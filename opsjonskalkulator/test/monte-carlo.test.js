@@ -127,8 +127,9 @@ test('To aktiva: simulatoren mot analytiske referanser', () => {
   }
 });
 
-// Cox-Ross-Rubinstein-tre for amerikanske opsjoner (uavhengig referanse).
-function crrAmerican({ type, S, X, T, r, b, v, n = 2000 }) {
+// Cox-Ross-Rubinstein-tre (uavhengig referanse). Med `every` > 1 er utøvelse bare tillatt i hvert
+// every-te steg (bermudisk opsjon med n/every utøvelsesdatoer).
+function crrAmerican({ type, S, X, T, r, b, v, n = 2000, every = 1 }) {
   const dt = T / n;
   const u = Math.exp(v * Math.sqrt(dt));
   const d = 1 / u;
@@ -143,23 +144,25 @@ function crrAmerican({ type, S, X, T, r, b, v, n = 2000 }) {
   for (let j = n - 1; j >= 0; j--) {
     for (let i = 0; i <= j; i++) {
       const cont = df * (p * vals[i + 1] + (1 - p) * vals[i]);
-      vals[i] = Math.max(cont, sign * (spot[2 * i - j + n] - X));
+      vals[i] = j % every === 0 ? Math.max(cont, sign * (spot[2 * i - j + n] - X)) : cont;
     }
   }
   return vals[0];
 }
 
-test('Longstaff-Schwartz mot binomialtre (amerikansk put)', () => {
+test('Longstaff-Schwartz mot binomialtre med samme utøvelsesdatoer', () => {
   for (const [S, v, T] of [[36, 0.2, 1], [40, 0.4, 1], [44, 0.2, 2]]) {
     const p = H('put', S, 40, T, 0.06, 0.06, v);
-    const res = longstaffSchwartz({ ...p, steps: 50 * T, paths: 100000, seed: 11 });
-    const tree = crrAmerican(p);
-    // LSM med 50 utøvelsesdatoer per år er bermudisk og regresjonsbasert: liten skjevhet tillates.
-    withinMC({ mean: res.price, se: res.se }, tree, 4, 0.02, `LSM S=${S} σ=${v} T=${T}`);
+    const dates = 50 * T;
+    const res = longstaffSchwartz({ ...p, steps: dates, paths: 100000, seed: 11 });
+    const bermudan = crrAmerican({ ...p, n: 40 * dates, every: 40 });
+    // Regresjonen gir en liten skjevhet (lav ved suboptimal regel, høy ved gjenbruk av stiene).
+    withinMC({ mean: res.price, se: res.se }, bermudan, 4, 0.005, `LSM S=${S} σ=${v} T=${T}`);
     assert.ok(res.price > res.bsm + 10 * res.se, 'tidligutøvelsespremien er tydelig');
+    assert.ok(bermudan < crrAmerican(p), 'bermudisk < amerikansk');
   }
-  // Longstaff og Schwartz (2001), tabell 1: amerikansk verdi (finite difference) 4,478 for S = 36, σ = 0,2, T = 1.
-  close(crrAmerican(H('put', 36, 40, 1, 0.06, 0.06, 0.2)), 4.478, 2e-3, 'treet mot LS tabell 1');
+  // Longstaff og Schwartz (2001), tabell 1: 4,478 (finite difference, 50 utøvelsesdatoer) for S = 36, σ = 0,2, T = 1.
+  close(crrAmerican({ ...H('put', 36, 40, 1, 0.06, 0.06, 0.2), n: 2000, every: 40 }), 4.478, 1e-3, 'treet mot LS tabell 1');
 });
 
 test('Longstaff-Schwartz: call uten utbytte er europeisk, og ett steg er europeisk', () => {

@@ -329,17 +329,17 @@ export function impliedIndexCorrelation({ vIndex, weights, vols }) {
 // Rettferdig variansstrike ved replikasjon med OTM-opsjoner rundt forwarden F = S e^{bT}:
 //   K_var = (2 e^{rT}/T) [∫₀^F P(K)/K² dK + ∫_F^∞ C(K)/K² dK]
 // `vol(K)` gir smilet; standard er lineær skjevhet σ(K) = σ₀ − skew·(K − F)/F (Demeterfi m.fl.),
-// som gir tilnærmingen K_var ≈ σ₀²(1 + 3T·skew²).
-export function varianceSwapStrike({ S, T, r, b, vAtm, skew = 0, vol, minVol = 0.005 }) {
+// som gir tilnærmingen K_var ≈ σ₀²(1 + 3T·skew²). Alternativt kan `optionPrice(K, type)` gi
+// opsjonsprisene direkte (f.eks. fra en stokastisk volatilitetsmodell).
+export function varianceSwapStrike({ S, T, r, b, vAtm, skew = 0, vol, optionPrice, minVol = 0.005 }) {
   if (!(T > 0)) throw new Error('Løpetiden må være positiv.');
   const F = S * Math.exp(b * T);
   const smile = vol ?? ((K) => Math.max(vAtm - skew * (K - F) / F, minVol));
-  const g = (y, type) => {
-    const K = F * Math.exp(y);
-    return gbsm({ type, S, X: K, T, r, b, v: smile(K) }) * Math.exp(-y);
-  };
-  let vmax = 0;
-  for (let y = -6; y <= 6; y += 0.05) vmax = Math.max(vmax, smile(F * Math.exp(y)));
+  const priceAt = optionPrice ?? ((K, type) => gbsm({ type, S, X: K, T, r, b, v: smile(K) }));
+  const g = (y, type) => priceAt(F * Math.exp(y), type) * Math.exp(-y);
+  // Integrasjonsgrensene skaleres med høyeste volatilitet i smilet (eller vAtm når prisene er gitt).
+  let vmax = optionPrice ? vAtm ?? 1 : 0;
+  if (!optionPrice) for (let y = -6; y <= 6; y += 0.05) vmax = Math.max(vmax, smile(F * Math.exp(y)));
   const L = Math.min(14 * vmax * Math.sqrt(T) + 0.5, 40);
   const puts = gaussLegendreComposite((y) => g(y, 'put'), -L, 0, 64, 16);
   const calls = gaussLegendreComposite((y) => g(y, 'call'), 0, L, 64, 16);

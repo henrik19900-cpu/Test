@@ -333,25 +333,26 @@ export function longstaffSchwartz({ type = 'put', S, X, T, r, b, v, steps = 50, 
   const sd = v * Math.sqrt(dt);
   const disc = Math.exp(-r * dt);
   const rng = createRng(seed);
+  // Tidsordnet lagring: P[(j − 1)·N + i] er kursen på sti i ved tidssteg j (sti 2k og 2k + 1 er et
+  // antitetisk par). Én tidsskive ligger da sammenhengende i minnet når vi regner baklengs.
   const P = new Float64Array(N * steps);
   const lnS = Math.log(S);
   for (let k = 0; k < pairs; k++) {
     let x1 = lnS;
     let x2 = lnS;
-    const o1 = 2 * k * steps;
-    const o2 = o1 + steps;
     for (let j = 0; j < steps; j++) {
       const z = rng.normal();
       x1 += drift + sd * z;
       x2 += drift - sd * z;
-      P[o1 + j] = Math.exp(x1);
-      P[o2 + j] = Math.exp(x2);
+      P[j * N + 2 * k] = Math.exp(x1);
+      P[j * N + 2 * k + 1] = Math.exp(x2);
     }
   }
   const val = new Float64Array(N);
   let euro = 0;
   let euro2 = 0;
-  for (let i = 0; i < N; i++) val[i] = Math.max(sign * (P[i * steps + steps - 1] - X), 0);
+  const last = (steps - 1) * N;
+  for (let i = 0; i < N; i++) val[i] = Math.max(sign * (P[last + i] - X), 0);
   for (let k = 0; k < pairs; k++) {
     const y = 0.5 * (val[2 * k] + val[2 * k + 1]);
     euro += y;
@@ -359,35 +360,52 @@ export function longstaffSchwartz({ type = 'put', S, X, T, r, b, v, steps = 50, 
   }
   const nb = degree + 1;
   const basis = new Float64Array(nb);
+  const A = new Float64Array(nb * nb);
+  const yv = new Float64Array(nb);
+  const idx = new Int32Array(N);
+  const xs = new Float64Array(N);
+  const exs = new Float64Array(N);
   for (let j = steps - 1; j >= 1; j--) {
+    const off = (j - 1) * N;
     for (let i = 0; i < N; i++) val[i] *= disc;
-    const A = Array.from({ length: nb }, () => new Array(nb).fill(0));
-    const yv = new Array(nb).fill(0);
     let count = 0;
     for (let i = 0; i < N; i++) {
-      const s = P[i * steps + j - 1];
-      if (sign * (s - X) <= 0) continue;
-      count++;
-      const x = s / X;
-      basis[0] = 1;
-      for (let q = 1; q < nb; q++) basis[q] = basis[q - 1] * x;
-      for (let p = 0; p < nb; p++) {
-        yv[p] += basis[p] * val[i];
-        for (let q = p; q < nb; q++) A[p][q] += basis[p] * basis[q];
+      const s = P[off + i];
+      const ex = sign * (s - X);
+      if (ex > 0) {
+        idx[count] = i;
+        xs[count] = s / X;
+        exs[count] = ex;
+        count++;
       }
     }
     if (count <= nb) continue;
-    for (let p = 0; p < nb; p++) for (let q = 0; q < p; q++) A[p][q] = A[q][p];
-    const coef = solveLinear(A, yv);
+    A.fill(0);
+    yv.fill(0);
+    for (let c = 0; c < count; c++) {
+      const x = xs[c];
+      const y = val[idx[c]];
+      basis[0] = 1;
+      for (let q = 1; q < nb; q++) basis[q] = basis[q - 1] * x;
+      for (let p = 0; p < nb; p++) {
+        const bp = basis[p];
+        yv[p] += bp * y;
+        for (let q = p; q < nb; q++) A[p * nb + q] += bp * basis[q];
+      }
+    }
+    const M = [];
+    for (let p = 0; p < nb; p++) {
+      const row = [];
+      for (let q = 0; q < nb; q++) row.push(q >= p ? A[p * nb + q] : A[q * nb + p]);
+      M.push(row);
+    }
+    const coef = solveLinear(M, Array.from(yv));
     if (!coef) continue;
-    for (let i = 0; i < N; i++) {
-      const s = P[i * steps + j - 1];
-      const ex = sign * (s - X);
-      if (ex <= 0) continue;
-      const x = s / X;
+    for (let c = 0; c < count; c++) {
+      const x = xs[c];
       let cont = coef[nb - 1];
       for (let q = nb - 2; q >= 0; q--) cont = cont * x + coef[q];
-      if (ex > cont) val[i] = ex;
+      if (exs[c] > cont) val[idx[c]] = exs[c];
     }
   }
   let sum = 0;

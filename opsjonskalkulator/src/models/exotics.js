@@ -81,7 +81,7 @@ function requireOrder(a, b, msg) {
 }
 
 // --- 4.1 Variable purchase options (Handley 2001) ---------------------------------------
-// Holderen betaler fast beløp X og får N = X/(S_T(1 − D)) aksjer, begrenset til
+// Innehaveren betaler et fast beløp X og får N = X/(S_T(1 − D)) aksjer, begrenset til
 // [N_min, N_max] = [X/(U(1 − D)), X/(L(1 − D))].
 export function variablePurchaseOption({ S, X, D, L, U, T, r, b, v }) {
   if (!(D >= 0 && D < 1)) throw new Error('Rabatten D må ligge i intervallet [0, 1).');
@@ -107,9 +107,15 @@ export function executiveStockOption({ type, S, X, T, r, b, v, lambda }) {
 }
 
 // --- 4.3 Moneyness-opsjoner --------------------------------------------------------------
-// Innløsningskursen er en andel L av spot (L = X/S). Verdien er per enhet spot.
-export function moneynessOption({ type, L, T, r, b, v }) {
-  return gbsm({ type, S: 1, X: L, T, r, b, v });
+// Vanlig opsjon der innløsningskursen er en andel av forwardprisen F. Call: L = X/F, verdien er
+// per enhet F. Put: L = F/X, verdien er per enhet X. Begge: e^{−rT}[N(d1) − L·N(d2)],
+// d1 = (−ln L + σ²T/2)/(σ√T), d2 = d1 − σ√T.
+export function moneynessOption({ type, L, T, r, v }) {
+  isCall(type);
+  if (!(L > 0)) throw new Error('Moneyness L må være positiv.');
+  const vst = v * Math.sqrt(T);
+  const d1 = (-Math.log(L) + 0.5 * v * v * T) / vst;
+  return Math.exp(-r * T) * (cnd(d1) - L * cnd(d1 - vst));
 }
 
 // --- 4.4 Potenskontrakter og potensopsjoner ----------------------------------------------
@@ -482,9 +488,16 @@ export function holderExtendible({ type, S, X1, X2, t1, T2, A, r, b, v }) {
     }
   }
   const vanilla = gbsm({ type, S, X: X1, T: t1, r, b, v });
-  const I1 = extRegion.length ? extRegion[0][0] : null;
-  const I2 = extRegion.length ? extRegion[extRegion.length - 1][1] : null;
-  return { price, vanilla, I1, I2 };
+  // Slå sammen tilstøtende intervaller (X1 er alltid et brytpunkt). Med b > r kan det være to
+  // adskilte forlengelsesområder; I1 og I2 er grensene for det første (Longstaffs kritiske priser).
+  const regions = [];
+  for (const [lo, hi] of extRegion) {
+    if (regions.length && regions[regions.length - 1][1] === lo) regions[regions.length - 1][1] = hi;
+    else regions.push([lo, hi]);
+  }
+  const I1 = regions.length ? regions[0][0] : null;
+  const I2 = regions.length ? regions[0][1] : null;
+  return { price, vanilla, I1, I2, regions };
 }
 
 // Utstederen forlenger opsjonen til T2 med ny innløsningskurs X2 hvis den er ute av pengene ved t1.

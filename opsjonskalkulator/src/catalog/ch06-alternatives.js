@@ -186,7 +186,7 @@ export default [
     description: 'Forwarden følger dF = αF^β dW₁ og volatiliteten dα = να dW₂ med korrelasjon ρ. Hagans formel gir implisitt Black-volatilitet, som settes inn i generalisert BSM med F = S e^{bT}.',
     inputs: [
       callPut('call'), S(100, 'Spot-/forwardpris S'), X(110), T(1), r(0.05), b(0),
-      num('alpha', 'Volatilitetsnivå α', 2, positive),
+      num('alpha', 'Volatilitetsnivå α', 2, { ...positive, help: 'ATM-volatiliteten er omtrent α/F^{1−β}: med β = 0,5 og F = 100 gir α = 2 om lag 20 %.' }),
       num('beta', 'Elastisitet β', 0.5, { min: 0, max: 1 }),
       rho(-0.4),
       num('nu', 'Volatilitet til volatiliteten ν', 0.4, { ...nonneg, unit: 'rate' }),
@@ -210,7 +210,7 @@ export default [
     description: 'dS = bS dt + σS^{β/2} dW, så lokal volatilitet er σS^{β/2−1}. β = 2 gir BSM; β < 2 gir høyere volatilitet når kursen faller. Prisen regnes med ikke-sentral kjikvadratfordeling.',
     inputs: [
       callPut('call'), S(100), X(100), T(0.5), r(0.1), b(0.1),
-      num('v', 'Volatilitetsparameter σ', 3, positive),
+      num('v', 'Volatilitetsparameter σ', 3, { ...positive, help: 'Lokal volatilitet ved S er σS^{β/2−1}: σ = 3 og β = 1 gir 30 % ved S = 100.' }),
       num('beta', 'Elastisitet β (β = 2 gir BSM)', 1, nonneg),
     ],
     compute: (p) => {

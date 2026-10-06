@@ -103,16 +103,22 @@ test('Ansatteopsjon: MC med tilfeldig fratredelse', () => {
   close(executiveStockOption({ ...p, lambda: 0 }).price, gbsm(p), 1e-12);
 });
 
-test('Moneyness-opsjon er BSM per enhet spot', () => {
-  for (const type of ['call', 'put']) {
-    const S = 87;
-    const X = 95;
-    const m = moneynessOption({ type, L: X / S, T: 0.7, r: 0.04, b: 0.01, v: 0.27 });
-    close(S * m, gbsm({ type, S, X, T: 0.7, r: 0.04, b: 0.01, v: 0.27 }), 1e-10, type);
+test('Moneyness-opsjon er Black-76 per enhet forward (call) eller innløsningskurs (put)', () => {
+  const T = 0.7;
+  const r = 0.04;
+  const v = 0.27;
+  const F = 105;
+  for (const L of [0.8, 1, 1.2]) {
+    // Call: X = L·F, verdien er per enhet F.
+    close(F * moneynessOption({ type: 'call', L, T, r, v }), gbsm({ type: 'call', S: F, X: L * F, T, r, b: 0, v }), 1e-10, `call L=${L}`);
+    // Put: F = L·X, verdien er per enhet X.
+    const X = F / L;
+    close(X * moneynessOption({ type: 'put', L, T, r, v }), gbsm({ type: 'put', S: F, X, T, r, b: 0, v }), 1e-10, `put L=${L}`);
   }
-  const c = moneynessOption(call({ L: 0.9, T: 0.5, r: 0.05, b: 0.02, v: 0.3 }));
-  const p = moneynessOption(put({ L: 0.9, T: 0.5, r: 0.05, b: 0.02, v: 0.3 }));
-  close(c - p, Math.exp((0.02 - 0.05) * 0.5) - 0.9 * Math.exp(-0.05 * 0.5), 1e-12, 'paritet');
+  // Samme tall for call og put med samme L (c = p i bokas notasjon).
+  close(moneynessOption({ type: 'call', L: 1.2, T, r, v }), moneynessOption({ type: 'put', L: 1.2, T, r, v }), 1e-15);
+  withinMC(mcTerminal({ S: 1, T, r, b: 0, v, n: 200000, seed: 9, payoff: (FT) => Math.max(FT - 1.2, 0) }),
+    moneynessOption({ type: 'call', L: 1.2, T, r, v }), 4, 0, 'MC');
 });
 
 test('Potenskontrakter og potensopsjoner mot MC og identiteter', () => {
@@ -338,7 +344,11 @@ test('Forlengbare opsjoner (innehaver): integrasjon, MC og grensetilfeller', () 
   });
   const std = holderExtendible(cases[0]);
   assert.ok(std.I1 < 100 && std.I2 > 100, 'Longstaffs struktur I1 < X1 < I2');
-  assert.equal(holderExtendible(cases[3]).I2, Infinity);
+  // Med b > r kan forlengelse også lønne seg for svært høye kurser: to adskilte områder.
+  const twoRegions = holderExtendible(cases[3]).regions;
+  assert.equal(twoRegions.length, 2);
+  assert.equal(twoRegions[1][1], Infinity);
+  assert.ok(twoRegions[0][1] > 100 && twoRegions[1][0] > twoRegions[0][1]);
   // Svært høyt gebyr: forlengelse lønner seg aldri.
   const noExt = holderExtendible({ ...cases[0], A: 1e6 });
   close(noExt.price, noExt.vanilla, 1e-12);

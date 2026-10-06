@@ -19,6 +19,9 @@ const posNum = (key, label, d, extra = {}) => num(key, label, d, { ...pos, ...ex
 const time = (key, label, d) => num(key, label, d, pos);
 const nonNegTime = (key, label, d) => num(key, label, d, { min: 0 });
 const fmtLevel = (x) => (x === null ? 'finnes ikke' : x === Infinity ? '∞ (ingen øvre grense)' : x);
+const fmtNum = (x) => (x === Infinity ? '∞' : x.toFixed(4).replace('.', ','));
+const fmtRegions = (regions) => (regions.length === 0 ? 'aldri'
+  : regions.map(([lo, hi]) => `${lo === 0 ? '(0' : `[${fmtNum(lo)}`}; ${fmtNum(hi)}${hi === Infinity ? ')' : ']'}`).join(' og '));
 
 const G_VARIANTS = 'Varianter av standardopsjoner';
 const G_POWER = 'Kontrakter og potensopsjoner';
@@ -45,7 +48,7 @@ export default [
     group: G_VARIANTS,
     name: 'Variable purchase option (VPO)',
     authors: 'Handley (2001)',
-    description: 'Kjøpsopsjon der innehaveren betaler et fast beløp X og får N = X/(S_T(1 − D)) aksjer, altså aksjer med rabatt D. Antallet er begrenset av kursgrensene L og U.',
+    description: 'Kjøpsopsjon der innehaveren betaler et fast beløp X for N = X/(S_T(1 − D)) aksjer, dvs. kjøper med rabatt D på kursen ved forfall. Kursgrensene L og U begrenser antallet aksjer.',
     payoff: 'max(N·S_T − X, 0), N = X/(S_T(1 − D)) begrenset til [X/(U(1 − D)), X/(L(1 − D))]',
     inputs: [
       S(100), X(100, 'Fast innløsningsbeløp X'),
@@ -90,12 +93,12 @@ export default [
     group: G_VARIANTS,
     name: 'Moneyness-opsjon',
     authors: 'Haug (2007), kap. 4',
-    description: 'Innløsningskursen er gitt som en andel L av spot (X = L·S). Prisen oppgis per enhet spot og kan ganges med ønsket nominelt beløp.',
-    payoff: 'max(S_T/S − L, 0) / max(L − S_T/S, 0)',
-    inputs: [callPut('put'), posNum('L', 'Moneyness L = X/S', 0.9), T(0.5), r(0.05), b(0.05), v(0.3)],
+    description: 'Vanlig opsjon der innløsningskursen er en prosentandel av forwardprisen F. For en call er L = X/F og prisen oppgis per enhet F; for en put er L = F/X og prisen oppgis per enhet X.',
+    payoff: 'e^{−rT}[N(d1) − L·N(d2)], d1 = (−ln L + σ²T/2)/(σ√T)',
+    inputs: [callPut('call'), posNum('L', 'Moneyness L (call: X/F, put: F/X)', 1.2), T(0.5), r(0.05), v(0.3)],
     compute: (p) => {
       const price = moneynessOption(p);
-      return { 'Pris (andel av spot)': price, 'Pris i prosent av spot': 100 * price };
+      return { 'Pris (andel av F for call, av X for put)': price, 'Pris i prosent': 100 * price };
     },
     chart: false,
   },
@@ -106,7 +109,7 @@ export default [
     chapter: 4,
     group: G_POWER,
     name: 'Potenskontrakt',
-    authors: 'Haug (2007), kap. 4',
+    authors: 'Shaw (1998)',
     description: 'Kontrakt som ved forfall betaler forholdet mellom kursen og X opphøyd i potensen i.',
     payoff: '(S_T/X)^i',
     inputs: [S(100), X(110), T(0.5), r(0.08), b(0.06), v(0.3), num('i', 'Potens i', 2)],
@@ -117,7 +120,7 @@ export default [
     chapter: 4,
     group: G_POWER,
     name: 'Standard potensopsjon',
-    authors: 'Heynen og Kat (1996), Tompkins (2000)',
+    authors: 'Heynen og Kat (1996), Zhang (1998), Esser (2003)',
     description: 'Opsjon på kursen opphøyd i potensen i. Gir sterkere gearing enn en vanlig opsjon.',
     payoff: 'max(S_T^i − X, 0) / max(X − S_T^i, 0)',
     inputs: [callPut('call'), S(10), X(100), T(0.5), r(0.08), b(0.06), v(0.3), posNum('i', 'Potens i', 2)],
@@ -128,7 +131,7 @@ export default [
     chapter: 4,
     group: G_POWER,
     name: 'Potensopsjon med tak',
-    authors: 'Heynen og Kat (1996), Tompkins (2000)',
+    authors: 'Esser (2003)',
     description: 'Standard potensopsjon der utbetalingen er begrenset oppad av taket C.',
     payoff: 'min(max(S_T^i − X, 0), C) / min(max(X − S_T^i, 0), C)',
     inputs: [
@@ -142,7 +145,7 @@ export default [
     chapter: 4,
     group: G_POWER,
     name: 'Opphøyd opsjon (powered option)',
-    authors: 'Heynen og Kat (1996), Tompkins (2000)',
+    authors: 'Esser (2003)',
     description: 'Utbetalingen til en vanlig opsjon opphøyd i et heltall i.',
     payoff: 'max(S_T − X, 0)^i / max(X − S_T, 0)^i',
     inputs: [
@@ -309,7 +312,7 @@ export default [
       const call = gbsm({ ...p, type: 'call' });
       const putPart = Math.exp((p.b - p.r) * (p.T - p.t))
         * gbsm({ type: 'put', S: p.S, X: p.X * Math.exp(-p.b * (p.T - p.t)), T: p.t, r: p.r, b: p.b, v: p.v });
-      return { 'Pris': simpleChooser(p), 'Call-del c(S, X, T)': call, 'Put-del': putPart };
+      return { 'Pris': simpleChooser(p), 'Call-del c(S, X, T)': call, 'Put-del e^{(b−r)(T−t)}·p(S, X·e^{−b(T−t)}, t)': putPart };
     },
     example: 6.1071,
   },
@@ -384,8 +387,9 @@ export default [
       return {
         'Pris': res.price,
         'Vanilla med forfall t1': res.vanilla,
-        'Nedre kritiske kurs I1 (forlengelse)': fmtLevel(res.I1),
-        'Øvre kritiske kurs I2 (forlengelse)': fmtLevel(res.I2),
+        'Nedre kritiske kurs I1': fmtLevel(res.I1),
+        'Øvre kritiske kurs I2': fmtLevel(res.I2),
+        'Forlengelse lønner seg når S_{t1} ligger i': fmtRegions(res.regions),
       };
     },
   },

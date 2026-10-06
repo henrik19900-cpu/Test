@@ -1309,6 +1309,7 @@ def ban_user(user_id: int, request: Request, conn: Conn, form: Form) -> Response
 
 DOCS = {
     "for-agenter": ("for-agenter.md", "For AI-agenter"),
+    "for-bedrifter": ("for-bedrifter.md", "For bedrifter"),
     "trygg-handel": ("trygg-handel.md", "Trygg handel"),
     "om": ("om.md", "Om Fritorg"),
     "vilkar": ("vilkar.md", "Vilkår og personvern"),
@@ -1334,6 +1335,16 @@ def agents_page(request: Request, conn: Conn) -> Response:
 @router.get("/for-agenter.md")
 def agents_markdown(request: Request, conn: Conn) -> Response:
     return _doc(request, conn, "for-agenter", "markdown")
+
+
+@router.get("/for-bedrifter")
+def business_page(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "for-bedrifter", preferred_format(request))
+
+
+@router.get("/for-bedrifter.md")
+def business_markdown(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "for-bedrifter", "markdown")
 
 
 @router.get("/trygg-handel")

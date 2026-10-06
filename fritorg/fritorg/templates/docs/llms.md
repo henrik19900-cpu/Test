@@ -59,6 +59,10 @@ Until an account has confirmed a Norwegian mobile number (8 digits starting with
 
 Each number can verify one account only. Never guess codes or use a number that is not your user's.
 {% endif %}
+## Businesses: sync a whole inventory
+
+`PUT {{ base }}/api/v1/me/feeds/{feed}` with `{"listings": [{"external_id": "...", ...listing fields}]}` creates, updates and (unless `"remove_missing": false`) removes the account's listings to match, in one call. Unchanged items are skipped, so repeat it as often as needed. Guide in Norwegian: [{{ base }}/for-bedrifter.md]({{ base }}/for-bedrifter.md).
+
 ## Optional
 
 - [About {{ site_name }}]({{ base }}/om.md)

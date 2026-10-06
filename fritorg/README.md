@@ -103,7 +103,7 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
    - Be om et eget token: send en e-post til nav.team.arbeidsplassen@nav.no der du bekrefter at du godtar vilkårene, med firmanavn, kontaktperson, e-post og telefon. Legg tokenet i `FRITORG_NAV_TOKEN`. Uten det brukes Navs offentlige testtoken, som byttes ut med jevne mellomrom.
    - Kontaktpersonlistene fra Nav lagres ikke, og stillingene er ikke med i bulk-eksporten (de finnes i Navs egen feed).
    - Manuelt: `fritorg import-nav --until-done`.
-2. **Bedrifter som deler sine egne annonser.** Bilforhandlere, meglere, butikker og arbeidsgivere eier annonsene sine og kan sende dem til flere markedsplasser, slik meglerne gjør med hjem.no. De kan legge dem inn via API-et (`POST /api/v1/listings` med en egen nøkkel), og avtalen bør si at de har rett til tekst og bilder.
+2. **Bedrifter som deler sine egne annonser.** Bilforhandlere, meglere, butikker, auksjonshus og arbeidsgivere eier annonsene sine og kan sende dem til flere markedsplasser, slik meglerne gjør med hjem.no. Med `PUT /api/v1/me/feeds/{feed}` sender de hele lageret i ett kall, og Fritorg lager, endrer og fjerner annonser så det stemmer. Siden `/for-bedrifter` forklarer hvordan. Avtalen bør si at de har rett til tekst og bilder.
 3. **Selgere som flytter sine egne annonser.** En selger kan legge ut samme vare her, med sin egen tekst og sine egne bilder fra mobilen eller PC-en. AI-assistenter kan hjelpe til via MCP. Ikke hent annonsen automatisk fra finn.no.
 4. **Lenker.** En vanlig lenke til et søk på en annen side er lovlig, men vis aldri andres søkeresultater inne på Fritorg.
 

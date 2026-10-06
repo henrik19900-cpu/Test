@@ -83,11 +83,16 @@ CREATE TABLE listings (
     source_url TEXT,
     apply_url TEXT,
     source_updated_at TEXT,
-    expires_at TEXT
+    expires_at TEXT,
+    -- Listings a business keeps in sync from its own system (inventory.py): its feed name and item id.
+    feed TEXT,
+    external_id TEXT,
+    sync_hash TEXT
 );
 CREATE INDEX idx_listings_status_created ON listings(status, created_at);
 CREATE UNIQUE INDEX idx_listings_source ON listings(source, source_id) WHERE source IS NOT NULL;
 CREATE INDEX idx_listings_expires ON listings(expires_at) WHERE expires_at IS NOT NULL;
+CREATE UNIQUE INDEX idx_listings_feed ON listings(user_id, feed, external_id) WHERE external_id IS NOT NULL;
 CREATE INDEX idx_listings_category ON listings(category);
 CREATE INDEX idx_listings_status_category ON listings(status, category, user_id);
 CREATE INDEX idx_listings_user ON listings(user_id);

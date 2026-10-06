@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Up
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import identity, images, listings, messages, phone, privacy, serializers, taxonomy, users
+from . import identity, images, inventory, listings, messages, phone, privacy, serializers, taxonomy, users
 from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
 from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized
@@ -27,6 +27,9 @@ from .schemas import (
     DeviceStartIn,
     DeviceStartOut,
     DeviceTokenIn,
+    FeedOut,
+    FeedSyncIn,
+    FeedSyncOut,
     ImageUploadOut,
     ListingCreate,
     ListingOut,
@@ -564,6 +567,35 @@ def device_token(body: DeviceTokenIn, request: Request, conn: Conn) -> dict:
 def me(conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
     """Your account. If `verification_required` is true, verify a mobile number before posting or messaging."""
     return _account(conn, user, settings)
+
+
+@router.put("/me/feeds/{feed}", response_model=FeedSyncOut, tags=["listings"], summary="Sync an inventory")
+def sync_feed(
+    feed: str, body: FeedSyncIn, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
+) -> dict:
+    """For businesses: send everything that should be on Fritorg for one feed, each item with your own
+    `external_id`. New items are created, changed ones updated, and (with `remove_missing`) items no longer
+    in the list are deleted. Unchanged items are skipped, so repeat the same call as often as you like,
+    e.g. every hour. Every sync keeps the listings active.
+
+    Photos: upload them for new listings with POST /api/v1/listings/{id}/images (ids are in the response).
+    """
+    phone.ensure_verified(settings, user, base_url(request))
+    items = [item.model_dump() for item in body.listings]
+    result = inventory.sync(conn, settings, user, feed, items, remove_missing=body.remove_missing)
+    return result.__dict__
+
+
+@router.get("/me/feeds", response_model=list[FeedOut], tags=["listings"], summary="Your synced feeds")
+def list_feeds(conn: Conn, user: CurrentUser) -> list[dict]:
+    return inventory.feeds(conn, user.id)
+
+
+@router.delete("/me/feeds/{feed}", status_code=204, tags=["listings"], summary="Delete a synced feed")
+def delete_feed(feed: str, conn: Conn, user: CurrentUser, settings: SettingsDep) -> Response:
+    """Delete every listing in the feed."""
+    inventory.remove_feed(conn, settings, user, feed)
+    return Response(status_code=204)
 
 
 @router.get("/me/export", tags=["account"], summary="All your data (GDPR)")

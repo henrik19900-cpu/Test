@@ -71,6 +71,53 @@ class ListingCreate(BaseModel):
     )
 
 
+class FeedItemIn(ListingCreate):
+    external_id: str = Field(
+        min_length=1, max_length=100, description="Your own id for the item (stock number, ad id, SKU)."
+    )
+
+
+class FeedSyncIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    listings: list[FeedItemIn] = Field(
+        description="Everything that should be on Fritorg for this feed (max 1000 per call)."
+    )
+    remove_missing: bool = Field(
+        True, description="Delete this feed's listings that are not in `listings` (the usual full sync)."
+    )
+
+
+class FeedListingOut(BaseModel):
+    external_id: str
+    id: int
+    status: str
+
+
+class FeedFailureOut(BaseModel):
+    external_id: str
+    detail: str
+    errors: list[dict[str, Any]] = []
+
+
+class FeedSyncOut(BaseModel):
+    feed: str
+    created: int
+    updated: int
+    unchanged: int
+    removed: int
+    failed: list[FeedFailureOut] = Field(description="Items that were not accepted, and why.")
+    listings: list[FeedListingOut] = Field(
+        description="Fritorg listing id per item. Add photos with POST /api/v1/listings/{id}/images."
+    )
+
+
+class FeedOut(BaseModel):
+    feed: str
+    listings: int
+    active: int
+
+
 class ListingUpdate(BaseModel):
     """Partial update: send only the fields to change. Attributes are merged; set a key to null to remove it."""
 

@@ -1,0 +1,15 @@
+{
+  "name": "opsjonskalkulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kalkulatorer for opsjonsformlene i E. G. Haug: The Complete Guide to Option Pricing Formulas (2. utgave)",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

@@ -1,6 +1,7 @@
 // Bygger nett-UI-et til én selvstendig HTML-fil.
 //   dist/opsjonskalkulator.html  frittstående side (åpnes direkte i nettleseren)
 //   dist/artifact.html           samme innhold uten <html>/<head>/<body>, for publisering som Artifact
+//   dist/va-formler/opsjonskalkulator/index.html  for https://va-formler.no/opsjonskalkulator/
 import { build } from 'esbuild';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -36,8 +37,13 @@ ${head}
 </html>
 `;
 
-await mkdir(out, { recursive: true });
+// Versjon for va-formler.no: legges som opsjonskalkulator/index.html i webroten.
+const site = full.replace('<meta charset="utf-8">',
+  '<meta charset="utf-8">\n<link rel="canonical" href="https://va-formler.no/opsjonskalkulator/">');
+
+await mkdir(path.join(out, 'va-formler', 'opsjonskalkulator'), { recursive: true });
 await writeFile(path.join(out, 'artifact.html'), fragment);
 await writeFile(path.join(out, 'opsjonskalkulator.html'), full);
+await writeFile(path.join(out, 'va-formler', 'opsjonskalkulator', 'index.html'), site);
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} kB`;
 console.log(`dist/opsjonskalkulator.html (${kb(full)}), dist/artifact.html (${kb(fragment)})`);

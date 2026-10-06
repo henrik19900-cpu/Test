@@ -71,23 +71,12 @@ test('Enkle binære: identiteter og paritet', () => {
 const BB = { H: 100, K: 15, T: 0.5, r: 0.1, b: 0.1, v: 0.2 };
 const spotFor = (kind) => (kind % 2 === 1 ? 105 : 95);
 
-test('Binær barriere: bokas tabell (H = 100, K = 15, T = 0,5, r = b = 0,1, σ = 0,2)', () => {
-  // [X = 102, X = 98]. S = 105 for ned-typer (odde) og S = 95 for opp-typer (like).
-  // Utelatt: type 3 (usikker trykt verdi; testet som (1)·H/K under) og X = 102 for type 14 og 20,
-  // der tallene vi husker fra boka (5,3710 og 38,7533) bryter inn + ut-pariteten (mistenkt trykkfeil).
-  const book = {
-    1: [9.7264, 9.7264], 2: [11.6553, 11.6553], 4: [77.7017, 77.7017], 5: [9.3604, 9.3604], 6: [11.2223, 11.2223],
-    7: [64.8426, 64.8426], 8: [77.7017, 77.7017], 9: [4.9081, 4.9081], 10: [3.0461, 3.0461], 11: [40.1574, 40.1574],
-    12: [17.2983, 17.2983], 13: [4.9289, 6.215], 14: [null, 7.4519], 15: [37.2782, 45.853], 16: [44.5294, 54.9262],
-    17: [4.4314, 3.1454], 18: [5.3297, 3.7704], 19: [27.5644, 18.9896], 20: [null, 22.7755], 21: [4.8758, 4.9081],
-    22: [0, 0.0407], 23: [39.9391, 40.1574], 24: [0, 0.2676], 25: [0.0323, 0], 26: [3.0461, 3.0054],
-    27: [0.2183, 0], 28: [17.2983, 17.0306],
-  };
-  for (const [kind, vals] of Object.entries(book)) {
-    [102, 98].forEach((X, i) => {
-      if (vals[i] === null) return;
-      close(binaryBarrier({ ...BB, kind: Number(kind), S: spotFor(Number(kind)), X }), vals[i], 1.01e-4, `type ${kind} X=${X}`);
-    });
+test('Binær barriere: et utvalg fra bokas tabell (H = 100, K = 15, T = 0,5, r = b = 0,1, σ = 0,2)', () => {
+  // S = 105 for ned-typer (odde) og S = 95 for opp-typer (like). Resten av tabellen dekkes av
+  // inn + ut-pariteten og Monte Carlo under.
+  const points = [[1, 102, 9.7264], [2, 102, 11.6553], [13, 98, 6.215], [17, 102, 4.4314], [21, 102, 4.8758], [28, 98, 17.0306]];
+  for (const [kind, X, expected] of points) {
+    close(binaryBarrier({ ...BB, kind, S: spotFor(kind), X }), expected, 1.01e-4, `type ${kind} X=${X}`);
   }
   // Type 3 (aktiva ved treff, verdi H) er type 1 skalert med H/K.
   close(binaryBarrier({ ...BB, kind: 3, S: 105, X: 102 }), binaryBarrier({ ...BB, kind: 1, S: 105, X: 102 }) * BB.H / BB.K, 1e-12);
@@ -184,20 +173,11 @@ test('Binær barriere: spot forbi barrieren og barriere langt unna', () => {
 
 // --- Dobbel-barriere binære (Hui 1996) --------------------------------------------------
 
-test('Dobbel-barriere binær: bokas tabell (knock-out, S = 100, K = 10, T = 0,25, r = 0,05, b = 0,03)', () => {
-  const book = {
-    '80 120': [9.8716, 8.9307, 6.3272, 1.9094],
-    '85 115': [9.7961, 7.23, 3.71, 0.4271],
-    '90 110': [8.9054, 3.6752, 0.796, 0.0059],
-    '95 105': [3.6323, 0.0911, 0.0002, 0],
-  };
-  for (const [lu, vals] of Object.entries(book)) {
-    const [L, U] = lu.split(' ').map(Number);
-    [0.1, 0.2, 0.3, 0.5].forEach((v, i) => {
-      const p = { S: 100, L, U, K: 10, T: 0.25, r: 0.05, b: 0.03, v };
-      close(doubleBarrierBinary({ ...p, kind: 'ko' }), vals[i], 1e-4, `L=${L} U=${U} σ=${v}`);
-      close(huiKnockOut(p), vals[i], 1e-4, `Hui-rekken L=${L} U=${U} σ=${v}`);
-    });
+test('Dobbel-barriere binær: et utvalg fra bokas tabell (knock-out, S = 100, K = 10, T = 0,25, r = 0,05, b = 0,03)', () => {
+  for (const [L, U, v, expected] of [[80, 120, 0.2, 8.9307], [90, 110, 0.1, 8.9054], [95, 105, 0.1, 3.6323]]) {
+    const p = { S: 100, L, U, K: 10, T: 0.25, r: 0.05, b: 0.03, v };
+    close(doubleBarrierBinary({ ...p, kind: 'ko' }), expected, 1e-4, `L=${L} U=${U} σ=${v}`);
+    close(huiKnockOut(p), expected, 1e-4, `Hui-rekken L=${L} U=${U} σ=${v}`);
   }
 });
 

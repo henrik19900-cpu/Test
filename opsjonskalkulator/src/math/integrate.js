@@ -2,32 +2,41 @@
 
 const glCache = new Map();
 
-// Noder og vekter for n-punkts Gauss–Legendre på [-1, 1].
+// Legendre-polynomet P_n(x) og den deriverte, fra trelleddsrekursjonen
+// k P_k = (2k − 1) x P_{k−1} − (k − 1) P_{k−2} og P_n' = n (x P_n − P_{n−1}) / (x² − 1).
+function legendre(n, x) {
+  let pPrev = 1;
+  let p = x;
+  for (let k = 2; k <= n; k++) {
+    const next = ((2 * k - 1) * x * p - (k - 1) * pPrev) / k;
+    pPrev = p;
+    p = next;
+  }
+  return [p, n * (x * p - pPrev) / (x * x - 1)];
+}
+
+// Noder og vekter for n-punkts Gauss–Legendre på [−1, 1]. Nullpunktene startes fra
+// Tricomis tilnærming (Abramowitz og Stegun 22.16.6) og poleres med Newton;
+// vekten er w = 2 / ((1 − x²) P_n'(x)²).
 export function gaussLegendreNodes(n) {
   if (glCache.has(n)) return glCache.get(n);
   const x = new Float64Array(n);
   const w = new Float64Array(n);
-  const m = Math.floor((n + 1) / 2);
-  for (let i = 0; i < m; i++) {
-    let z = Math.cos(Math.PI * (i + 0.75) / (n + 0.5));
-    let pp = 0;
+  const scale = 1 - 1 / (8 * n * n) + 1 / (8 * n * n * n);
+  for (let k = 1; k <= Math.ceil(n / 2); k++) {
+    let t = scale * Math.cos(Math.PI * (4 * k - 1) / (4 * n + 2));
     for (let it = 0; it < 100; it++) {
-      let p1 = 1;
-      let p2 = 0;
-      for (let j = 1; j <= n; j++) {
-        const p3 = p2;
-        p2 = p1;
-        p1 = ((2 * j - 1) * z * p2 - (j - 1) * p3) / j;
-      }
-      pp = n * (z * p1 - p2) / (z * z - 1);
-      const z1 = z;
-      z = z1 - p1 / pp;
-      if (Math.abs(z - z1) < 1e-15) break;
+      const [p, dp] = legendre(n, t);
+      const step = p / dp;
+      t -= step;
+      if (Math.abs(step) < 1e-16) break;
     }
-    x[i] = -z;
-    x[n - 1 - i] = z;
-    w[i] = 2 / ((1 - z * z) * pp * pp);
-    w[n - 1 - i] = w[i];
+    const dp = legendre(n, t)[1];
+    const weight = 2 / ((1 - t * t) * dp * dp);
+    x[n - k] = t;
+    x[k - 1] = -t;
+    w[n - k] = weight;
+    w[k - 1] = weight;
   }
   const res = { x, w };
   glCache.set(n, res);

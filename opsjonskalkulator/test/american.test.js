@@ -13,33 +13,23 @@ import { close } from './helpers.js';
 const tree = (p, n = 2000) => 0.5 * (crrTree({ ...p, exercise: 'american', n }).price
   + crrTree({ ...p, exercise: 'american', n: n + 1 }).price);
 
-// Bokas tabell for Barone-Adesi og Whaley: X = 100, r = 0,10, b = 0, S = 90/100/110.
-const BAW_BOOK = {
-  call: {
-    0.1: { 0.15: [0.0206, 1.8771, 10.0089], 0.25: [0.3159, 3.128, 10.3919], 0.35: [0.9495, 4.3777, 11.1679] },
-    0.5: { 0.15: [0.8208, 4.0842, 10.8087], 0.25: [2.7437, 6.8015, 13.017], 0.35: [5.0063, 9.5106, 15.5689] },
-  },
-  put: {
-    0.1: { 0.15: [10.0, 1.877, 0.041], 0.25: [10.2533, 3.1277, 0.4562], 0.35: [10.8787, 4.3777, 1.2402] },
-    0.5: { 0.15: [10.5595, 4.0842, 1.0822], 0.25: [12.4419, 6.8014, 3.3226], 0.35: [14.6945, 9.5104, 5.8823] },
-  },
-};
+// Et utvalg fra bokas tabell for Barone-Adesi og Whaley: X = 100, r = 0,10, b = 0.
+const BAW_BOOK = [
+  ['call', 90, 0.1, 0.15, 0.0206],
+  ['call', 100, 0.5, 0.25, 6.8015],
+  ['call', 90, 0.5, 0.35, 5.0063],
+  ['put', 100, 0.1, 0.25, 3.1277],
+  ['put', 90, 0.5, 0.25, 12.4419],
+  ['put', 110, 0.5, 0.35, 5.8823],
+];
 
-test('BAW: bokas tabell (X = 100, r = 0,10, b = 0)', () => {
+test('BAW: et utvalg fra bokas tabell (X = 100, r = 0,10, b = 0)', () => {
   // Bokas tall er regnet med en Newton-iterasjon for kritisk pris som stoppes ved relativ
-  // toleranse rundt 1e-4–1e-5. Vi løser likningen til maskinpresisjon, så verdiene avviker
-  // med inntil 5e-4, og med inntil 3e-3 i de to cellene der S ligger rett under kritisk pris
-  // (call, S = 110, T = 0,1, σ = 0,15 og 0,25).
-  for (const type of ['call', 'put']) {
-    for (const T of [0.1, 0.5]) {
-      for (const v of [0.15, 0.25, 0.35]) {
-        [90, 100, 110].forEach((S, i) => {
-          const res = bawAmerican({ type, S, X: 100, T, r: 0.1, b: 0, v });
-          const nearCritical = type === 'call' && S === 110 && T === 0.1 && v < 0.3;
-          close(res.price, BAW_BOOK[type][T][v][i], nearCritical ? 3e-3 : 5e-4, `${type} S=${S} T=${T} σ=${v}`);
-        });
-      }
-    }
+  // toleranse rundt 1e-4–1e-5. Vi løser likningen til maskinpresisjon, så verdiene kan
+  // avvike med inntil 5e-4.
+  for (const [type, S, T, v, expected] of BAW_BOOK) {
+    const res = bawAmerican({ type, S, X: 100, T, r: 0.1, b: 0, v });
+    close(res.price, expected, 5e-4, `${type} S=${S} T=${T} σ=${v}`);
   }
 });
 

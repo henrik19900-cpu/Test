@@ -23,6 +23,8 @@ Appen har 157 kalkulatorer fordelt på alle bokas 14 kapitler:
 
 34 av kalkulatorene har bokas talleksempel som standardverdier, og testene krever at resultatet stemmer med fire desimaler.
 
+`npm run build` lager også `dist/va-formler/opsjonskalkulator/index.html`, som er versjonen for <https://va-formler.no/opsjonskalkulator/>.
+
 ## Bruk
 
 Åpne `dist/opsjonskalkulator.html` i en nettleser. Hele appen ligger i den ene filen og virker uten nettilgang (bare skrifttypene hentes fra Google Fonts).
@@ -56,7 +58,7 @@ npm run build    # bygger dist/opsjonskalkulator.html
 
 ### Slik er formlene kontrollert
 
-1. **Bokas talleksempler.** Der boka trykker et eksempel, er det standardinput i skjemaet, og testene krever at resultatet stemmer med fire desimaler.
+1. **Bokas talleksempler.** Der boka trykker et eksempel, er det standardinput i skjemaet, og testene krever at resultatet stemmer med fire desimaler. For formler der boka har hele tabeller, sjekker testene bare et lite utvalg av tallene; resten dekkes av punktene under.
 2. **Uavhengige beregninger.** Hver lukket formel sammenlignes med Monte Carlo (fast seed, innenfor fire standardfeil), binomialtrær, finite difference eller numerisk integrasjon. Kontinuerlige barrierer simuleres med brownsk bro.
 3. **Identiteter.** Inn + ut = vanilla, put-call-paritet og -symmetri, og grensetilfeller som skal gi Black-Scholes-Merton.
 4. **Greeks.** Alle analytiske Greeks sammenlignes med numeriske derivater.
@@ -83,6 +85,24 @@ Boka var ikke tilgjengelig under arbeidet. Talleksempler er bare tatt med der fo
 - *To-aktiva-barrierer:* S1 er aktivet utbetalingen beregnes på, S2 er aktivet barrieren gjelder.
 
 **Ikke med:** volatilitetsswap, volatilitetskjegler, implisitte trinomialtrær, konvertible obligasjoner i trær, swingopsjoner og andre spread-tilnærminger enn Kirk. For spread vises i stedet eksakt pris ved numerisk integrasjon.
+
+## Numeriske rutiner og kilder
+
+De generelle rutinene i `src/math/` er skrevet etter originalkildene:
+
+| Rutine | Kilde |
+|---|---|
+| N(x) | Hart (1968), i Wests (2005) dobbeltpresisjonsversjon |
+| M(a, b; ρ) | Genz (2004) |
+| N⁻¹(p) | Acklams algoritme med ett Halley-steg |
+| Nullpunkter | Brent (1973), kap. 4 |
+| Ufullstendig gamma | Abramowitz og Stegun 6.5.29 og 6.5.31, med Lentz' metode for kjedebrøken |
+| Gauss–Legendre | Startverdier fra Tricomi (A&S 22.16.6) og Newton-iterasjon |
+| ln Γ | Lanczos-tilnærmingen |
+
+## Lisens
+
+Koden er lisensiert under MIT-lisensen, se [LICENSE](LICENSE).
 
 ## Forbehold
 

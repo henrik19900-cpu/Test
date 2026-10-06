@@ -21,52 +21,65 @@ export function gamma(x) {
   return Math.exp(lnGamma(x));
 }
 
-// Regularisert nedre ufullstendig gamma P(a, x).
+// Regularisert ufullstendig gamma. Under a + 1 brukes potensrekken i Abramowitz og Stegun
+// 6.5.29, over brukes kjedebrøken for Γ(a, x) i A&S 6.5.31. Kjedebrøken regnes ut med
+// Lentz' metode (Lentz 1976; Thompson og Barnett 1986).
+
+// Felles faktor x^a e^{−x} / Γ(a), regnet i logaritmer.
+const gammaPrefactor = (a, x) => Math.exp(a * Math.log(x) - x - lnGamma(a));
+
+// P(a, x) = x^a e^{−x} / Γ(a) · Σ_{n≥0} x^n / (a (a+1) ⋯ (a+n))
+function lowerSeries(a, x) {
+  let term = 1 / a;
+  let total = term;
+  for (let n = 1; n < 100000; n++) {
+    term *= x / (a + n);
+    total += term;
+    if (term <= total * 1e-17) break;
+  }
+  return total * gammaPrefactor(a, x);
+}
+
+// Q(a, x) = x^a e^{−x} / Γ(a) · 1/(x + (1−a)/(1 + 1/(x + (2−a)/(1 + 2/(x + …)))))
+// skrevet som b0 + a1/(b1 + a2/(b2 + …)) med b0 = 0 og, for k = 1, 2, …,
+// a(2k) = k − a, b(2k) = 1, a(2k+1) = k, b(2k+1) = x, samt a1 = 1, b1 = x.
+function upperFraction(a, x) {
+  const tiny = 1e-300;
+  let value = tiny;
+  let C = value;
+  let D = 0;
+  for (let j = 1; j < 200000; j++) {
+    let aj;
+    let bj;
+    if (j === 1) {
+      aj = 1;
+      bj = x;
+    } else if (j % 2 === 0) {
+      aj = j / 2 - a;
+      bj = 1;
+    } else {
+      aj = (j - 1) / 2;
+      bj = x;
+    }
+    D = bj + aj * D;
+    D = Math.abs(D) < tiny ? 1 / tiny : 1 / D;
+    C = bj + aj / C;
+    if (Math.abs(C) < tiny) C = tiny;
+    const delta = C * D;
+    value *= delta;
+    if (Math.abs(delta - 1) < 1e-16) break;
+  }
+  return value * gammaPrefactor(a, x);
+}
+
 export function gammaP(a, x) {
   if (x <= 0) return 0;
-  if (x < a + 1) return gammaSeries(a, x);
-  return 1 - gammaCF(a, x);
+  return x < a + 1 ? lowerSeries(a, x) : 1 - upperFraction(a, x);
 }
 
-// Regularisert øvre ufullstendig gamma Q(a, x) = 1 − P(a, x).
 export function gammaQ(a, x) {
   if (x <= 0) return 1;
-  if (x < a + 1) return 1 - gammaSeries(a, x);
-  return gammaCF(a, x);
-}
-
-function gammaSeries(a, x) {
-  let ap = a;
-  let sum = 1 / a;
-  let del = sum;
-  for (let n = 0; n < 10000; n++) {
-    ap += 1;
-    del *= x / ap;
-    sum += del;
-    if (Math.abs(del) < Math.abs(sum) * 1e-16) break;
-  }
-  return sum * Math.exp(-x + a * Math.log(x) - lnGamma(a));
-}
-
-function gammaCF(a, x) {
-  const FPMIN = 1e-300;
-  let b = x + 1 - a;
-  let c = 1 / FPMIN;
-  let d = 1 / b;
-  let h = d;
-  for (let i = 1; i < 10000; i++) {
-    const an = -i * (i - a);
-    b += 2;
-    d = an * d + b;
-    if (Math.abs(d) < FPMIN) d = FPMIN;
-    c = b + an / c;
-    if (Math.abs(c) < FPMIN) c = FPMIN;
-    d = 1 / d;
-    const del = d * c;
-    h *= del;
-    if (Math.abs(del - 1) < 1e-16) break;
-  }
-  return Math.exp(-x + a * Math.log(x) - lnGamma(a)) * h;
+  return x < a + 1 ? 1 - lowerSeries(a, x) : upperFraction(a, x);
 }
 
 // Kumulativ kjikvadrat med k frihetsgrader.

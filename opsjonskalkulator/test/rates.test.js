@@ -126,10 +126,12 @@ test('obligasjoner: durasjon og konveksitet mot numeriske deriverte, og yield fr
       close(R.bondYield({ ...q, price, priceType }).y, q.y, 1e-12, `yield fra ${priceType}`);
     }
   }
-  // Høy kurs krever negativ yield.
-  const neg = R.bondYield({ price: 130, c: 0.03, m: 1, T: 10, L: 100 });
+  // Kurs over summen av kontantstrømmene (10 · 3 + 100 = 130) krever negativ yield;
+  // ved kurs 130 er yielden nøyaktig 0.
+  close(R.bondYield({ price: 130, c: 0.03, m: 1, T: 10, L: 100 }).y, 0, 1e-12);
+  const neg = R.bondYield({ price: 132, c: 0.03, m: 1, T: 10, L: 100 });
   assert.ok(neg.y < 0);
-  close(R.bondFromYield({ y: neg.y, c: 0.03, m: 1, T: 10, L: 100 }).clean, 130, 1e-9);
+  close(R.bondFromYield({ y: neg.y, c: 0.03, m: 1, T: 10, L: 100 }).clean, 132, 1e-9);
 });
 
 // --- Black-76 for renteopsjoner ---------------------------------------------------------------

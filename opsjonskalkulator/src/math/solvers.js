@@ -20,61 +20,60 @@ export function bisection(f, lo, hi, { tol = 1e-12, maxIter = 300 } = {}) {
   return 0.5 * (lo + hi);
 }
 
-// Brent–Dekker. Krever fortegnsskifte mellom a og b.
-export function brent(f, a, b, { tol = 1e-13, maxIter = 300 } = {}) {
+// Brents metode (Brent 1973, kap. 4). Hvert steg prøver invers kvadratisk interpolasjon
+// gjennom de tre siste punktene, eller sekantmetoden når to funksjonsverdier er like.
+// Brents vilkår avgjør om forslaget godtas; ellers halveres intervallet. Intervallet
+// [a, b] har alltid fortegnsskifte, og b er det beste estimatet.
+export function brent(f, lo, hi, { tol = 1e-13, maxIter = 300 } = {}) {
+  let a = lo;
+  let b = hi;
   let fa = f(a);
   let fb = f(b);
   if (fa === 0) return a;
   if (fb === 0) return b;
   if (fa * fb > 0) throw new Error('Fant ingen løsning i intervallet.');
-  let c = a;
-  let fc = fa;
-  let d = b - a;
-  let e = d;
+  const swap = () => {
+    [a, b] = [b, a];
+    [fa, fb] = [fb, fa];
+  };
+  if (Math.abs(fa) < Math.abs(fb)) swap();
+  let prev = a;       // forrige b
+  let fPrev = fa;
+  let prevPrev = a;   // b for to steg siden
+  let bisected = true;
   for (let i = 0; i < maxIter; i++) {
-    if (fb * fc > 0) {
-      c = a;
-      fc = fa;
-      d = b - a;
-      e = d;
-    }
-    if (Math.abs(fc) < Math.abs(fb)) {
-      a = b; b = c; c = a;
-      fa = fb; fb = fc; fc = fa;
-    }
-    const tol1 = 2 * Number.EPSILON * Math.abs(b) + 0.5 * tol;
-    const xm = 0.5 * (c - b);
-    if (Math.abs(xm) <= tol1 || fb === 0) return b;
-    if (Math.abs(e) >= tol1 && Math.abs(fa) > Math.abs(fb)) {
-      const s = fb / fa;
-      let p;
-      let q;
-      if (a === c) {
-        p = 2 * xm * s;
-        q = 1 - s;
-      } else {
-        const qq = fa / fc;
-        const r = fb / fc;
-        p = s * (2 * xm * qq * (qq - r) - (b - a) * (r - 1));
-        q = (qq - 1) * (r - 1) * (s - 1);
-      }
-      if (p > 0) q = -q;
-      p = Math.abs(p);
-      if (2 * p < Math.min(3 * xm * q - Math.abs(tol1 * q), Math.abs(e * q))) {
-        e = d;
-        d = p / q;
-      } else {
-        d = xm;
-        e = d;
-      }
+    const eps = 2 * Number.EPSILON * Math.abs(b) + 0.5 * tol;
+    if (fb === 0 || Math.abs(b - a) <= 2 * eps) return b;
+
+    let s;
+    if (fa !== fPrev && fb !== fPrev) {
+      s = a * fb * fPrev / ((fa - fb) * (fa - fPrev))
+        + b * fa * fPrev / ((fb - fa) * (fb - fPrev))
+        + prev * fa * fb / ((fPrev - fa) * (fPrev - fb));
     } else {
-      d = xm;
-      e = d;
+      s = b - fb * (b - a) / (fb - fa);
     }
-    a = b;
-    fa = fb;
-    b += Math.abs(d) > tol1 ? d : (xm > 0 ? tol1 : -tol1);
-    fb = f(b);
+
+    // Forslaget må ligge mellom (3a + b)/4 og b og krympe steget raskt nok.
+    const edge = (3 * a + b) / 4;
+    const between = (s - edge) * (s - b) < 0;
+    const lastStep = bisected ? Math.abs(b - prev) : Math.abs(prev - prevPrev);
+    const accept = between && Math.abs(s - b) < lastStep / 2 && lastStep >= eps;
+    if (!accept) s = 0.5 * (a + b);
+    bisected = !accept;
+
+    const fs = f(s);
+    prevPrev = prev;
+    prev = b;
+    fPrev = fb;
+    if (fa * fs < 0) {
+      b = s;
+      fb = fs;
+    } else {
+      a = s;
+      fa = fs;
+    }
+    if (Math.abs(fa) < Math.abs(fb)) swap();
   }
   return b;
 }

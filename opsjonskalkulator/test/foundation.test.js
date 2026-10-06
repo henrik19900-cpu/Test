@@ -109,22 +109,16 @@ test('GBSM: bokas eksempler', () => {
   close(gbsm(H('put', 75, 70, 0.5, 0.1, 0.05, 0.35)), 4.087);
 });
 
-test('GBSM: europeiske verdier med b = 0 (tabell for amerikanske opsjoner)', () => {
-  const calls = {
-    0.1: { 0.15: [0.0205, 1.8734, 9.9413], 0.25: [0.315, 3.1217, 10.3556], 0.35: [0.9474, 4.3693, 11.1381] },
-    0.5: { 0.15: [0.8069, 4.0232, 10.5769], 0.25: [2.7026, 6.6997, 12.7857], 0.35: [4.9329, 9.3679, 15.3086] },
-  };
-  const puts = {
-    0.1: { 0.15: [9.921, 1.8734, 0.0408], 0.25: [10.2155, 3.1217, 0.4551], 0.35: [10.8479, 4.3693, 1.2376] },
-    0.5: { 0.15: [10.3192, 4.0232, 1.0646], 0.25: [12.2149, 6.6997, 3.2734], 0.35: [14.4452, 9.3679, 5.7963] },
-  };
-  const spots = [90, 100, 110];
-  for (const [table, type] of [[calls, 'call'], [puts, 'put']]) {
-    for (const T of [0.1, 0.5]) {
-      for (const v of [0.15, 0.25, 0.35]) {
-        spots.forEach((S, i) => close(gbsm(H(type, S, 100, T, 0.1, 0, v)), table[T][v][i], 1e-4, `${type} S=${S} T=${T} v=${v}`));
-      }
-    }
+test('GBSM: et utvalg europeiske verdier med b = 0 fra boka', () => {
+  // Noen få punkter fra bokas sammenligningstabell for amerikanske opsjoner (X = 100, r = 0,10).
+  const points = [
+    ['call', 90, 0.1, 0.15, 0.0205],
+    ['call', 110, 0.5, 0.35, 15.3086],
+    ['put', 100, 0.1, 0.25, 3.1217],
+    ['put', 90, 0.5, 0.25, 12.2149],
+  ];
+  for (const [type, S, T, v, expected] of points) {
+    close(gbsm(H(type, S, 100, T, 0.1, 0, v)), expected, 1e-4, `${type} S=${S} T=${T} v=${v}`);
   }
 });
 

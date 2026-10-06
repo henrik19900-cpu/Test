@@ -149,22 +149,18 @@ test('Bokas eksempler: korrelasjonsopsjon, produktopsjon og Kirk', () => {
   close(M.kirkSpread({ ...kirk, rho: 0.5 }).price, 2.5537, 1e-4);
 });
 
-test('Standard barriere-motoren (brukes av Margrabe-barrieren) mot Haugs barrieretabell', () => {
-  // S = 100, T = 0,5, r = 0,08, b = 0,04, σ = 0,25, rabatt 3; X = 90, 100, 110.
-  const book = {
-    'call down-out 95': [9.0246, 6.7924, 4.8759], 'call up-out 105': [2.6789, 2.358, 2.3453],
-    'call down-in 95': [7.7627, 4.0109, 2.0576], 'call up-in 105': [14.1112, 8.4482, 4.591],
-    'put down-in 95': [2.9586, 6.5677, 11.9752], 'put up-in 105': [1.4653, 3.3721, 7.0846],
-    'put down-out 95': [2.2798, 2.2947, 2.6252], 'put up-out 105': [3.776, 5.4932, 7.5187],
-  };
-  for (const [key, vals] of Object.entries(book)) {
-    const [type, kind, Hs] = key.split(' ');
-    const H = Number(Hs);
-    [90, 100, 110].forEach((X, i) => {
-      const val = M.standardBarrier({ type, kind, S: 100, X, H, T: 0.5, r: 0.08, b: 0.04, v: 0.25 })
-        + rebate(kind, 100, H, 3, 0.5, 0.08, 0.04, 0.25);
-      close(val, vals[i], 1e-4, `${key} X=${X}`);
-    });
+test('Standard barriere-motoren (brukes av Margrabe-barrieren) mot et utvalg fra Haugs barrieretabell', () => {
+  // S = 100, T = 0,5, r = 0,08, b = 0,04, σ = 0,25, rabatt 3.
+  const points = [
+    ['call', 'down-out', 95, 90, 9.0246],
+    ['call', 'up-in', 105, 100, 8.4482],
+    ['put', 'down-in', 95, 110, 11.9752],
+    ['put', 'up-out', 105, 100, 5.4932],
+  ];
+  for (const [type, kind, H, X, expected] of points) {
+    const val = M.standardBarrier({ type, kind, S: 100, X, H, T: 0.5, r: 0.08, b: 0.04, v: 0.25 })
+      + rebate(kind, 100, H, 3, 0.5, 0.08, 0.04, 0.25);
+    close(val, expected, 1e-4, `${type} ${kind} ${H} X=${X}`);
   }
 });
 

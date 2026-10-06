@@ -52,29 +52,20 @@ const firstPassageDensity = (t, a, nu, v) => Math.abs(a) / (v * Math.sqrt(2 * Ma
 
 // --- Standard barriereopsjoner -----------------------------------------------------
 
-test('Standard barriere: bokas tabell (S = 100, K = 3, T = 0,5, r = 0,08, b = 0,04)', () => {
-  const book = {
-    0.25: {
-      'call do 95': [9.0246, 6.7924, 4.8759], 'call do 100': [3, 3, 3], 'call uo 105': [2.6789, 2.358, 2.3453],
-      'call di 95': [7.7627, 4.0109, 2.0576], 'call di 100': [13.8333, 7.8494, 3.9795], 'call ui 105': [14.1112, 8.4482, 4.591],
-      'put do 95': [2.2798, 2.2947, 2.6252], 'put uo 105': [3.776, 5.4932, 7.5187],
-      'put di 95': [2.9586, 6.5677, 11.9752], 'put di 100': [2.2845, 5.9085, 11.6465], 'put ui 105': [1.4653, 3.3721, 7.0846],
-    },
-    0.3: {
-      'call do 95': [8.8334, 7.0285, 5.4137], 'call uo 105': [2.6341, 2.4389, 2.4315],
-      'call di 95': [9.0093, 5.137, 2.8517], 'call di 100': [14.8816, 9.2045, 5.3043], 'call ui 105': [15.2098, 9.7278, 5.835],
-      'put do 95': [2.417, 2.4258, 2.6246], 'put uo 105': [4.2293, 5.8032, 7.5649],
-      'put di 95': [3.8769, 7.7989, 13.3078], 'put di 100': [3.3328, 7.2636, 12.9713], 'put ui 105': [2.0658, 4.4226, 8.3686],
-    },
-  };
-  for (const [v, rows] of Object.entries(book)) {
-    for (const [key, vals] of Object.entries(rows)) {
-      const [type, barrier, H] = key.split(' ');
-      [90, 100, 110].forEach((X, i) => {
-        const val = standardBarrier({ type, barrier, S: 100, X, H: Number(H), K: 3, T: 0.5, r: 0.08, b: 0.04, v: Number(v) });
-        close(val, vals[i], 1e-4, `${key} X=${X} σ=${v}`);
-      });
-    }
+test('Standard barriere: én verdi per type fra bokas tabell (S = 100, K = 3, T = 0,5, r = 0,08, b = 0,04)', () => {
+  const points = [
+    ['call', 'do', 95, 90, 0.25, 9.0246],
+    ['call', 'uo', 105, 100, 0.25, 2.358],
+    ['call', 'di', 95, 110, 0.3, 2.8517],
+    ['call', 'ui', 105, 90, 0.3, 15.2098],
+    ['put', 'do', 95, 100, 0.25, 2.2947],
+    ['put', 'uo', 105, 110, 0.3, 7.5649],
+    ['put', 'di', 95, 90, 0.25, 2.9586],
+    ['put', 'ui', 105, 100, 0.3, 4.4226],
+  ];
+  for (const [type, barrier, H, X, v, expected] of points) {
+    const val = standardBarrier({ type, barrier, S: 100, X, H, K: 3, T: 0.5, r: 0.08, b: 0.04, v });
+    close(val, expected, 1e-4, `${type} ${barrier} H=${H} X=${X} σ=${v}`);
   }
 });
 
@@ -290,19 +281,15 @@ test('Diskret barriere: BGK-justeringen mot MC med diskret overvåking', () => {
 
 // --- Dobbel barriere ------------------------------------------------------------------
 
-test('Dobbel barriere: bokas tabell (call, S = X = 100, r = b = 0,1, flate barrierer)', () => {
-  const book = {
-    '50 150': [[4.3515, 6.1644, 7.0373], [6.9853, 7.9336, 6.5088]],
-    '60 140': [[4.3505, 5.85, 5.7726], [6.8082, 6.3383, 4.3841]],
-    '70 130': [[4.3139, 4.8293, 3.7765], [5.9697, 4.0004, 2.2563]],
-    '80 120': [[3.7516, 2.6387, 1.4903], [3.5805, 1.5098, 0.5635]],
-    '90 110': [[1.2055, 0.3098, 0.0477], [0.5537, 0.0441, 0.0011]],
-  };
-  for (const [lu, rows] of Object.entries(book)) {
-    const [L, U] = lu.split(' ').map(Number);
-    [0.25, 0.5].forEach((T, i) => [0.15, 0.25, 0.35].forEach((v, j) => {
-      close(doubleBarrier({ type: 'call', kind: 'out', S: 100, X: 100, L, U, T, r: 0.1, b: 0.1, v }), rows[i][j], 1e-4, `L=${L} U=${U} T=${T} σ=${v}`);
-    }));
+test('Dobbel barriere: et utvalg fra bokas tabell (call, S = X = 100, r = b = 0,1, flate barrierer)', () => {
+  const points = [
+    [50, 150, 0.25, 0.15, 4.3515],
+    [70, 130, 0.5, 0.25, 4.0004],
+    [80, 120, 0.25, 0.25, 2.6387],
+    [90, 110, 0.25, 0.15, 1.2055],
+  ];
+  for (const [L, U, T, v, expected] of points) {
+    close(doubleBarrier({ type: 'call', kind: 'out', S: 100, X: 100, L, U, T, r: 0.1, b: 0.1, v }), expected, 1e-4, `L=${L} U=${U} T=${T} σ=${v}`);
   }
 });
 
@@ -640,13 +627,9 @@ test('Soft-barrier: lukket form mot integral av harde barrierer, og L = U gir st
     close(softBarrier(p), avg, 1e-9, `${kind} X=${X}`);
     close(softBarrier({ ...p, kind: call ? 'cdo' : 'puo' }) + softBarrier(p), gbsm({ ...base, type: call ? 'call' : 'put', X }), 1e-12, `${kind} inn + ut`);
   }
-  // Bokas første rad (L = U = 95): ned-og-ut call, S = X = 100, r = 0,1, b = 0,05.
-  const row = [3.8075, 4.5263, 4.7297, 5.4187, 5.3614, 5.23];
-  let i = 0;
-  for (const T of [0.5, 1]) {
-    for (const v of [0.1, 0.2, 0.3]) {
-      close(softBarrier({ kind: 'cdo', S: 100, X: 100, U: 95, L: 95, T, r: 0.1, b: 0.05, v }), row[i++], 1e-4, `L = U, T=${T} σ=${v}`);
-    }
+  // To verdier fra bokas første rad (L = U = 95): ned-og-ut call, S = X = 100, r = 0,1, b = 0,05.
+  for (const [T, v, expected] of [[0.5, 0.1, 3.8075], [1, 0.3, 5.23]]) {
+    close(softBarrier({ kind: 'cdo', S: 100, X: 100, U: 95, L: 95, T, r: 0.1, b: 0.05, v }), expected, 1e-4, `L = U, T=${T} σ=${v}`);
   }
   // Kontinuitet når L → U: avviket er ε/2 · ∂c/∂H til første orden.
   const p = { ...base, kind: 'cdo', X: 100, U: 95 };

@@ -777,6 +777,10 @@ def instructions(base: str, user: users.User | None, settings: Settings) -> str:
             f"You are connected as {user.name}. You can create and edit this user's listings and message sellers "
             "on their behalf. Always confirm with the user before publishing a listing or sending a message."
         )
+        lines.append(
+            "To move the user's own listing from another marketplace, use their own text and photos. Never copy "
+            "listings from finn.no or other sites: their terms and Norwegian database law forbid it."
+        )
         if phone.verification_needed(settings, user):
             lines.append(
                 "This account has not confirmed a mobile number yet, so creating listings and sending messages "

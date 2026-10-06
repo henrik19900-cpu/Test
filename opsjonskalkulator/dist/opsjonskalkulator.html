@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Opsjonskalkulator</title>
+<meta name="description" content="Kalkulatorer for formlene i E. G. Haug: The Complete Guide to Option Pricing Formulas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: et oppslagsverk. Kapittelregisteret står til venstre og regnearket til høyre.
+     På mobil er register og regneark to visninger med tilbakeknapp. */
+  :root {
+    --paper: #eef1ec;
+    --sheet: #fbfcfa;
+    --ink: #14202a;
+    --ink-2: #45525e;
+    --ink-3: #636e78;
+    --rule: #d3d9d2;
+    --rule-2: #e4e9e3;
+    --accent: #0b6b6b;
+    --accent-ink: #ffffff;
+    --accent-wash: rgb(11 107 107 / 0.09);
+    --chart-line: #00866e;
+    --chart-wash: rgb(0 134 110 / 0.10);
+    --good: #1d6b3a;
+    --good-wash: rgb(29 107 58 / 0.10);
+    --bad: #a3271d;
+    --bad-wash: rgb(163 39 29 / 0.08);
+    --font-display: 'Newsreader', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    --font-body: 'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --radius: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #101417;
+      --sheet: #171c20;
+      --ink: #e8ecef;
+      --ink-2: #b4bdc5;
+      --ink-3: #8a959e;
+      --rule: #2c353c;
+      --rule-2: #222a30;
+      --accent: #4fc1b7;
+      --accent-ink: #0d1a1a;
+      --accent-wash: rgb(79 193 183 / 0.12);
+      --chart-line: #26a69a;
+      --chart-wash: rgb(38 166 154 / 0.14);
+      --good: #6fcf8f;
+      --good-wash: rgb(111 207 143 / 0.12);
+      --bad: #f08a80;
+      --bad-wash: rgb(240 138 128 / 0.12);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #101417;
+    --sheet: #171c20;
+    --ink: #e8ecef;
+    --ink-2: #b4bdc5;
+    --ink-3: #8a959e;
+    --rule: #2c353c;
+    --rule-2: #222a30;
+    --accent: #4fc1b7;
+    --accent-ink: #0d1a1a;
+    --accent-wash: rgb(79 193 183 / 0.12);
+    --chart-line: #26a69a;
+    --chart-wash: rgb(38 166 154 / 0.14);
+    --good: #6fcf8f;
+    --good-wash: rgb(111 207 143 / 0.12);
+    --bad: #f08a80;
+    --bad-wash: rgb(240 138 128 / 0.12);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(270px, 330px) minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* Register */
+  .index {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--rule);
+    padding: 22px 18px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .brand { display: flex; flex-direction: column; gap: 2px; }
+  .brand-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 26px;
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+  }
+  .brand-sub { color: var(--ink-2); font-size: 13px; }
+  .brand-sub i { font-family: var(--font-display); font-size: 14px; }
+  .search input {
+    width: 100%;
+    font: inherit;
+    font-size: 15px;
+    padding: 9px 12px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--sheet);
+    color: var(--ink);
+  }
+  .search input::placeholder { color: var(--ink-3); }
+  .count { margin: 0; color: var(--ink-3); font-size: 12.5px; }
+  .chap { display: flex; flex-direction: column; gap: 2px; }
+  .chap + .chap { margin-top: 10px; }
+  .chap-head {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin: 0 0 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+  .chap-num { font-family: var(--font-mono); font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+  .group-label { margin: 6px 0 2px 10px; font-size: 12px; color: var(--ink-3); }
+  .item {
+    display: block;
+    text-decoration: none;
+    padding: 5px 10px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    line-height: 1.35;
+  }
+  .item small { display: block; color: var(--ink-3); font-size: 12px; }
+  .item:hover { background: var(--accent-wash); }
+  .item[aria-current="page"] { background: var(--accent-wash); box-shadow: inset 2px 0 0 var(--accent); }
+  .empty { color: var(--ink-2); font-size: 14px; }
+  .colophon { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--rule); color: var(--ink-3); font-size: 12.5px; }
+
+  /* Regneark */
+  .sheet { min-width: 0; padding: 28px clamp(16px, 4vw, 48px) 64px; }
+  .calc { max-width: 1060px; display: flex; flex-direction: column; gap: 22px; }
+  .back {
+    display: none;
+    align-self: flex-start;
+    text-decoration: none;
+    color: var(--accent);
+    font-weight: 500;
+    padding: 4px 0;
+  }
+  .head { display: flex; flex-direction: column; gap: 6px; }
+  .eyebrow { margin: 0; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  .title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(26px, 3.4vw, 36px);
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .authors { margin: 0; color: var(--ink-2); font-size: 14px; }
+  .desc { margin: 4px 0 0; max-width: 66ch; }
+  .payoff {
+    margin: 2px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    align-items: baseline;
+    color: var(--ink-2);
+  }
+  .payoff span { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; color: var(--ink-3); }
+  .payoff em { font-family: var(--font-display); font-size: 18px; color: var(--ink); }
+
+  .work {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+    gap: 24px;
+    align-items: start;
+  }
+  .inputs {
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px 16px; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field.wide { grid-column: 1 / -1; }
+  .field label, .seg legend { font-size: 13px; color: var(--ink-2); font-weight: 500; }
+  .field input[type="text"], .field select {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: 15px;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .field select { font-family: var(--font-body); }
+  .field input[aria-invalid="true"] { border-color: var(--bad); background: var(--bad-wash); }
+  .hint { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; min-height: 1em; }
+  .seg { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .seg-options { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg-options label { position: relative; cursor: pointer; }
+  .seg-options input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .seg-options span {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    font-size: 14px;
+    background: var(--paper);
+    color: var(--ink-2);
+  }
+  .seg-options input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+  .seg-options input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn {
+    font: inherit;
+    font-size: 14px;
+    padding: 7px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--rule);
+    background: var(--sheet);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .note { font-size: 12.5px; color: var(--ink-3); }
+
+  .results {
+    position: sticky;
+    top: 16px;
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .main-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+  .main-value {
+    display: block;
+    font-family: var(--font-body);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    font-size: clamp(30px, 4vw, 40px);
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    font-size: 12.5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent-wash);
+    color: var(--ink-2);
+  }
+  .chip.ok { background: var(--good-wash); color: var(--good); }
+  .chip.off { background: var(--bad-wash); color: var(--bad); }
+  .chip b { font-family: var(--font-mono); font-weight: 500; }
+  .outputs { margin: 0; display: flex; flex-direction: column; }
+  .outputs div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--rule-2);
+    font-size: 14px;
+  }
+  .outputs dt { color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+  .outputs dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .errors { margin: 0; padding: 10px 12px 10px 28px; border-radius: var(--radius); background: var(--bad-wash); color: var(--bad); font-size: 14px; }
+  .stale .main-value, .stale .outputs { opacity: 0.45; }
+
+  .panel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+  .panel h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 600; font-size: 20px; }
+  .panel .sub { margin: 0 0 10px; color: var(--ink-3); font-size: 13px; }
+  .chart-wrap { position: relative; width: 100%; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+  .chart-wrap svg:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+  .axis text { fill: var(--ink-3); font-family: var(--font-mono); font-size: 11px; }
+  .grid line { stroke: var(--rule-2); stroke-width: 1; }
+  .baseline { stroke: var(--rule); stroke-width: 1; }
+  .series { fill: none; stroke: var(--chart-line); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .wash { fill: var(--chart-wash); stroke: none; }
+  .now-line { stroke: var(--ink-3); stroke-width: 1; }
+  .now-label { fill: var(--ink-2); font-family: var(--font-mono); font-size: 11px; }
+  .dot { fill: var(--chart-line); stroke: var(--sheet); stroke-width: 2; }
+  .cross { stroke: var(--ink-2); stroke-width: 1; }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    font-size: 12.5px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.12);
+    white-space: nowrap;
+    transform: translate(-50%, calc(-100% - 12px));
+  }
+  .tip strong { display: block; font-family: var(--font-mono); font-weight: 500; font-size: 14px; color: var(--ink); }
+  .tip span { color: var(--ink-3); }
+  details summary { cursor: pointer; color: var(--accent); font-size: 14px; font-weight: 500; }
+  details[open] summary { margin-bottom: 8px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: 13.5px; width: 100%; }
+  th, td { text-align: right; padding: 5px 10px; border-top: 1px solid var(--rule-2); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--ink-3); font-weight: 600; font-size: 12px; }
+  td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  td:first-child { font-family: var(--font-body); color: var(--ink-2); white-space: normal; }
+  table.sens td small { display: block; color: var(--ink-3); font-size: 12px; }
+  sub, sup { font-size: 0.72em; line-height: 0; }
+
+  .mini {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: none;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--sheet);
+    border-top: 1px solid var(--rule);
+    box-shadow: 0 -6px 18px rgb(0 0 0 / 0.08);
+  }
+  .mini span { color: var(--ink-2); font-size: 13px; }
+  .mini strong { font-family: var(--font-mono); font-weight: 500; font-size: 20px; }
+
+  @media (max-width: 1180px) {
+    .work { grid-template-columns: minmax(0, 1fr); }
+    .results { position: static; }
+  }
+  @media (max-width: 820px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .index { position: static; max-height: none; border-right: 0; padding: 20px 16px 48px; }
+    .sheet { padding: 16px 16px 96px; }
+    .app.show-sheet .index { display: none; }
+    .app:not(.show-sheet) .sheet { display: none; }
+    .back { display: inline-block; }
+    .app.show-sheet .mini { display: flex; }
+    .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  }
+  @media (max-width: 360px) {
+    .fields { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .item, .btn, .seg-options span { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="layout">
+    <nav class="index" id="index" aria-label="Kalkulatorer">
+      <div class="brand">
+        <span class="brand-name">Opsjonskalkulator</span>
+        <span class="brand-sub">Formlene i E. G. Haug, <i>The Complete Guide to Option Pricing Formulas</i>, 2. utgave</span>
+      </div>
+      <div class="search">
+        <label for="q" class="sr-only">Søk etter kalkulator</label>
+        <input id="q" type="search" placeholder="Søk: barriere, asiatisk, Kirk …" autocomplete="off">
+      </div>
+      <p class="count" id="count"></p>
+      <div id="list"></div>
+      <p class="colophon">Hver formel er kontrollert mot bokas talleksempler der de finnes, og mot uavhengige beregninger med Monte Carlo, trær eller numerisk integrasjon. Standardverdiene i hvert skjema er bokas eksempel når boka har ett.</p>
+    </nav>
+    <main class="sheet" id="sheet"></main>
+  </div>
+  <div class="mini" id="mini" aria-hidden="true"><span id="mini-label"></span><strong id="mini-value"></strong></div>
+</div>
+<script>
+(()=>{var ye=Math.sqrt(2*Math.PI);function W(e){return Math.exp(-.5*e*e)/ye}function f(e){if(Number.isNaN(e))return NaN;let t=Math.abs(e),n;if(t>37)n=0;else{let r=Math.exp(-.5*t*t);if(t<7.07106781186547){let s=.0352624965998911*t+.700383064443688;s=s*t+6.37396220353165,s=s*t+33.912866078383,s=s*t+112.079291497871,s=s*t+221.213596169931,s=s*t+220.206867912376,n=r*s,s=.0883883476483184*t+1.75566716318264,s=s*t+16.064177579207,s=s*t+86.7807322029461,s=s*t+296.564248779674,s=s*t+637.333633378831,s=s*t+793.826512519948,s=s*t+440.413735824752,n/=s}else{let s=t+.65;s=t+4/s,s=t+3/s,s=t+2/s,s=t+1/s,n=r/s/2.506628274631}}return e>0?1-n:n}var ee=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.357751867269,-30.66479806614716,2.506628277459239],oe=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572],L=[-.007784894002430293,-.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783],U=[.007784695709041462,.3224671290700398,2.445134137142996,3.754408661907416];function Z(e){if(!(e>0&&e<1))return e===0?-1/0:e===1?1/0:NaN;let t=.02425,n;if(e<t){let o=Math.sqrt(-2*Math.log(e));n=(((((L[0]*o+L[1])*o+L[2])*o+L[3])*o+L[4])*o+L[5])/((((U[0]*o+U[1])*o+U[2])*o+U[3])*o+1)}else if(e<=1-t){let o=e-.5,a=o*o;n=(((((ee[0]*a+ee[1])*a+ee[2])*a+ee[3])*a+ee[4])*a+ee[5])*o/(((((oe[0]*a+oe[1])*a+oe[2])*a+oe[3])*a+oe[4])*a+1)}else{let o=Math.sqrt(-2*Math.log(1-e));n=-(((((L[0]*o+L[1])*o+L[2])*o+L[3])*o+L[4])*o+L[5])/((((U[0]*o+U[1])*o+U[2])*o+U[3])*o+1)}let s=(e<.5?f(n)-e:1-e-f(-n))*ye*Math.exp(.5*n*n);return n-s/(1+.5*n*s)}var Tt=[[.17132449237917,.360761573048138,.46791393457269],[.0471753363865118,.106939325995318,.160078328543346,.203167426723066,.233492536538355,.249147045813403],[.0176140071391521,.0406014298003869,.0626720483341091,.0832767415767048,.10193011981724,.118194531961518,.131688638449177,.142096109318382,.149172986472604,.152753387130726]],Bt=[[-.932469514203152,-.661209386466265,-.238619186083197],[-.981560634246719,-.904117256370475,-.769902674194305,-.587317954286617,-.36783149899818,-.125233408511469],[-.993128599185095,-.963971927277914,-.912234428251326,-.839116971822219,-.746331906460151,-.636053680726515,-.510867001950827,-.37370608871542,-.227785851141645,-.0765265211334973]];function $e(e,t,n){if(Number.isNaN(e)||Number.isNaN(t)||Number.isNaN(n))return NaN;if(n>=1)return f(Math.min(e,t));if(n<=-1)return Math.max(0,f(e)+f(t)-1);if(e===-1/0||t===-1/0)return 0;if(e===1/0)return f(t);if(t===1/0)return f(e);let r=Math.abs(n),s=r<.3?0:r<.75?1:2,o=Tt[s],a=Bt[s],c=o.length,i=-e,p=-t,l=i*p,m=0;if(r<.925){if(r>0){let d=(i*i+p*p)/2,h=Math.asin(n);for(let x=0;x<c;x++)for(let k of[-1,1]){let b=Math.sin(h*(k*a[x]+1)/2);m+=o[x]*Math.exp((b*l-d)/(1-b*b))}m=m*h/(4*Math.PI)}m+=f(-i)*f(-p)}else{n<0&&(p=-p,l=-l);let d=(1-n)*(1+n),h=Math.sqrt(d),x=(i-p)*(i-p),k=(4-l)/8,b=(12-l)/16,y=-(x/d+l)/2;if(y>-100&&(m=h*Math.exp(y)*(1-k*(x-d)*(1-b*x/5)/3+k*b*d*d/5)),-l<100){let N=Math.sqrt(x);m-=Math.exp(-l/2)*ye*f(-N/h)*N*(1-k*x*(1-b*x/5)/3)}h/=2;for(let N=0;N<c;N++)for(let j of[-1,1]){let w=(h*(j*a[N]+1))**2,O=Math.sqrt(1-w);y=-(x/w+l)/2,y>-100&&(m+=h*o[N]*Math.exp(y)*(Math.exp(-l*(1-O)/(2*(1+O)))/O-(1+k*w*(1+b*w))))}m=-m/(2*Math.PI),n>0?m+=f(-Math.max(i,p)):(m=-m,p>i&&(m+=i<0?f(p)-f(i):f(-i)-f(-p)))}return Math.min(1,Math.max(0,m))}function je(e,t,n,{tol:r=1e-13,maxIter:s=300}={}){let o=e(t),a=e(n);if(o===0)return t;if(a===0)return n;if(o*a>0)throw new Error("Fant ingen l\xF8sning i intervallet.");let c=t,i=o,p=n-t,l=p;for(let m=0;m<s;m++){a*i>0&&(c=t,i=o,p=n-t,l=p),Math.abs(i)<Math.abs(a)&&(t=n,n=c,c=t,o=a,a=i,i=o);let d=2*Number.EPSILON*Math.abs(n)+.5*r,h=.5*(c-n);if(Math.abs(h)<=d||a===0)return n;if(Math.abs(l)>=d&&Math.abs(o)>Math.abs(a)){let x=a/o,k,b;if(t===c)k=2*h*x,b=1-x;else{let y=o/i,N=a/i;k=x*(2*h*y*(y-N)-(n-t)*(N-1)),b=(y-1)*(N-1)*(x-1)}k>0&&(b=-b),k=Math.abs(k),2*k<Math.min(3*h*b-Math.abs(d*b),Math.abs(l*b))?(l=p,p=k/b):(p=h,l=p)}else p=h,l=p;t=n,o=a,n+=Math.abs(p)>d?p:h>0?d:-d,a=e(n)}return n}function V(e){if(e==="call"||e==="c")return!0;if(e==="put"||e==="p")return!1;throw new Error(`Ukjent opsjonstype: ${e}`)}function Ce(e,t,n,r,s){let o=s*Math.sqrt(n),a=(Math.log(e/t)+(r+.5*s*s)*n)/o;return[a,a-o]}function qt({type:e="call",S:t,X:n,T:r,r:s,b:o,v:a}){let c=V(e);if(r<=0)return Math.max(c?t-n:n-t,0);let i=Math.exp((o-s)*r),p=Math.exp(-s*r);if(a<=0){let d=t*i-n*p;return Math.max(c?d:-d,0)}let[l,m]=Ce(t,n,r,o,a);return c?t*i*f(l)-n*p*f(m):n*p*f(-m)-t*i*f(-l)}function Ee({given:e="call",price:t,S:n,X:r,T:s,r:o,b:a}){let c=n*Math.exp((a-o)*s)-r*Math.exp(-o*s);return V(e)?t-c:t+c}function Ae({type:e="call",S:t,X:n,T:r,r:s=0,b:o=0,v:a}){let c=V(e),i=t*Math.exp(o*r),p=Math.exp(-s*r),l=a*Math.sqrt(r);if(l<=0)return p*Math.max(c?i-n:n-i,0);let m=(i-n)/l;return c?p*((i-n)*f(m)+l*W(m)):p*((n-i)*f(-m)+l*W(m))}function Ie({type:e="call",S:t,X:n,T:r,rho:s,k:o,v:a}){let c=a*Math.sqrt(r),i=(Math.log(t/n)+(s+.5*a*a)*r)/c,p=i-c;return V(e)?t*Math.exp(s*r)*f(i)-(1-o)*n*f(p):(1-o)*n*f(-p)-t*Math.exp(s*r)*f(-i)}function Le({type:e="call",S:t,X:n,T:r,rho:s,v:o}){let a=o*Math.sqrt(r),c=(Math.log(t/n)+(s+.5*o*o)*r)/a,i=c-a;return V(e)?t*f(c)-n*Math.exp(-s*r)*f(i):n*Math.exp(-s*r)*f(-i)-t*f(-c)}function De({type:e="call",S:t,X:n,T:r,rho:s,w:o,v:a}){let c=a*Math.sqrt(r),i=(Math.log(t/n)+(s+.5*a*a)*r)/c,p=i-c;return V(e)?t*Math.exp((s-o)*r)*f(i)-n*Math.exp(-o*r)*f(p):n*Math.exp(-o*r)*f(-p)-t*Math.exp((s-o)*r)*f(-i)}function I({type:e="call",S:t,X:n,T:r,r:s,b:o,v:a}){let c=V(e),i=Math.sqrt(r),p=a*i,[l,m]=Ce(t,n,r,o,a),d=Math.exp((o-s)*r),h=Math.exp(-s*r),x=W(l),k=W(m),b=f(l),y=f(m),N=f(-l),j=f(-m),w=c?t*d*b-n*h*y:n*h*j-t*d*N,O=c?d*b:-d*N,J=-d*m/a*x,ce=J*(1/a)*(l*m-l/m-1),se=x*(o/p-m/(2*r)),q=c?-d*(se+(o-s)*b):-d*(se-(o-s)*N),ue=O*t/w,R=d*x/(t*p),G=t*R/100,H=R*(l*m-1)/a,_=G*(l*m-1)/a,Q=-R*(1+l/p)/t,pe=-G*l/(t*p),me=R*(s-o+o*l/p+(1-l*m)/(2*r)),g=G*(s-o+o*l/p+(1-l*m)/(2*r)),F=t*d*x*i,T=a/10*F,X=F*a/w,de=F*l*m/a,yt=T*l*m/a,Mt=de*(1/a)*(l*m-l/m-m/l-1),wt=F*(s-o+o*l/p-(1+l*m)/(2*r)),Nt=t*d*x*i/(2*a),St=-d*x*m/(2*a*a),Pt=t*d*i/(4*a**3)*x*(l*m-1),Ft=t*d*i/(8*a**5)*x*((l*m-1)*(l*m-3)-(l*l+m*m)),ve=-t*d*x*a/(2*i),Pe=c?ve-(o-s)*t*d*b-s*n*h*y:ve+(o-s)*t*d*N+s*n*h*j,$t=c?r*n*h*y:-r*n*h*j,jt=-r*w,Fe=c?r*t*d*b:-r*t*d*N,Ct=-Fe,Et=c?y:j,At=c?-k*l/a:k*l/a,It=(c?-1:1)*k*(o/p-l/(2*r)),Lt=h*k/(n*p),Dt=c?-h*y:h*j;return{price:w,delta:O,vanna:J,dvannaDvol:ce,charm:q,elasticity:ue,gamma:R,gammaP:G,zomma:H,zommaP:_,speed:Q,speedP:pe,color:me,colorP:g,vega:F,vegaP:T,vegaLeverage:X,vomma:de,vommaP:yt,ultima:Mt,veta:wt,varianceVega:Nt,ddeltaDvar:St,varianceVomma:Pt,varianceUltima:Ft,theta:Pe,thetaDay:Pe/365,driftlessTheta:ve,rho:$t,futuresRho:jt,carryRho:Fe,phi:Ct,itmProb:Et,dzetaDvol:At,dzetaDtime:It,rnd:Lt,strikeDelta:Dt,hitProb:Rt({type:e,S:t,X:n,T:r,b:o,v:a}),deltaMirrorStrike:t*t/n*Math.exp((2*o+a*a)*r),maxGammaSpot:n*Math.exp((-o-1.5*a*a)*r),maxVegaSpot:n*Math.exp((-o+.5*a*a)*r),d1:l,d2:m}}function Rt({type:e="call",S:t,X:n,T:r,b:s,v:o}){let a=V(e);if(a&&t>=n||!a&&t<=n)return 1;let c=s-.5*o*o,i=o*Math.sqrt(r),p=Math.log(n/t),l=2*c/(o*o);return a?f((-p+c*r)/i)+Math.exp(l*p)*f((-p-c*r)/i):f((p-c*r)/i)+Math.exp(l*p)*f((p+c*r)/i)}function Te({type:e="call",S:t,T:n,r,b:s,v:o,delta:a}){let c=Math.exp((r-s)*n),i=o*Math.sqrt(n);if(V(e)){let l=a*c;if(!(l>0&&l<1))throw new Error("Delta for en call m\xE5 ligge mellom 0 og e^{(b\u2212r)T}.");return t*Math.exp(-Z(l)*i+(s+.5*o*o)*n)}let p=-a*c;if(!(p>0&&p<1))throw new Error("Delta for en put m\xE5 ligge mellom \u2212e^{(b\u2212r)T} og 0.");return t*Math.exp(Z(p)*i+(s+.5*o*o)*n)}function Be({S:e,T:t,r:n,b:r,v:s}){let o=Math.exp((r-n)*t),a=Math.sqrt(t),c=1/Math.sqrt(2*Math.PI);return{price:c*e*o*s*a,deltaCall:o*(.5+.5*c*s*a),deltaPut:-o*(.5-.5*c*s*a),gamma:c*o/(e*s*a),vega:c*e*o*a,thetaDriftless:-c*e*o*s/(2*a)}}function qe({type:e="call",S:t,X:n,T:r,r:s,b:o,price:a},{lo:c=1e-7,hi:i=10}={}){let p=V(e),l=Math.exp((o-s)*r),m=Math.exp(-s*r),d=Math.max(p?t*l-n*m:n*m-t*l,0),h=p?t*l:n*m;if(!(a>d&&a<h))throw new Error("Prisen ligger utenfor arbitrasjegrensene, s\xE5 ingen volatilitet gir denne prisen.");let x=b=>qt({type:e,S:t,X:n,T:r,r:s,b:o,v:b})-a,k=Math.sqrt(2*Math.PI/r)*a/(t*l);k>c&&k<i||(k=.3);for(let b=0;b<50;b++){let y=I({type:e,S:t,X:n,T:r,r:s,b:o,v:k}),N=y.price-a;if(Math.abs(N)<1e-12)return k;if(!(y.vega>1e-10))break;let j=k-N/y.vega;if(!(j>c&&j<i))break;if(Math.abs(j-k)<1e-13)return j;k=j}return je(x,c,i,{tol:1e-14})}var v=(e,t,n,r={})=>({key:e,label:t,type:"number",default:n,...r}),Re=(e,t,n,r={})=>({key:e,label:t,type:"int",default:n,...r});var ae=(e,t,n,r,s={})=>({key:e,label:t,type:"select",default:r??n[0].value,options:n,...s}),C=(e="call",t="type",n="Type")=>ae(t,n,[{value:"call",label:"Call (kj\xF8psopsjon)"},{value:"put",label:"Put (salgsopsjon)"}],e),ie={min:0,exclusiveMin:!0},P=(e,t="Spotpris S")=>v("S",t,e,ie),Me=(e,t="Futures-/forwardpris F")=>v("F",t,e,ie),E=(e,t="Innl\xF8sningskurs X")=>v("X",t,e,ie),S=(e,t="Tid til forfall T (\xE5r)")=>v("T",t,e,ie),A=(e,t="Risikofri rente r")=>v("r",t,e,{unit:"rate"}),B=(e,t="Cost of carry b")=>v("b",t,e,{unit:"rate",help:"b = r: aksje uten utbytte \xB7 b = r \u2212 q: utbytte q \xB7 b = 0: futures \xB7 b = r \u2212 rf: valuta"}),Ge=(e,t="Utbytteavkastning q")=>v("q",t,e,{unit:"rate"}),$=(e,t="Volatilitet \u03C3",n="v")=>v(n,t,e,{...ie,unit:"rate"});var te=e=>({Delta:e.delta,Gamma:e.gamma,Vega:e.vega,"Theta (per dag)":e.thetaDay}),Ve=[{id:"bsm-black-scholes",chapter:1,group:"Black-Scholes-Merton",name:"Black-Scholes \u2013 aksje uten utbytte",authors:"Black og Scholes (1973)",description:"Europeisk opsjon p\xE5 en aksje som ikke betaler utbytte i opsjonens levetid.",payoff:"max(S_T \u2212 X, 0) / max(X \u2212 S_T, 0)",inputs:[C("call"),P(60),E(65),S(.25),A(.08),$(.3)],compute:e=>{let t=I({...e,b:e.r});return{Pris:t.price,...te(t),Rho:t.rho}},example:2.1334},{id:"bsm-merton",chapter:1,group:"Black-Scholes-Merton",name:"Merton \u2013 aksjeindeks med utbytte",authors:"Merton (1973)",description:"Europeisk opsjon p\xE5 en aksje eller indeks med kontinuerlig utbytteavkastning q.",inputs:[C("put"),P(100),E(95),S(.5),A(.1),Ge(.05),$(.2)],compute:e=>{let t=I({...e,b:e.r-e.q});return{Pris:t.price,...te(t),Rho:t.rho,"Utbytte-rho (phi)":t.phi}},example:2.4648},{id:"bsm-black76",chapter:1,group:"Black-Scholes-Merton",name:"Black-76 \u2013 opsjon p\xE5 futures/forward",authors:"Black (1976)",description:"Europeisk opsjon p\xE5 en futures- eller forwardkontrakt (cost of carry b = 0).",inputs:[C("call"),Me(19),E(19),S(.75),A(.1),$(.28)],compute:e=>{let t=I({type:e.type,S:e.F,X:e.X,T:e.T,r:e.r,b:0,v:e.v});return{Pris:t.price,...te(t),"Rho (futures)":t.futuresRho}},example:1.7011},{id:"bsm-asay",chapter:1,group:"Black-Scholes-Merton",name:"Asay \u2013 futuresopsjon med margin",authors:"Asay (1982)",description:"Opsjon p\xE5 futures der premien betales som margin, slik at verken rente eller carry inng\xE5r (r = b = 0).",inputs:[C("call"),Me(19),E(19),S(.75),$(.28)],compute:e=>{let t=I({type:e.type,S:e.F,X:e.X,T:e.T,r:0,b:0,v:e.v});return{Pris:t.price,...te(t)}}},{id:"bsm-garman-kohlhagen",chapter:1,group:"Black-Scholes-Merton",name:"Garman-Kohlhagen \u2013 valutaopsjon",authors:"Garman og Kohlhagen (1983)",description:"Europeisk valutaopsjon. S er valutakursen, r innenlandsk og rf utenlandsk rente.",inputs:[C("call"),P(1.56,"Valutakurs S"),E(1.6),S(.5),A(.06,"Innenlandsk rente r"),v("rf","Utenlandsk rente rf",.08,{unit:"rate"}),$(.12)],compute:e=>{let t=I({type:e.type,S:e.S,X:e.X,T:e.T,r:e.r,b:e.r-e.rf,v:e.v});return{Pris:t.price,...te(t),"Rho innenlandsk":t.rho,"Rho utenlandsk":t.phi}},example:.0291},{id:"bsm-generalized",chapter:1,group:"Black-Scholes-Merton",name:"Generalisert Black-Scholes-Merton",authors:"Black og Scholes (1973), Merton (1973)",description:"Fellesformelen der cost of carry b velger modell: aksje, indeks, futures eller valuta.",inputs:[C("put"),P(75),E(70),S(.5),A(.1),B(.05),$(.35)],compute:e=>{let t=I(e);return{Pris:t.price,...te(t),Rho:t.rho,"Carry-rho":t.carryRho,d1:t.d1,d2:t.d2}},example:4.087},{id:"bsm-parity",chapter:1,group:"Black-Scholes-Merton",name:"Put-call-paritet",authors:"Stoll (1969)",description:"Finn prisen p\xE5 put fra call eller omvendt: c \u2212 p = S e^{(b\u2212r)T} \u2212 X e^{\u2212rT}.",inputs:[ae("given","Kjent pris er for",[{value:"call",label:"Call \u2192 finn put"},{value:"put",label:"Put \u2192 finn call"}],"call"),v("price","Kjent opsjonspris",2.1334,{min:0}),P(60),E(65),S(.25),A(.08),B(.08)],compute:e=>{let t=Ee(e);return{[e.given==="call"?"Put-pris":"Call-pris"]:t,"S e^{(b\u2212r)T} \u2212 X e^{\u2212rT}":e.S*Math.exp((e.b-e.r)*e.T)-e.X*Math.exp(-e.r*e.T)}}},{id:"bsm-bachelier",chapter:1,group:"F\xF8r Black-Scholes-Merton",name:"Bachelier \u2013 normalfordelt pris",authors:"Bachelier (1900)",description:"Prisen f\xF8lger en aritmetisk brownsk bevegelse. \u03C3 er absolutt volatilitet i kroner per \u221A\xE5r. Med r = b = 0 f\xE5r du originalformelen.",inputs:[C("call"),P(100),E(100),S(.5),A(0),B(0),v("v","Absolutt volatilitet \u03C3 (pris per \u221A\xE5r)",20,{min:0,exclusiveMin:!0})],compute:e=>({Pris:Ae(e)})},{id:"bsm-sprenkle",chapter:1,group:"F\xF8r Black-Scholes-Merton",name:"Sprenkle",authors:"Sprenkle (1964)",description:"Tidlig lognormal modell med forventet vekst \u03C1 i aksjen og risikoaversjon k.",inputs:[C("call"),P(60),E(65),S(.25),v("rho","Forventet vekstrate \u03C1",.1,{unit:"rate"}),v("k","Risikoaversjon k",.05),$(.3)],compute:e=>({Pris:Ie(e)})},{id:"bsm-boness",chapter:1,group:"F\xF8r Black-Scholes-Merton",name:"Boness",authors:"Boness (1964)",description:"Diskonterer innl\xF8sningskursen med aksjens forventede avkastning \u03C1 i stedet for risikofri rente.",inputs:[C("call"),P(60),E(65),S(.25),v("rho","Forventet avkastning \u03C1",.1,{unit:"rate"}),$(.3)],compute:e=>({Pris:Le(e)})},{id:"bsm-samuelson",chapter:1,group:"F\xF8r Black-Scholes-Merton",name:"Samuelson",authors:"Samuelson (1965)",description:"Skiller mellom forventet avkastning p\xE5 aksjen (\u03C1) og p\xE5 opsjonen (w).",inputs:[C("call"),P(60),E(65),S(.25),v("rho","Forventet avkastning aksje \u03C1",.1,{unit:"rate"}),v("w","Forventet avkastning opsjon w",.15,{unit:"rate"}),$(.3)],compute:e=>({Pris:De(e)})}];var Ke=[{id:"greeks-all",chapter:2,group:"Analytiske Greeks",name:"Alle Greeks",authors:"Haug (2007), kap. 2",description:"Pris og alle analytiske f\xF8lsomheter for generalisert BSM. Tidsderivater er per \xE5r n\xE5r tiden g\xE5r (\u2212\u2202/\u2202T).",inputs:[C("call"),P(105),E(100),S(.5),A(.1),B(0),$(.36)],compute:e=>{let t=I(e);return{Pris:t.price,Delta:t.delta,"Elastisitet (lambda)":t.elasticity,"Vanna (\u2202Delta/\u2202\u03C3)":t.vanna,"\u2202Vanna/\u2202\u03C3":t.dvannaDvol,"Charm (\u2202Delta/\u2202t)":t.charm,Gamma:t.gamma,GammaP:t.gammaP,"Zomma (\u2202Gamma/\u2202\u03C3)":t.zomma,ZommaP:t.zommaP,"Speed (\u2202Gamma/\u2202S)":t.speed,SpeedP:t.speedP,"Color (\u2202Gamma/\u2202t)":t.color,ColorP:t.colorP,Vega:t.vega,VegaP:t.vegaP,"Vega-elastisitet":t.vegaLeverage,"Vomma (\u2202Vega/\u2202\u03C3)":t.vomma,VommaP:t.vommaP,"Ultima (\u2202Vomma/\u2202\u03C3)":t.ultima,"Veta (\u2202Vega/\u2202t)":t.veta,Variansvega:t.varianceVega,"\u2202Delta/\u2202varians":t.ddeltaDvar,Variansvomma:t.varianceVomma,Variansultima:t.varianceUltima,"Theta (per \xE5r)":t.theta,"Theta (per dag)":t.thetaDay,"Driftl\xF8s theta":t.driftlessTheta,Rho:t.rho,"Futures-rho (b fast)":t.futuresRho,"Carry-rho (\u2202/\u2202b)":t.carryRho,"Phi (\u2202/\u2202q)":t.phi,"Strike-delta (\u2202/\u2202X)":t.strikeDelta,"Risikon\xF8ytral tetthet (\u2202\xB2c/\u2202X\xB2)":t.rnd,"P(i pengene ved forfall)":t.itmProb,"\u2202P(ITM)/\u2202\u03C3":t.dzetaDvol,"\u2202P(ITM)/\u2202t":t.dzetaDtime,"P(noen gang i pengene)":t.hitProb,"Delta-speilstrike":t.deltaMirrorStrike,"Spot med maks gamma":t.maxGammaSpot,"Spot med maks vega":t.maxVegaSpot,d1:t.d1,d2:t.d2}},example:{Delta:.5946}},{id:"greeks-strike-from-delta",chapter:2,group:"Analytiske Greeks",name:"Innl\xF8sningskurs fra delta",authors:"Haug (2007), kap. 2",description:"Finn innl\xF8sningskursen som gir en \xF8nsket delta, slik valutamarkedet kvoterer opsjoner.",inputs:[C("call"),P(1.35,"Spot S"),S(.5),A(.05),B(.02),$(.1),v("delta","\xD8nsket delta",.25)],compute:e=>{let t=Te(e),n=I({type:e.type,S:e.S,X:t,T:e.T,r:e.r,b:e.b,v:e.v});return{"Innl\xF8sningskurs X":t,"Kontroll: delta ved X":n.delta,"Pris ved X":n.price}}},{id:"greeks-atm-approx",chapter:2,group:"Tiln\xE6rminger",name:"ATM-forward-tiln\xE6rminger",authors:"Haug (2007), kap. 2",description:"Tommelfingerregler for en opsjon med innl\xF8sningskurs lik forwardprisen, X = S e^{bT}: pris \u2248 0,4 \xB7 S e^{(b\u2212r)T} \u03C3\u221AT.",inputs:[P(100),S(.5),A(.05),B(.05),$(.2)],compute:e=>{let t=Be(e),n=I({type:"call",S:e.S,X:e.S*Math.exp(e.b*e.T),T:e.T,r:e.r,b:e.b,v:e.v});return{"Pris (tiln\xE6rmet)":t.price,"Pris (eksakt call)":n.price,"Delta call (tiln\xE6rmet)":t.deltaCall,"Delta put (tiln\xE6rmet)":t.deltaPut,"Gamma (tiln\xE6rmet)":t.gamma,"Vega (tiln\xE6rmet)":t.vega,"Driftl\xF8s theta (tiln\xE6rmet)":t.thetaDriftless}}},{id:"greeks-implied-vol",chapter:2,group:"Implisitt volatilitet",name:"Implisitt volatilitet (GBSM)",authors:"Newton-Raphson med Brent som sikkerhetsnett",description:"Finn volatiliteten som gir observert opsjonspris i generalisert BSM.",inputs:[C("call"),P(59),E(60),S(.25),A(.067),B(.067),v("price","Observert opsjonspris",2.82,{min:0})],compute:e=>{let t=qe(e),n=I({type:e.type,S:e.S,X:e.X,T:e.T,r:e.r,b:e.b,v:t});return{"Implisitt volatilitet":t,"Vega ved l\xF8sningen":n.vega,"Kontroll: modellpris":n.price}}}];var ze=[];var Oe=[];var _e=[];var He=[];var Ue=[];var We=[];var Ze=[];var Ye=[];var Je=[];var Qe=[];var Xe=[];var et=[{id:"dist-normal",chapter:13,group:"Normalfordelingen",name:"Kumulativ normalfordeling N(x)",authors:"Hart (1968)",description:"Sannsynligheten for at en standardnormal variabel er mindre enn x, med dobbel presisjon.",inputs:[v("x","x",1.96)],compute:e=>({"N(x)":f(e.x),"n(x) (tetthet)":W(e.x),"1 \u2212 N(x)":f(-e.x)}),greeks:!1,chart:!1},{id:"dist-inverse-normal",chapter:13,group:"Normalfordelingen",name:"Invers normalfordeling N\u207B\xB9(p)",authors:"Acklam, med Halley-korreksjon",description:"Kvantilen x slik at N(x) = p.",inputs:[v("p","Sannsynlighet p",.975,{min:0,max:1,exclusiveMin:!0,exclusiveMax:!0})],compute:e=>{let t=Z(e.p);return{"N\u207B\xB9(p)":t,"Kontroll: N(x)":f(t)}},greeks:!1,chart:!1},{id:"dist-bivariate",chapter:13,group:"Normalfordelingen",name:"Bivariat kumulativ normal M(a, b; \u03C1)",authors:"Genz (2004), Drezner og Wesolowsky (1990)",description:"P(X \u2264 a, Y \u2264 b) for to standardnormale variabler med korrelasjon \u03C1. Brukes i mange eksotiske formler.",inputs:[v("a","a",.5),v("b","b",-.3),v("rho","Korrelasjon \u03C1",.5,{min:-1,max:1})],compute:e=>({"M(a, b; \u03C1)":$e(e.a,e.b,e.rho),"N(a)\xB7N(b) (uavhengige)":f(e.a)*f(e.b)}),greeks:!1,chart:!1},{id:"dist-lognormal-price",chapter:13,group:"Lognormal pris",name:"Fordelingen til S_T",authors:"Lognormal modell under risikon\xF8ytralt m\xE5l",description:"Sannsynligheter og kvantiler for prisen ved forfall n\xE5r ln S_T er normalfordelt.",inputs:[P(100),v("K","Niv\xE5 K",110,{min:0,exclusiveMin:!0}),S(1),B(.05),$(.25)],compute:e=>{let t=Math.log(e.S)+(e.b-.5*e.v*e.v)*e.T,n=e.v*Math.sqrt(e.T),r=(Math.log(e.K)-t)/n,s=e.S*Math.exp(e.b*e.T);return{"P(S_T \u2264 K)":f(r),"P(S_T > K)":f(-r),"Forventning E[S_T]":s,Standardavvik:s*Math.sqrt(Math.exp(e.v*e.v*e.T)-1),Median:Math.exp(t),"2,5 %-kvantil":Math.exp(t+n*Z(.025)),"97,5 %-kvantil":Math.exp(t+n*Z(.975))}},chart:!1}];var tt=[{id:"formula-rate-conversion",chapter:14,group:"Renter",name:"Konvertering av rentekonvensjoner",authors:"Haug (2007), kap. 14",description:"Gj\xF8r om mellom kontinuerlig rente og rente med m forrentninger per \xE5r.",inputs:[ae("dir","Retning",[{value:"toCont",label:"Diskret \u2192 kontinuerlig"},{value:"fromCont",label:"Kontinuerlig \u2192 diskret"}],"toCont"),v("rate","Rente",.08,{unit:"rate"}),Re("m","Forrentninger per \xE5r m",2,{min:1})],compute:e=>{if(e.dir==="toCont"){let n=e.m*Math.log(1+e.rate/e.m);return{"Kontinuerlig rente":n,"Effektiv \xE5rlig rente":Math.exp(n)-1}}let t=e.m*(Math.exp(e.rate/e.m)-1);return{[`Rente med ${e.m} forrentninger/\xE5r`]:t,"Effektiv \xE5rlig rente":Math.exp(e.rate)-1}},greeks:!1,chart:!1},{id:"formula-forward",chapter:14,group:"Cost of carry",name:"Forwardpris og n\xE5verdi",authors:"Cost-of-carry-modellen",description:"Forwardpris F = S e^{bT}, n\xE5verdi av forwarden og diskonteringsfaktor e^{\u2212rT}.",inputs:[P(100),S(.5),A(.08),v("b","Cost of carry b",.03,{unit:"rate"}),v("K","Avtalt forwardpris K",100,{min:0})],compute:e=>{let t=e.S*Math.exp(e.b*e.T),n=Math.exp(-e.r*e.T);return{"Forwardpris F":t,"Verdi av lang forward (F \u2212 K)e^{\u2212rT}":(t-e.K)*n,"Diskonteringsfaktor e^{\u2212rT}":n}}}];var fe=[{n:1,title:"Black-Scholes-Merton"},{n:2,title:"Greeks for Black-Scholes-Merton"},{n:3,title:"Amerikanske opsjoner"},{n:4,title:"Eksotiske opsjoner p\xE5 ett underliggende"},{n:5,title:"Eksotiske opsjoner p\xE5 to underliggende"},{n:6,title:"Justeringer og alternativer til BSM"},{n:7,title:"Tr\xE6r og finite difference"},{n:8,title:"Monte Carlo-simulering"},{n:9,title:"Aksjer med diskrete utbytter"},{n:10,title:"R\xE5vare- og energiopsjoner"},{n:11,title:"Rentederivater"},{n:12,title:"Volatilitet og korrelasjon"},{n:13,title:"Fordelinger"},{n:14,title:"Nyttige formler"}];var ne=[...Ve,...Ke,...ze,...Oe,..._e,...He,...Ue,...We,...Ze,...Ye,...Je,...Qe,...Xe,...et,...tt];function nt(e){let t={};for(let n of e.inputs)t[n.key]=Array.isArray(n.default)?[...n.default]:n.default;return t}function he(e){if(typeof e=="number")return e;let t=String(e).trim().replace(/−/g,"-").replace(/\s/g,"").replace(",",".");return t===""||!/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t)?NaN:Number(t)}function rt(e){return Array.isArray(e)?e:String(e).split(/[;\n\t ]+/).map(n=>n.trim()).filter(Boolean).map(he)}function st(e,t){let n=[];for(let r of e.inputs){let s=t[r.key],o=r.label;if(r.type==="select"){r.options.some(a=>a.value===s)||n.push(`${o}: ugyldig valg.`);continue}if(r.type==="list"){if(!Array.isArray(s)||s.some(a=>!Number.isFinite(a))){n.push(`${o}: skriv tall skilt med semikolon, for eksempel 2,5; 3.`);continue}r.minLength!==void 0&&s.length<r.minLength&&n.push(`${o}: trenger minst ${r.minLength} tall.`);continue}if(!Number.isFinite(s)){n.push(`${o}: skriv et tall.`);continue}r.type==="int"&&!Number.isInteger(s)&&n.push(`${o}: m\xE5 v\xE6re et heltall.`),r.min!==void 0&&(r.exclusiveMin?!(s>r.min):!(s>=r.min))&&n.push(`${o}: m\xE5 v\xE6re ${r.exclusiveMin?"st\xF8rre enn":"minst"} ${String(r.min).replace(".",",")}.`),r.max!==void 0&&(r.exclusiveMax?!(s<r.max):!(s<=r.max))&&n.push(`${o}: m\xE5 v\xE6re ${r.exclusiveMax?"mindre enn":"h\xF8yst"} ${String(r.max).replace(".",",")}.`)}return n}function we(e){return typeof e=="number"?[["Pris",e]]:Object.entries(e)}function ot(e){return e.example===void 0?[]:typeof e.example=="number"?[[null,e.example]]:Object.entries(e.example)}var ht=new Map(ne.map(e=>[e.id,e])),gt=new Map(fe.map(e=>[e.n,e.title])),Gt=["S","F","S1"],Vt=new Set(["S","F","S1","S2"]),M=e=>document.getElementById(e),Kt=new Set(["g","path","line","text","circle","rect"]);function u(e,t={},...n){let r=document.createElementNS(e==="svg"||Kt.has(e)?"http://www.w3.org/2000/svg":"http://www.w3.org/1999/xhtml",e);for(let[s,o]of Object.entries(t))o===!1||o===void 0||o===null||r.setAttribute(s,o===!0?"":String(o));for(let s of n.flat())s==null||s===!1||r.append(typeof s=="string"||typeof s=="number"?document.createTextNode(String(s)):s);return r}var at=new Intl.NumberFormat("nb-NO",{minimumFractionDigits:4,maximumFractionDigits:4}),zt=new Intl.NumberFormat("nb-NO",{maximumSignificantDigits:4}),Ot=new Intl.NumberFormat("nb-NO",{maximumFractionDigits:4}),_t={"-":"\u207B",0:"\u2070",1:"\xB9",2:"\xB2",3:"\xB3",4:"\u2074",5:"\u2075",6:"\u2076",7:"\u2077",8:"\u2078",9:"\u2079"};function Y(e){if(typeof e=="string")return e;if(typeof e!="number"||!Number.isFinite(e))return"\u2013";let t=Math.abs(e);if(t===0)return at.format(0);if(t>=1e9||t<1e-6){let[n,r]=e.toExponential(3).split("e"),s=String(Number(r)).split("").map(o=>_t[o]).join("");return`${n.replace(".",",").replace("-","\u2212")} \xD7 10${s}`}return t<.01?zt.format(e):at.format(e)}function Ht(e,t){return e.type==="select"?t:e.type==="list"?t.map(n=>le(n)).join("; "):le(t)}function le(e){return String(Number(Number(e).toPrecision(12))).replace(".",",")}function it(e){let t=Math.min(6,Math.max(0,-Math.floor(Math.log10(e)+1e-9))),n=new Intl.NumberFormat("nb-NO",{minimumFractionDigits:t,maximumFractionDigits:t});return r=>n.format(r)}var Ut=/_\{([^}]*)\}|_([A-Za-z0-9αβγδσρλμνθτ]+)|\^\{([^}]*)\}|\^([A-Za-z0-9−\-+]+)/g;function re(e){let t=String(e??""),n=[],r=0;for(let s of t.matchAll(Ut)){s.index>r&&n.push(t.slice(r,s.index));let o=s[1]??s[2];n.push(o!==void 0?u("sub",{},o):u("sup",{},s[3]??s[4])),r=s.index+s[0].length}return r<t.length&&n.push(t.slice(r)),n}var Wt=e=>/^[A-ZÆØÅ][a-zæøå]/.test(e)?e[0].toLowerCase()+e.slice(1):e,bt=e=>String(e??"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase(),z=null,D={},lt=null,K=null;function Zt(e){let t=ne.filter(r=>r.chapter===e),n=new Map;return t.forEach((r,s)=>{n.has(r.group)||n.set(r.group,s)}),t.map((r,s)=>({c:r,i:s})).sort((r,s)=>n.get(r.c.group)-n.get(s.c.group)||r.i-s.i).map(r=>r.c)}function Yt(e,t){if(!t)return!0;let n=bt([e.name,e.authors,e.group,e.description,e.id,gt.get(e.chapter),`kapittel ${e.chapter}`].join(" "));return t.split(/\s+/).every(r=>n.includes(r))}function Ne(){let e=bt(M("q").value.trim()),t=M("list");t.textContent="";let n=0,r=0;for(let s of fe){let o=Zt(s.n),a=o.filter(l=>Yt(l,e));if(!a.length)continue;r++;let c=new Set(o.map(l=>l.group)),i=u("section",{class:"chap"});i.append(u("h2",{class:"chap-head"},u("span",{class:"chap-num"},String(s.n)),s.title));let p;for(let l of a){c.size>1&&l.group&&l.group!==p&&i.append(u("p",{class:"group-label"},l.group)),p=l.group;let m=u("a",{class:"item",href:`#${l.id}`},l.name,u("small",{},l.authors));z&&z.id===l.id&&m.setAttribute("aria-current","page"),i.append(m)}t.append(i),n+=a.length}M("count").textContent=e?`${n} av ${ne.length} kalkulatorer`:`${ne.length} kalkulatorer i ${r} kapitler`,n||t.append(u("p",{class:"empty"},"Ingen treff. Pr\xF8v et annet ord, for eksempel \xABbarriere\xBB eller \xABasiatisk\xBB."))}function Jt(){for(let e of document.querySelectorAll(".item"))z&&e.getAttribute("href")===`#${z.id}`?e.setAttribute("aria-current","page"):e.removeAttribute("aria-current")}function be(e,t){z=e,D={};for(let n of e.inputs)D[n.key]=Ht(n,n.default);if(t)for(let n of Object.keys(D))typeof t[n]=="string"&&(D[n]=t[n]);K=null,Qt(e),Jt(),kt()}function Qt(e){let t=M("sheet");t.textContent="";let n=u("article",{class:"calc"});n.append(u("a",{class:"back",href:"#"},"\u2190 Alle kalkulatorer"));let r=u("header",{class:"head"},u("p",{class:"eyebrow"},`Kapittel ${e.chapter} \xB7 ${e.group||gt.get(e.chapter)}`),u("h1",{class:"title"},e.name),u("p",{class:"authors"},e.authors),u("p",{class:"desc"},re(e.description)));e.payoff&&r.append(u("p",{class:"payoff"},u("span",{},"Utbetaling"),u("em",{},re(e.payoff)))),n.append(r);let s=u("form",{class:"inputs",novalidate:!0,"aria-label":"Inndata"});s.addEventListener("submit",i=>i.preventDefault());let o=u("div",{class:"fields"});for(let i of e.inputs)o.append(Xt(e,i));let a=u("button",{type:"button",class:"btn",id:`reset-${e.id}`},e.example!==void 0?"Tilbakestill til bokas eksempel":"Tilbakestill");a.addEventListener("click",()=>be(e)),s.append(o,u("div",{class:"actions"},a,u("span",{class:"note"},"Desimalkomma eller punktum. Renter og volatilitet som desimaltall: 0,08 = 8 %.")));let c=u("section",{class:"results",id:"results","aria-live":"polite","aria-label":"Resultat"});if(n.append(u("div",{class:"work"},s,c)),e.chart!==!1&&xe(e)){let i=xe(e),p=e.inputs.find(l=>l.key===i).label;n.append(u("section",{class:"panel",id:"chart-panel"},u("h2",{id:"chart-title"},"Pris mot spot"),u("p",{class:"sub",id:"chart-sub"},`${p} fra 50 % til 150 % av dagens verdi. Loddrett strek: dagens verdi.`),u("div",{class:"chart-wrap",id:"chart-wrap"}),u("details",{id:"chart-table"},u("summary",{},"Vis tallene"),u("div",{class:"table-wrap",id:"chart-table-body"}))))}e.greeks!==!1&&n.append(u("section",{class:"panel",id:"sens-panel"},u("h2",{},"F\xF8lsomheter"),u("p",{class:"sub"},"Numeriske derivater av hovedresultatet: hver input flyttes litt opp og ned."),u("div",{class:"table-wrap",id:"sens-body"}))),t.append(n)}function Xt(e,t){let n=`in-${e.id}-${t.key}`;if(t.type==="select"&&t.options.length<=3){let a=u("fieldset",{class:"seg field wide"},u("legend",{},t.label)),c=u("div",{class:"seg-options"});return t.options.forEach((i,p)=>{let l=u("input",{type:"radio",name:n,id:`${n}-${p}`,value:i.value});l.checked=D[t.key]===i.value,l.addEventListener("change",()=>{D[t.key]=i.value,Se(0)}),c.append(u("label",{for:`${n}-${p}`},l,u("span",{},i.label)))}),a.append(c),a}if(t.type==="select"){let a=u("select",{id:n},t.options.map(c=>u("option",{value:c.value},c.label)));return a.value=D[t.key],a.addEventListener("change",()=>{D[t.key]=a.value,Se(0)}),u("div",{class:"field wide"},u("label",{for:n},t.label),a)}let r=u("input",{type:"text",id:n,inputmode:t.type==="list"?"text":t.type==="int"?"numeric":"decimal",autocomplete:"off",autocapitalize:"off",spellcheck:"false","data-key":t.key});r.value=D[t.key];let s=u("span",{class:"hint",id:`${n}-hint`}),o=()=>{if(t.help){s.textContent=t.help;return}if(t.type==="list"){s.textContent="Skill tallene med semikolon.";return}if(t.unit==="rate"){let a=he(r.value);s.textContent=Number.isFinite(a)?`= ${Ot.format(a*100)} %`:""}};return o(),r.addEventListener("input",()=>{D[t.key]=r.value,o(),Se()}),r.setAttribute("aria-describedby",s.id),u("div",{class:`field${t.type==="list"||t.help?" wide":""}`},u("label",{for:n},t.label),r,s)}function en(e){let t={};for(let n of e.inputs){let r=D[n.key];n.type==="select"?t[n.key]=r:n.type==="list"?t[n.key]=rt(r):t[n.key]=he(r)}return t}function tn(e,t){let n=nt(e);return e.inputs.every(r=>{let s=t[r.key],o=n[r.key];return r.type==="list"?s.length===o.length&&s.every((a,c)=>Math.abs(a-o[c])<=1e-12*Math.max(1,Math.abs(o[c]))):r.type==="select"?s===o:Math.abs(s-o)<=1e-12*Math.max(1,Math.abs(o))})}function Se(e=140){clearTimeout(lt),lt=setTimeout(kt,e)}function xt(e){let t=we(e);return t.length?t[0][1]:NaN}function kt(){let e=z;if(!e)return;let t=en(e),n=[];for(let i of e.inputs){let p=st({inputs:[i]},t),l=document.getElementById(`in-${e.id}-${i.key}`);l&&l.tagName==="INPUT"&&l.setAttribute("aria-invalid",p.length?"true":"false"),n.push(...p)}if(n.length){ct(n);return}let r,s=performance.now();try{r=e.compute(t)}catch(i){ct([i&&i.message?i.message:String(i)]);return}let o=performance.now()-s,a=we(r);nn(e,t,a);let c=o>40;e.greeks!==!1&&sn(e,t,a,c),e.chart!==!1&&xe(e)&&on(e,t,a,c)}function ct(e){let t=M("results");if(t){t.textContent="",t.append(u("div",{class:"main-label"},"Kan ikke regne ut"),u("ul",{class:"errors"},e.map(n=>u("li",{},n)))),M("mini-label").textContent="Rett opp inndata",M("mini-value").textContent="\u2013";for(let n of["sens-body","chart-wrap","chart-table-body"]){let r=document.getElementById(n);r&&(r.style.opacity="0.4")}}}function nn(e,t,n){let r=M("results");r.textContent="";let[s,o]=n[0];r.append(u("div",{},u("div",{class:"main-label"},re(s)),u("output",{class:"main-value"},Y(o))));let a=ot(e);if(a.length){let c=Object.fromEntries(n),i=e.exampleTol??101e-6,p=a.map(([m,d])=>[m??s,d]),l=[];if(p.forEach(([m,d],h)=>{h&&l.push(", "),l.push(p.length>1||m!==s?`${m} `:"",u("b",{},Y(d)))}),tn(e,t)){let m=a.every(([d,h])=>Math.abs((d===null?o:c[d])-h)<=i);r.append(u("span",{class:`chip ${m?"ok":"off"}`},m?"\u2713 Som i boka: ":"Avviker fra boka: ",...l))}else r.append(u("span",{class:"chip"},"Bokas eksempel med standardverdiene: ",...l))}if(n.length>1){let c=u("dl",{class:"outputs"});for(let[i,p]of n.slice(1))c.append(u("div",{},u("dt",{},re(i)),u("dd",{},Y(p))));r.append(c)}M("mini-label").textContent="",M("mini-label").append(...re(s)),M("mini-value").textContent=Y(o);for(let c of["sens-body","chart-wrap","chart-table-body"]){let i=document.getElementById(c);i&&(i.style.opacity="")}}function ut(e,t){return!(e.min!==void 0&&(e.exclusiveMin?!(t>e.min):!(t>=e.min))||e.max!==void 0&&(e.exclusiveMax?!(t<e.max):!(t<=e.max)))}function rn(e,t,n){let r=(o,a)=>{try{let c=xt(e.compute({...t,[o]:a}));return Number.isFinite(c)?c:NaN}catch{return NaN}},s=[];for(let o of e.inputs){if(o.type!=="number")continue;let a=t[o.key],c=1e-4*Math.max(Math.abs(a),.01),i=ut(o,a-c),p=ut(o,a+c),l=NaN,m=NaN;if(i&&p){let h=r(o.key,a+c),x=r(o.key,a-c);l=(h-x)/(2*c),m=(h-2*n+x)/(c*c)}else p?l=(r(o.key,a+c)-n)/c:i&&(l=(n-r(o.key,a-c))/c);let d=o.label;Vt.has(o.key)?(s.push([d,"Delta, per 1,00",l]),s.push([d,"Gamma, per 1,00\xB2",m])):o.key==="T"?(s.push([d,"Theta, per dag",-l/365]),s.push([d,"\u2202/\u2202T, per \xE5r",l])):o.unit==="rate"?s.push([d,"Per 1 %-poeng",l/100]):s.push([d,"Per 1,00",l])}return s}function sn(e,t,n,r){let s=M("sens-body");if(!s)return;s.textContent="";let o=()=>{s.textContent="";let a=rn(e,t,n[0][1]),c=u("table",{class:"sens"},u("thead",{},u("tr",{},u("th",{},"Inndata og m\xE5l"),u("th",{},re(`Endring i ${Wt(n[0][0])}`)))),u("tbody",{},a.map(([i,p,l])=>u("tr",{},u("td",{},i,u("small",{},p)),u("td",{},Y(l))))));s.append(c)};if(r){let a=u("button",{type:"button",class:"btn"},"Regn ut f\xF8lsomheter");a.addEventListener("click",o),s.append(u("div",{class:"actions"},a,u("span",{class:"note"},"Denne modellen er tung \xE5 regne, s\xE5 f\xF8lsomhetene beregnes p\xE5 foresp\xF8rsel.")))}else o()}function xe(e){return Gt.find(t=>e.inputs.some(n=>n.key===t&&n.type==="number"))}function on(e,t,n,r){let s=M("chart-wrap");if(!s)return;let o=xe(e),a=n[0][0],c=()=>{let i=t[o],p=61,l=[];for(let m=0;m<p;m++){let d=i*(.5+m/(p-1)),h=NaN;try{h=xt(e.compute({...t,[o]:d}))}catch{h=NaN}l.push([d,Number.isFinite(h)?h:NaN])}K={pts:l,x0:i,y0:n[0][1],key:o,mainLabel:a,idx:Math.round((p-1)/2)},M("chart-title").textContent=`${a} mot ${o}`,vt(),an()};if(r){s.textContent="",K=null;let i=u("button",{type:"button",class:"btn"},"Tegn grafen");i.addEventListener("click",c),s.append(u("div",{class:"actions"},i,u("span",{class:"note"},"Grafen krever 61 beregninger, s\xE5 den tegnes p\xE5 foresp\xF8rsel.")));let p=M("chart-table-body");p&&(p.textContent="")}else c()}function pt(e,t,n){if(!(t>e)){let l=Math.abs(e)>0?Math.abs(e)*.1:1;e-=l,t+=l}let r=(t-e)/n,s=10**Math.floor(Math.log10(r)),o=r/s,a=(o>=7.5?10:o>=3.5?5:o>=1.5?2:1)*s,c=Math.floor(e/a)*a,i=Math.ceil(t/a)*a,p=[];for(let l=c;l<=i+a*1e-6;l+=a)p.push(Math.abs(l)<a*1e-9?0:l);return{ticks:p,step:a,lo:c,hi:i}}function vt(){let e=M("chart-wrap");if(!e||!K)return;let{pts:t,x0:n,y0:r,key:s,mainLabel:o}=K,a=Math.max(280,Math.round(e.clientWidth||600)),c=Math.round(Math.min(300,Math.max(200,a*.42))),i={l:58,r:14,t:14,b:30},p=t.map(g=>g[1]).filter(Number.isFinite);if(e.textContent="",!p.length){e.append(u("p",{class:"note"},"Modellen gir ingen verdier i dette omr\xE5det."));return}let l=Math.min(...p),m=Math.max(...p);l>=0&&l<.3*m&&(l=0);let d=pt(l,m,4),h=pt(t[0][0],t[t.length-1][0],a<420?4:6),x=t[0][0],k=t[t.length-1][0],b=g=>i.l+(g-x)/(k-x)*(a-i.l-i.r),y=g=>i.t+(d.hi-g)/(d.hi-d.lo)*(c-i.t-i.b),N=it(d.step),j=it(h.step),w=u("svg",{viewBox:`0 0 ${a} ${c}`,width:a,height:c,role:"img",tabindex:0,"aria-label":`${o} som funksjon av ${s}. Bruk piltastene for \xE5 lese av verdier.`}),O=u("g",{class:"grid"}),J=u("g",{class:"axis"});for(let g of d.ticks)g<d.lo-1e-12||g>d.hi+1e-12||(O.append(u("line",{x1:i.l,x2:a-i.r,y1:y(g),y2:y(g)})),J.append(u("text",{x:i.l-8,y:y(g)+4,"text-anchor":"end"},N(g))));for(let g of h.ticks)g<x-1e-9||g>k+1e-9||J.append(u("text",{x:b(g),y:c-8,"text-anchor":"middle"},j(g)));w.append(O,u("line",{class:"baseline",x1:i.l,x2:a-i.r,y1:c-i.b,y2:c-i.b}),J);let ce="",se="",q=[],ue=()=>{q.length>1&&(ce+=q.map(([g,F],T)=>`${T?"L":"M"}${b(g).toFixed(2)},${y(F).toFixed(2)}`).join(""),se+=`M${b(q[0][0]).toFixed(2)},${y(d.lo).toFixed(2)}`+q.map(([g,F])=>`L${b(g).toFixed(2)},${y(F).toFixed(2)}`).join("")+`L${b(q[q.length-1][0]).toFixed(2)},${y(d.lo).toFixed(2)}Z`),q=[]};for(let g of t)Number.isFinite(g[1])?q.push(g):ue();ue(),w.append(u("path",{class:"wash",d:se}),u("path",{class:"series",d:ce}));let R=b(n);w.append(u("line",{class:"now-line",x1:R,x2:R,y1:i.t,y2:c-i.b})),Number.isFinite(r)&&w.append(u("circle",{class:"dot",cx:R,cy:y(r),r:4.5})),w.append(u("text",{class:"now-label",x:R+6,y:i.t+10},`${s} = ${le(n)}`));let G=u("line",{class:"cross",x1:0,x2:0,y1:i.t,y2:c-i.b,visibility:"hidden"}),H=u("circle",{class:"dot",r:4.5,visibility:"hidden"});w.append(G,H);let _=u("div",{class:"tip",hidden:!0}),Q=g=>{let[F,T]=t[g];K.idx=g,G.setAttribute("x1",b(F)),G.setAttribute("x2",b(F)),G.setAttribute("visibility","visible"),_.textContent="",_.append(u("strong",{},Y(T)),u("span",{},`${o} ved ${s} = ${le(Number(F.toPrecision(6)))}`)),_.hidden=!1,Number.isFinite(T)?(H.setAttribute("cx",b(F)),H.setAttribute("cy",y(T)),H.setAttribute("visibility","visible")):H.setAttribute("visibility","hidden");let X=e.clientWidth/a,de=Math.min(Math.max(b(F)*X,70),e.clientWidth-70);_.style.left=`${de}px`,_.style.top=`${(Number.isFinite(T)?y(T):i.t+20)*X}px`},pe=()=>{G.setAttribute("visibility","hidden"),H.setAttribute("visibility","hidden"),_.hidden=!0},me=g=>{let F=w.getBoundingClientRect(),X=((g.clientX-F.left)/F.width*a-i.l)/(a-i.l-i.r);return Math.max(0,Math.min(t.length-1,Math.round(X*(t.length-1))))};w.addEventListener("pointermove",g=>Q(me(g))),w.addEventListener("pointerdown",g=>Q(me(g))),w.addEventListener("pointerleave",pe),w.addEventListener("focus",()=>Q(K.idx)),w.addEventListener("blur",pe),w.addEventListener("keydown",g=>{(g.key==="ArrowLeft"||g.key==="ArrowRight")&&(g.preventDefault(),Q(Math.max(0,Math.min(t.length-1,K.idx+(g.key==="ArrowLeft"?-1:1)))))}),e.append(w,_)}function an(){let e=M("chart-table-body");if(!e||!K)return;e.textContent="";let{pts:t,key:n,mainLabel:r}=K,s=t.filter((o,a)=>a%5===0);e.append(u("table",{},u("thead",{},u("tr",{},u("th",{},n),u("th",{},r))),u("tbody",{},s.map(([o,a])=>u("tr",{},u("td",{},le(Number(o.toPrecision(6)))),u("td",{},Y(a)))))))}var mt=null,ke=typeof ResizeObserver<"u"?new ResizeObserver(()=>{clearTimeout(mt),mt=setTimeout(vt,80)}):null;function dt(){let e=decodeURIComponent(location.hash.slice(1)),t=ht.get(e),n=M("app");t?((!z||z.id!==t.id)&&be(t),n.classList.add("show-sheet"),window.scrollTo(0,0)):(n.classList.remove("show-sheet"),z||be(ne[0]));let r=M("chart-wrap");ke&&r&&ke.observe(r)}function ft(e={}){M("q").addEventListener("input",Ne),M("q").addEventListener("keydown",r=>{r.key==="Escape"&&(M("q").value="",Ne())}),Ne();let t=e&&e.id&&ht.get(e.id);t&&!location.hash&&(be(t,e.raw),M("app").classList.toggle("show-sheet",!!e.sheet)),window.addEventListener("hashchange",dt),dt(),new MutationObserver(()=>{let r=M("chart-wrap");ke&&r&&ke.observe(r)}).observe(M("sheet"),{childList:!0})}var ge=typeof window<"u"?window.claude?.hot:void 0;ge?.snapshot?.(()=>({id:z?.id,raw:D,sheet:M("app").classList.contains("show-sheet")}));ge?.ready?ge.ready(ft):ft(ge?.data??{});})();
+</script>
+</body>
+</html>

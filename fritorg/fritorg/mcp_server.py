@@ -27,6 +27,7 @@ from .config import Settings
 from .deps import base_url
 from .errors import AppError, Unauthorized, ValidationProblem
 from .listings import SORTS, SearchParams
+from .mailer import Mailer, notify_new_message
 from .schemas import ListingCreate, ListingUpdate
 from .security import looks_like_token
 from .util import truncate
@@ -52,6 +53,7 @@ class ToolContext:
     user: users.User | None
     base: str
     settings: Settings
+    mailer: Mailer | None = None
 
 
 @dataclass
@@ -138,7 +140,7 @@ def _compact(listing: listings.Listing, base: str) -> dict[str, Any]:
         "url": serializers.listing_url(base, listing.id),
     }
     if listing.thumbnail:
-        item["image_url"] = base + listing.thumbnail.path
+        item["image_url"] = base + listing.thumbnail.thumb_path
     return item
 
 
@@ -335,6 +337,8 @@ def _send_message(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "Oppgi listing_id (ny henvendelse) eller conversation_id (svar).",
             hint="Use listing_id to contact a seller, or conversation_id to reply in an existing conversation.",
         )
+    if ctx.mailer is not None:
+        notify_new_message(ctx.mailer, ctx.base, ctx.conn, conversation_id, ctx.user.id)
     conversation = messages.get_conversation(ctx.conn, conversation_id, ctx.user.id)
     return serializers.conversation_dict(conversation, ctx.user.id, ctx.base, with_messages=True)
 
@@ -713,9 +717,10 @@ def _tool_error(exc: AppError) -> dict[str, Any]:
 
 
 class McpServer:
-    def __init__(self, db, settings: Settings):
+    def __init__(self, db, settings: Settings, state: Any = None):
         self.db = db
         self.settings = settings
+        self.state = state  # app.state: gives access to the mailer
 
     def visible_tools(self, user: users.User | None) -> list[Tool]:
         return [tool for tool in TOOLS if user is not None or not tool.requires_auth]
@@ -798,7 +803,13 @@ class McpServer:
                 ),
             )
         with self.db.session() as conn:
-            ctx = ToolContext(conn=conn, user=user, base=base, settings=self.settings)
+            ctx = ToolContext(
+                conn=conn,
+                user=user,
+                base=base,
+                settings=self.settings,
+                mailer=getattr(self.state, "mailer", None),
+            )
             try:
                 payload = tool.handler(ctx, arguments)
             except AppError as exc:

@@ -5,7 +5,7 @@ import base64
 import json
 
 import httpx2
-from conftest import PNG_1PX, make_listing, register
+from conftest import PHOTO, make_listing, register
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
@@ -161,12 +161,12 @@ def test_authenticated_agent_can_sell_and_message(client, auth, other_auth):
         "add_listing_image",
         {
             "listing_id": listing["id"],
-            "image_base64": base64.b64encode(PNG_1PX).decode(),
+            "image_base64": base64.b64encode(PHOTO).decode(),
             "alt_text": "Bordet",
         },
         headers=other_auth,
     )
-    assert image["structuredContent"]["content_type"] == "image/png"
+    assert image["structuredContent"]["content_type"] == "image/webp"
 
     updated = call(
         client,

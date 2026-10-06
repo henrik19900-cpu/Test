@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import PNG_1PX, csrf, make_listing, register, web_login
+from conftest import PHOTO, csrf, make_image, make_listing, register, web_login
 
 from fritorg import fraud, users
 
@@ -100,26 +100,44 @@ def test_reused_image_from_another_seller(client, auth, other_auth):
     original = make_listing(client, auth)
     upload = client.post(
         f"/api/v1/listings/{original['id']}/images",
-        files={"file": ("a.png", PNG_1PX, "image/png")},
+        files={"file": ("a.png", PHOTO, "image/png")},
         headers=auth,
     )
     assert upload.json()["listing_status"] == "active"
 
+    # The thief downloads the photo, shrinks it and saves it as JPEG: still recognised.
+    from io import BytesIO
+
+    from PIL import Image as PILImage
+
+    copy = BytesIO()
+    PILImage.open(BytesIO(PHOTO)).resize((400, 300)).save(copy, format="JPEG", quality=70)
     thief = make_listing(
         client, other_auth, title="Sykkel til salgs", description="En fin sykkel med lite bruk."
     )
     stolen = client.post(
         f"/api/v1/listings/{thief['id']}/images",
-        files={"file": ("b.png", PNG_1PX, "image/png")},
+        files={"file": ("b.jpg", copy.getvalue(), "image/jpeg")},
         headers=other_auth,
     )
     assert stolen.json()["listing_status"] == "review"
+
+    # The original owner is never flagged, and different photos are fine.
     again = client.post(
         f"/api/v1/listings/{original['id']}/images",
-        files={"file": ("c.png", PNG_1PX, "image/png")},
+        files={"file": ("c.png", PHOTO, "image/png")},
         headers=auth,
     )
     assert again.json()["listing_status"] == "active"
+    honest = make_listing(
+        client, other_auth, title="Annen sykkel", description="Helt annen sykkel, pent brukt."
+    )
+    other_photo = client.post(
+        f"/api/v1/listings/{honest['id']}/images",
+        files={"file": ("d.png", make_image(7), "image/png")},
+        headers=other_auth,
+    )
+    assert other_photo.json()["listing_status"] == "active"
 
 
 def test_price_far_below_similar_listings(client, auth, other_auth):

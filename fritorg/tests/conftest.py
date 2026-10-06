@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import socket
 import threading
 import time
@@ -10,14 +11,35 @@ import pytest
 import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from PIL import Image as PILImage
+from PIL import ImageDraw
 
 from fritorg.app import create_app
 from fritorg.config import Settings
 
-PNG_1PX = bytes.fromhex(
-    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
-    "0000000d49444154789c6360f8cfc0f01f0005000201e221bc330000000049454e44ae426082"
-)
+
+def make_image(
+    seed: int = 1, size: tuple[int, int] = (800, 600), fmt: str = "PNG", **save_args: Any
+) -> bytes:
+    """A photo-like test image with enough structure for perceptual hashing."""
+    import random
+
+    rng = random.Random(seed)
+    image = PILImage.new("RGB", size, (rng.randrange(256), rng.randrange(256), rng.randrange(256)))
+    draw = ImageDraw.Draw(image)
+    width, height = size
+    for _ in range(14):
+        x, y = rng.randrange(width), rng.randrange(height)
+        draw.rectangle(
+            [x, y, x + rng.randrange(width // 2), y + rng.randrange(height // 2)],
+            fill=(rng.randrange(256), rng.randrange(256), rng.randrange(256)),
+        )
+    buffer = io.BytesIO()
+    image.save(buffer, format=fmt, **save_args)
+    return buffer.getvalue()
+
+
+PHOTO = make_image(1)
 
 
 @pytest.fixture

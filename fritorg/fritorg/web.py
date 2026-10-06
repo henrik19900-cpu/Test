@@ -16,6 +16,7 @@ from . import discovery, images, listings, messages, moderation, serializers, ta
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
 from .errors import AppError, NotFound, RateLimited, ValidationProblem
 from .listings import SORTS, SearchParams
+from .mailer import notify_moderation, notify_new_message, send_verification, verify_email
 from .templating import (
     CSRF_COOKIE,
     SESSION_COOKIE,
@@ -354,6 +355,7 @@ def contact_seller(listing_id: int, request: Request, conn: Conn, form: Form) ->
         )
     except (ValidationProblem, RateLimited) as exc:
         return redirect(f"/annonse/{listing_id}#kontakt", flash=exc.message)
+    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     return redirect(f"/meldinger/{conversation_id}", flash="Meldingen er sendt.")
 
 
@@ -646,6 +648,7 @@ def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Res
         )
     except (ValidationProblem, RateLimited) as exc:
         return redirect(f"/meldinger/{conversation_id}", flash=exc.message)
+    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     return redirect(f"/meldinger/{conversation_id}#siste")
 
 
@@ -679,7 +682,12 @@ def _my_page(
         request,
         conn,
         "my_page.html",
-        {"my_listings": mine.items, "tokens": users.list_api_tokens(conn, user.id), "new_token": new_token},
+        {
+            "my_listings": mine.items,
+            "tokens": users.list_api_tokens(conn, user.id),
+            "new_token": new_token,
+            "mail_enabled": request.app.state.mailer.enabled,
+        },
     )
 
 
@@ -711,6 +719,40 @@ def revoke_token(token_id: int, request: Request, conn: Conn, form: Form) -> Res
         return login_redirect(request)
     users.revoke_api_token(conn, user.id, token_id)
     return redirect("/min-side#nokler", flash="Nøkkelen er slettet.")
+
+
+@router.get("/bekreft-epost")
+def confirm_email(request: Request, conn: Conn) -> Response:
+    ok = verify_email(conn, request.app.state.secret_key, request.query_params.get("token", ""))
+    if ok:
+        return redirect(
+            "/min-side", flash="Takk! E-postadressen er bekreftet. Nå får du varsler om nye meldinger."
+        )
+    return redirect("/min-side", flash="Lenken er ugyldig eller utløpt. Be om en ny på Min side.")
+
+
+@router.post("/min-side/epost")
+def change_email(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    decision = request.app.state.limiter.hit("verify", str(user.id), 5, 3600)
+    if not decision.allowed:
+        raise RateLimited("For mange forsøk. Prøv igjen om en time.", retry_after=decision.reset_in)
+    email = str(form.get("email") or "").strip()
+    state = request.app.state
+    if email and email.casefold() != user.email.casefold():
+        try:
+            users.update_email(conn, user.id, email)
+        except AppError as exc:
+            return redirect("/min-side#konto", flash=exc.message)
+    else:
+        email = user.email
+    if not state.mailer.enabled:
+        return redirect("/min-side#konto", flash="E-postadressen er lagret.")
+    send_verification(state.mailer, state.secret_key, base_url(request), user.id, user.name, email)
+    return redirect("/min-side#konto", flash=f"Vi har sendt en bekreftelseslenke til {email}.")
 
 
 @router.post("/min-side/slett-konto")
@@ -830,6 +872,8 @@ def register(request: Request, conn: Conn, form: Form) -> Response:
             {"values": values, "errors": errors, "next": target},
             status=exc.status,
         )
+    state = request.app.state
+    send_verification(state.mailer, state.secret_key, base_url(request), user.id, user.name, user.email)
     return _start_session(request, conn, user, target, f"Velkommen til {settings.site_name}, {user.name}!")
 
 
@@ -885,6 +929,7 @@ def approve_listing(listing_id: int, request: Request, conn: Conn, form: Form) -
     if moderator is None:
         return login_redirect(request)
     moderation.approve_listing(conn, moderator, listing_id)
+    notify_moderation(request.app.state.mailer, base_url(request), conn, listing_id, approved=True)
     return redirect("/moderering", flash=f"Annonse {listing_id} er godkjent og publisert.")
 
 
@@ -894,10 +939,14 @@ def remove_listing(listing_id: int, request: Request, conn: Conn, form: Form) ->
     moderator = _require_moderator(request, conn)
     if moderator is None:
         return login_redirect(request)
+    note = str(form.get("note") or "")
     try:
-        moderation.remove_listing(conn, moderator, listing_id, str(form.get("note") or ""))
+        moderation.remove_listing(conn, moderator, listing_id, note)
     except ValidationProblem as exc:
         return redirect("/moderering", flash=exc.message)
+    notify_moderation(
+        request.app.state.mailer, base_url(request), conn, listing_id, approved=False, note=note
+    )
     return redirect("/moderering", flash=f"Annonse {listing_id} er fjernet.")
 
 

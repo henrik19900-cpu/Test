@@ -43,7 +43,7 @@
     {% if listing.images %}
       <div class="gallery" aria-label="Bilder">
         {% for image in listing.images %}
-          <a class="gallery-item" href="{{ image.path }}"><img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}" {% if not loop.first %}loading="lazy"{% endif %}></a>
+          <a class="gallery-item" href="{{ image.path }}"><img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}"{% if image.width %} width="{{ image.width }}" height="{{ image.height }}"{% endif %}{% if not loop.first %} loading="lazy"{% endif %}></a>
         {% endfor %}
       </div>
       {% if listing.images|length > 1 %}<p class="muted small">{{ listing.images|length }} bilder – sveip eller rull sidelengs.</p>{% endif %}

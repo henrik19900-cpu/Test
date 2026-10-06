@@ -92,7 +92,10 @@ class ListingUpdate(BaseModel):
 
 class ImageOut(BaseModel):
     id: int
-    url: str
+    url: str = Field(description="WebP, at most 1600 px. All metadata (including GPS) is removed.")
+    thumbnail_url: str = Field(description="WebP, at most 640 px.")
+    width: int | None
+    height: int | None
     alt_text: str | None
     content_type: str
 
@@ -246,6 +249,7 @@ class AccountOut(BaseModel):
     name: str
     email: str
     verified: bool
+    email_verified: bool = Field(description="Notifications are only sent to a verified address.")
     member_since: str
     unread_messages: int
     listings: dict[str, int]

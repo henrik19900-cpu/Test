@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from conftest import PNG_1PX, make_listing, register
+from conftest import PHOTO, make_listing, register
 
 
 def test_index_links_everything_an_agent_needs(client):
@@ -205,20 +205,23 @@ def test_image_upload_and_delete(client, auth, settings):
     listing = make_listing(client, auth)
     response = client.post(
         f"/api/v1/listings/{listing['id']}/images",
-        files={"file": ("bike.png", PNG_1PX, "image/png")},
+        files={"file": ("bike.png", PHOTO, "image/png")},
         data={"alt_text": "Sykkelen sett fra siden"},
         headers=auth,
     )
     assert response.status_code == 201, response.text
     image = response.json()
-    assert image["content_type"] == "image/png"
+    assert image["content_type"] == "image/webp"
     path = image["url"].replace("http://testserver", "")
     served = client.get(path)
-    assert served.status_code == 200 and served.content == PNG_1PX
+    assert served.status_code == 200 and served.content.startswith(b"RIFF")
+    assert served.headers["content-type"] == "image/webp"
 
     detail = client.get(f"/api/v1/listings/{listing['id']}").json()
-    assert detail["thumbnail_url"] == image["url"]
+    assert detail["thumbnail_url"] == image["thumbnail_url"] != image["url"]
+    assert (image["width"], image["height"]) == (800, 600)
     assert detail["images"][0]["alt_text"] == "Sykkelen sett fra siden"
+    assert client.get(image["thumbnail_url"].replace("http://testserver", "")).status_code == 200
 
     not_an_image = client.post(
         f"/api/v1/listings/{listing['id']}/images",
@@ -231,7 +234,7 @@ def test_image_upload_and_delete(client, auth, settings):
         client.delete(f"/api/v1/listings/{listing['id']}/images/{image['id']}", headers=auth).status_code
         == 204
     )
-    assert not list(settings.uploads_dir.glob("*.png"))
+    assert not list(settings.uploads_dir.glob("*.webp"))  # the image and its thumbnail
 
 
 def test_register_login_and_tokens(client):

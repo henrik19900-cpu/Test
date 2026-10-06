@@ -5,7 +5,7 @@
   <a class="card-link" href="/annonse/{{ item.id }}">
     <div class="card-media">
       {% if item.thumbnail %}
-        <img src="{{ item.thumbnail.path }}" alt="{{ item.thumbnail.alt_text or item.title }}" loading="lazy">
+        <img src="{{ item.thumbnail.thumb_path }}" alt="{{ item.thumbnail.alt_text or item.title }}" loading="lazy">
       {% else %}
         <div class="placeholder placeholder-{{ item.group.slug }}">{{ icon(item.group.slug, 40) }}</div>
       {% endif %}

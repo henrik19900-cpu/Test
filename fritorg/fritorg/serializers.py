@@ -24,6 +24,9 @@ def image_dict(image: Image, base: str) -> dict[str, Any]:
     return {
         "id": image.id,
         "url": base + image.path,
+        "thumbnail_url": base + image.thumb_path,
+        "width": image.width,
+        "height": image.height,
         "alt_text": image.alt_text,
         "content_type": image.content_type,
     }
@@ -47,7 +50,7 @@ def listing_summary(listing: Listing, base: str) -> dict[str, Any]:
         "county": listing.county,
         "location": listing.location,
         "place": listing.place,
-        "thumbnail_url": base + listing.thumbnail.path if listing.thumbnail else None,
+        "thumbnail_url": base + listing.thumbnail.thumb_path if listing.thumbnail else None,
         "image_count": len(listing.images),
         "status": listing.status,
         "seller_id": listing.user_id,

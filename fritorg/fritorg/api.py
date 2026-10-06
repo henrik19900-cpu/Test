@@ -15,6 +15,7 @@ from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
 from .errors import Forbidden, NotFound, RateLimited, Unauthorized
 from .listings import SORTS, SearchParams
+from .mailer import notify_new_message, send_verification
 from .ratelimit import RateLimiter
 from .schemas import (
     AccountOut,
@@ -109,6 +110,7 @@ def _account(conn: sqlite3.Connection, user: users.User) -> dict:
         "name": user.name,
         "email": user.email,
         "verified": user.is_verified,
+        "email_verified": user.email_verified_at is not None,
         "member_since": user.created_at,
         "unread_messages": messages.unread_count(conn, user.id),
         "listings": counts,
@@ -450,6 +452,9 @@ def register(body: RegisterIn, request: Request, conn: Conn, settings: SettingsD
     user = users.create_user(conn, body.email, body.name, body.password, via=_channel(request))
     token, record = users.create_api_token(conn, user.id, body.token_name)
     base = base_url(request)
+    send_verification(
+        request.app.state.mailer, request.app.state.secret_key, base, user.id, user.name, user.email
+    )
     return {"account": _account(conn, user), "token": _new_token(token, record, base)}
 
 
@@ -609,6 +614,7 @@ def contact_seller(
         max_per_day=settings.max_messages_per_day,
         new_account_max_per_day=settings.new_account_max_messages_per_day,
     )
+    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     conversation = messages.get_conversation(conn, conversation_id, user.id)
     return serializers.conversation_dict(conversation, user.id, base_url(request), with_messages=True)
 
@@ -649,6 +655,7 @@ def reply(
         max_per_day=settings.max_messages_per_day,
         new_account_max_per_day=settings.new_account_max_messages_per_day,
     )
+    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     conversation = messages.get_conversation(conn, conversation_id, user.id)
     return serializers.conversation_dict(conversation, user.id, base_url(request), with_messages=True)
 

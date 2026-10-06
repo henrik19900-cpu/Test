@@ -14,6 +14,7 @@ from starlette.datastructures import FormData
 from . import identity, users
 from .deps import base_url, client_ip, get_conn
 from .errors import AppError, NotFound, RateLimited, ValidationProblem
+from .mailer import send_verification
 from .templating import SESSION_COOKIE, current_user, redirect, render, safe_next
 from .web import check_csrf, get_form, login_redirect
 
@@ -139,6 +140,8 @@ def complete_registration(request: Request, conn: Conn, form: Form) -> Response:
         context = {"pending": pending, "values": values, "errors": errors}
         return render(request, conn, "complete_registration.html", context, status=422)
     identity.delete_pending(conn, token)
+    state = request.app.state
+    send_verification(state.mailer, state.secret_key, base_url(request), user.id, user.name, user.email)
     settings = request.app.state.settings
     response = start_session(
         request,

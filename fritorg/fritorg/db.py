@@ -26,7 +26,8 @@ CREATE TABLE users (
     identity_hash TEXT UNIQUE,
     verified_name TEXT,
     verified_at TEXT,
-    verified_via TEXT
+    verified_via TEXT,
+    email_verified_at TEXT
 );
 
 CREATE TABLE sessions (
@@ -94,6 +95,9 @@ CREATE TABLE listing_images (
     alt_text TEXT,
     position INTEGER NOT NULL DEFAULT 0,
     sha256 TEXT,
+    dhash TEXT,
+    width INTEGER,
+    height INTEGER,
     created_at TEXT NOT NULL
 );
 CREATE INDEX idx_images_listing ON listing_images(listing_id, position);

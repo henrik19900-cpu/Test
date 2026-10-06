@@ -59,6 +59,14 @@ class Settings:
     # Keys the identity hashes and signed codes. Keep it stable and secret (see README).
     secret_key: str | None = None
 
+    # Outgoing mail (optional). Without smtp_host no mail is sent.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_security: str = "starttls"  # "starttls", "ssl" or "none"
+
     max_image_bytes: int = 8 * 1024 * 1024
     max_images_per_listing: int = 12
     max_request_bytes: int = 64 * 1024 * 1024
@@ -114,6 +122,12 @@ class Settings:
             bankid_id_claim=_env("BANKID_ID_CLAIM", defaults.bankid_id_claim),
             allow_simulated_bankid=_env_bool("ALLOW_SIMULATED_BANKID", False),
             secret_key=_env("SECRET_KEY"),
+            smtp_host=_env("SMTP_HOST"),
+            smtp_port=_env_int("SMTP_PORT", defaults.smtp_port),
+            smtp_username=_env("SMTP_USERNAME"),
+            smtp_password=_env("SMTP_PASSWORD"),
+            smtp_from=_env("SMTP_FROM"),
+            smtp_security=(_env("SMTP_SECURITY", defaults.smtp_security) or "starttls").lower(),
             max_image_bytes=_env_int("MAX_IMAGE_BYTES", defaults.max_image_bytes),
             max_images_per_listing=_env_int("MAX_IMAGES_PER_LISTING", defaults.max_images_per_listing),
         )

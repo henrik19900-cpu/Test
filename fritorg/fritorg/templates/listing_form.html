@@ -122,7 +122,7 @@
     <ul class="image-admin">
       {% for image in listing.images %}
       <li>
-        <img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}">
+        <img src="{{ image.thumb_path }}" alt="{{ image.alt_text or listing.title }}">
         <form method="post" action="/annonse/{{ listing.id }}/bilder/{{ image.id }}/slett">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <button type="submit" class="button button-small">Fjern</button>

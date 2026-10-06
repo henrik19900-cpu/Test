@@ -349,16 +349,6 @@ def assess_listing(
     return Assessment(codes), fingerprint
 
 
-def image_reused_by_other_seller(conn: sqlite3.Connection, user_id: int, digest: str) -> bool:
-    """True if another seller uploaded this exact image first (so the original owner is never flagged)."""
-    row = conn.execute(
-        "SELECT l.user_id FROM listing_images i JOIN listings l ON l.id = i.listing_id WHERE i.sha256 = ? "
-        "ORDER BY i.id LIMIT 1",
-        (digest,),
-    ).fetchone()
-    return row is not None and row["user_id"] != user_id
-
-
 def reasons(codes: list[str]) -> list[dict[str, str]]:
     return [{"code": c, "reason": SIGNALS[c].reason} for c in codes if c in SIGNALS]
 

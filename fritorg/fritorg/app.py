@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, api, bankid_web, discovery, identity, mcp_server, web
+from . import __version__, api, bankid_web, discovery, identity, mailer, mcp_server, web
 from .config import Settings
 from .db import Database
 from .deps import client_ip
@@ -122,7 +122,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.db = db
     app.state.limiter = RateLimiter()
     app.state.templates = templates
-    app.state.mcp = mcp_server.McpServer(db, settings)
+    app.state.mailer = mailer.Mailer(settings)
+    app.state.mcp = mcp_server.McpServer(db, settings, app.state)
     app.state.secret_key = secret_key
     app.state.identity_provider = provider
 

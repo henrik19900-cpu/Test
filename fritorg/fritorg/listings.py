@@ -62,10 +62,17 @@ class Image:
     content_type: str
     alt_text: str | None
     position: int
+    width: int | None = None
+    height: int | None = None
 
     @property
     def path(self) -> str:
         return f"/uploads/{self.filename}"
+
+    @property
+    def thumb_path(self) -> str:
+        stem, _, suffix = self.filename.rpartition(".")
+        return f"/uploads/{stem}-t.{suffix}"
 
 
 @dataclass
@@ -407,7 +414,16 @@ def _attach_images(conn: sqlite3.Connection, listings: list[Listing]) -> None:
     ).fetchall()
     for r in rows:
         by_id[r["listing_id"]].images.append(
-            Image(r["id"], r["listing_id"], r["filename"], r["content_type"], r["alt_text"], r["position"])
+            Image(
+                r["id"],
+                r["listing_id"],
+                r["filename"],
+                r["content_type"],
+                r["alt_text"],
+                r["position"],
+                r["width"],
+                r["height"],
+            )
         )
 
 

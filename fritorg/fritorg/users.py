@@ -31,6 +31,7 @@ class User:
     verified_at: str | None = None
     verified_via: str | None = None
     has_password: bool = True
+    email_verified_at: str | None = None
 
     @property
     def is_new(self) -> bool:
@@ -63,6 +64,7 @@ def _user(row: sqlite3.Row) -> User:
         verified_at=row["verified_at"],
         verified_via=row["verified_via"],
         has_password=row["password_hash"] != UNUSABLE_PASSWORD,
+        email_verified_at=row["email_verified_at"],
     )
 
 
@@ -133,6 +135,18 @@ def create_user(
             ),
         )
     return get_user(conn, cursor.lastrowid)  # type: ignore[return-value]
+
+
+def update_email(conn: sqlite3.Connection, user_id: int, email: str) -> None:
+    """Change the address; it has to be verified again before notifications are sent to it."""
+    email = email.strip()
+    if not EMAIL_RE.match(email) or len(email) > 254:
+        raise ValidationProblem.field("email", "Ugyldig e-postadresse.")
+    with transaction(conn):
+        taken = conn.execute("SELECT 1 FROM users WHERE email = ? AND id != ?", (email, user_id)).fetchone()
+        if taken:
+            raise Conflict("En annen konto bruker allerede denne e-postadressen.")
+        conn.execute("UPDATE users SET email = ?, email_verified_at = NULL WHERE id = ?", (email, user_id))
 
 
 def get_user_by_identity(conn: sqlite3.Connection, identity_hash: str) -> User | None:

@@ -102,9 +102,18 @@
   <h2 id="konto">Konto</h2>
   <dl class="facts">
     <div><dt>Visningsnavn</dt><dd>{{ user.name }}{% if user.is_verified %} <span class="tag tag-verified">BankID-verifisert</span>{% endif %}</dd></div>
-    <div><dt>E-post (vises aldri)</dt><dd>{{ user.email }}</dd></div>
+    <div><dt>E-post (vises aldri)</dt><dd>{{ user.email }}{% if mail_enabled %}{% if user.email_verified_at %} <span class="tag tag-verified">Bekreftet</span>{% else %} <span class="tag tag-new">Ikke bekreftet</span>{% endif %}{% endif %}</dd></div>
     <div><dt>Medlem siden</dt><dd>{{ user.created_at|date_no }}</dd></div>
   </dl>
+  {% if mail_enabled and not user.email_verified_at %}
+    <p class="small">Bekreft e-postadressen din for å få varsel når noen sender deg en melding.</p>
+  {% endif %}
+  <form method="post" action="/min-side/epost" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="new-email">E-post for varsler</label>
+    <input id="new-email" name="email" type="email" autocomplete="email" value="{{ user.email }}" required>
+    <button type="submit" class="button">{% if mail_enabled and not user.email_verified_at %}Send bekreftelse{% else %}Lagre{% endif %}</button>
+  </form>
   <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a></p>
   <details id="slett" class="danger-zone">
     <summary>Slett kontoen min</summary>

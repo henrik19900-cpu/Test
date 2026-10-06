@@ -293,16 +293,17 @@ test('Hull-White (1987): ξ → 0 gir BSM, rekken mot betinget Monte Carlo E[BSM
 // --- Hull og White (1988) -----------------------------------------------------------------------------
 // Betinget Monte Carlo (Romano og Touzi 1997): gitt variansbanen er ln S_T normal med
 // S' = S exp(ρ∫√V dW₂ − ½ρ²∫V dt) og varians (1 − ρ²)∫V dt.
-// Antitetiske variansbaner (z og −z); standardfeilen regnes over parene.
+// Antitetiske variansbaner (z og −z) og S' − S som kontrollvariat: S' = S exp(ρI₁ − ½ρ²I₂) har
+// forventning nøyaktig S også i Euler-diskretiseringen (hvert steg er en eksponentiell martingal).
+// Standardfeilen regnes over parene.
 function conditionalSV({ type, S, X, T, r, b, V0, steps, n, seed, rho, stepV }) {
   const rng = createRng(seed);
   const dt = T / steps;
   const sq = Math.sqrt(dt);
-  let s = 0;
-  let s2 = 0;
-  const price = (I1, I2) => gbsm({
-    type, S: S * Math.exp(rho * I1 - 0.5 * rho * rho * I2), X, T, r, b, v: Math.sqrt((1 - rho * rho) * I2 / T),
-  });
+  const ys = [];
+  const cs = [];
+  const sp = (I1, I2) => S * Math.exp(rho * I1 - 0.5 * rho * rho * I2);
+  const price = (I1, I2) => gbsm({ type, S: sp(I1, I2), X, T, r, b, v: Math.sqrt((1 - rho * rho) * I2 / T) });
   const pairs = Math.floor(n / 2);
   for (let i = 0; i < pairs; i++) {
     let Va = V0;
@@ -322,11 +323,21 @@ function conditionalSV({ type, S, X, T, r, b, V0, steps, n, seed, rho, stepV }) 
       Va = stepV(Va, z, dt);
       Vb = stepV(Vb, -z, dt);
     }
-    const y = 0.5 * (price(Ia1, Ia2) + price(Ib1, Ib2));
-    s += y;
-    s2 += y * y;
+    ys.push(0.5 * (price(Ia1, Ia2) + price(Ib1, Ib2)));
+    cs.push(0.5 * (sp(Ia1, Ia2) + sp(Ib1, Ib2)) - S);
   }
-  return meanSe(s, s2, pairs);
+  const my = ys.reduce((a, x) => a + x, 0) / pairs;
+  const mc = cs.reduce((a, x) => a + x, 0) / pairs;
+  let cov = 0;
+  let vc = 0;
+  for (let i = 0; i < pairs; i++) {
+    cov += (ys[i] - my) * (cs[i] - mc);
+    vc += (cs[i] - mc) ** 2;
+  }
+  const beta = vc > 0 ? cov / vc : 0;
+  let v = 0;
+  for (let i = 0; i < pairs; i++) v += (ys[i] - my - beta * (cs[i] - mc)) ** 2;
+  return { mean: my - beta * mc, se: Math.sqrt(v / (pairs - 1) / pairs) };
 }
 
 test('Hull-White (1988): grensetilfeller', () => {

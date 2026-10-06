@@ -99,6 +99,10 @@ export function bawAmerican(p) {
 // Bjerksund og Stensland (1993 og 2002)
 // ---------------------------------------------------------------------------
 
+// Grensefunksjonen I(T) = B0 + (B∞ − B0)(1 − e^{h(T)}) krever h(T) ≤ 0, dvs. bT + 2σ√T ≥ 0.
+// Med negativ carry (call) eller positiv carry (put) og svært lang løpetid brytes dette.
+const LONG_T = 'Bjerksund-Stensland-tilnærmingen er ikke gyldig her: med denne cost of carry er løpetiden for lang (krever bT + 2σ√T ≥ 0 i call-formen).';
+
 function bsBeta(r, b, v2) {
   const disc = (b / v2 - 0.5) ** 2 + 2 * r / v2;
   if (!(disc >= 0)) throw new Error('Tilnærmingen er ikke definert for denne kombinasjonen av negativ rente og cost of carry.');
@@ -149,6 +153,7 @@ function bs1993Call(S, X, T, r, b, v) {
   const Binf = beta / (beta - 1) * X;
   const B0 = Math.max(X, r / (r - b) * X);
   const hT = -(b * T + 2 * v * Math.sqrt(T)) * B0 / (Binf - B0);
+  if (!(hT <= 0)) throw new Error(LONG_T);
   const I = B0 + (Binf - B0) * -Math.expm1(hT);
   if (S >= I) return { price: S - X, european, boundary: I };
   const alpha = (I - X) * I ** -beta;
@@ -172,6 +177,7 @@ function bs2002Call(S, X, T, r, b, v) {
   const scale = X * X / ((Binf - B0) * B0);
   const h1 = -(b * t1 + 2 * v * Math.sqrt(t1)) * scale;
   const h2 = -(b * T + 2 * v * Math.sqrt(T)) * scale;
+  if (!(h2 <= 0)) throw new Error(LONG_T);
   const I1 = B0 + (Binf - B0) * -Math.expm1(h1);
   const I2 = B0 + (Binf - B0) * -Math.expm1(h2);
   if (S >= I2) return { price: S - X, european, I1, I2, t1 };

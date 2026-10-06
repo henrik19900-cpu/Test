@@ -318,7 +318,7 @@ export default [
     group: 'Obligasjonsopsjoner',
     name: 'Schaefer og Schwartz – volatilitet proporsjonal med durasjonen',
     authors: 'Schaefer og Schwartz (1987)',
-    description: 'Obligasjonskursens volatilitet er K B^{α−1} D(t), der durasjonen D(t) = D − t avtar mot forfall. K settes slik at volatiliteten i dag er σ. Europeisk opsjon løses med finite difference (Crank-Nicolson); for α = 1 er BSM med effektiv volatilitet eksakt.',
+    description: 'Obligasjonskursens volatilitet er K B^{α−1} D(t), der durasjonen D(t) = D − t avtar mot forfall og K gir volatiliteten σ i dag. Europeisk opsjon regnes med finite difference; for α = 1 er BSM med effektiv volatilitet eksakt.',
     payoff: 'max(B_T − X, 0) / max(X − B_T, 0)',
     inputs: [
       callPut('call'), S(100, 'Obligasjonskurs B'), X(100), Topt(1), r(0.05),

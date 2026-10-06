@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid %}
+{% from "icons.html" import icon %}
+
+{% block title %}{{ listing.title }} – {{ site_name }}{% endblock %}
+{% block description %}{{ listing.price_text() or listing.type_label }} · {{ listing.place }} · {{ listing.description|shorten(150) }}{% endblock %}
+{% block head %}
+<link rel="canonical" href="{{ base }}/annonse/{{ listing.id }}">
+<link rel="alternate" type="application/json" href="/annonse/{{ listing.id }}.json">
+<link rel="alternate" type="text/markdown" href="/annonse/{{ listing.id }}.md">
+{% if not listing.is_public %}<meta name="robots" content="noindex">{% endif %}
+<meta property="og:title" content="{{ listing.title }}">
+<meta property="og:type" content="product">
+<meta property="og:url" content="{{ base }}/annonse/{{ listing.id }}">
+{% if listing.thumbnail %}<meta property="og:image" content="{{ base }}{{ listing.thumbnail.path }}">{% endif %}
+<script type="application/ld+json">{{ jsonld|safe }}</script>
+{% endblock %}
+
+{% block content %}
+<nav class="breadcrumbs" aria-label="Brødsmuler">
+  <a href="/">Forside</a> ›
+  <a href="/sok?category={{ listing.group.slug }}">{{ listing.group.name }}</a> ›
+  <a href="/sok?category={{ listing.category }}">{{ listing.category_obj.name }}</a>
+</nav>
+
+{% if listing.status == "sold" %}
+  <p class="notice">Denne annonsen er merket som solgt.</p>
+{% elif listing.status == "inactive" %}
+  <p class="notice">Denne annonsen er skjult og vises bare for deg.</p>
+{% elif listing.status == "review" %}
+  <div class="notice" role="status">
+    <p><strong>Annonsen er til kontroll.</strong> Den blir synlig for andre så snart en moderator har godkjent den. Dette skjer når vi finner mønstre som ofte brukes i svindel – det betyr ikke at vi tror du er en svindler.</p>
+    {% if listing.moderation_reasons %}<ul>{% for r in listing.moderation_reasons %}<li>{{ r.reason }}</li>{% endfor %}</ul>{% endif %}
+  </div>
+{% elif listing.status == "removed" %}
+  <div class="notice notice-danger" role="status">
+    <p><strong>Annonsen er fjernet av en moderator.</strong>{% if listing.moderation_note %} Begrunnelse: {{ listing.moderation_note }}{% endif %}</p>
+  </div>
+{% endif %}
+
+<div class="listing-layout">
+  <article class="listing-main">
+    {% if listing.images %}
+      <div class="gallery" aria-label="Bilder">
+        {% for image in listing.images %}
+          <a class="gallery-item" href="{{ image.path }}"><img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}" {% if not loop.first %}loading="lazy"{% endif %}></a>
+        {% endfor %}
+      </div>
+      {% if listing.images|length > 1 %}<p class="muted small">{{ listing.images|length }} bilder – sveip eller rull sidelengs.</p>{% endif %}
+    {% else %}
+      <div class="gallery-empty placeholder placeholder-{{ listing.group.slug }}">{{ icon(listing.group.slug, 64) }}</div>
+    {% endif %}
+
+    <header class="listing-header">
+      <p class="badges">
+        <span class="tag tag-{{ listing.type }}">{{ listing.type_label }}</span>
+        {% if listing.status == "sold" %}<span class="tag tag-sold">Solgt</span>{% endif %}
+        {% if listing.created_via == "mcp" %}<span class="tag tag-agent" title="Annonsen ble laget av en AI-agent på vegne av selgeren">{{ icon("robot", 14) }} Laget via AI-agent</span>{% endif %}
+      </p>
+      <h1>{{ listing.title }}</h1>
+      {% set price = listing.price_text(NBSP) %}
+      {% if price %}<p class="listing-price">{{ price }}</p>{% endif %}
+      {% if listing.place %}<p class="listing-place">{{ icon("pin", 18) }} {{ listing.place }}{% if listing.postal_code %} ({{ listing.postal_code }}){% endif %}</p>{% endif %}
+    </header>
+
+    {% if listing.attribute_rows %}
+      <section aria-labelledby="detaljer">
+        <h2 id="detaljer">Detaljer</h2>
+        <dl class="facts">
+          {% for attr, value, display in listing.attribute_rows %}
+            <div><dt>{{ attr.label }}</dt><dd>{{ display }}</dd></div>
+          {% endfor %}
+        </dl>
+      </section>
+    {% endif %}
+
+    {% if listing.safety_warnings and not is_owner %}
+      <section class="safety-warnings" aria-labelledby="varsler">
+        <h2 id="varsler">{{ icon("shield", 20) }} Vær oppmerksom</h2>
+        <ul>{% for warning in listing.safety_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+        <p class="small"><a href="/trygg-handel">Slik handler du trygt</a></p>
+      </section>
+    {% endif %}
+
+    <section aria-labelledby="beskrivelse">
+      <h2 id="beskrivelse">Beskrivelse</h2>
+      <div class="description">{{ listing.description }}</div>
+    </section>
+
+    <section class="meta-box">
+      <p>Annonse-ID: <strong>{{ listing.id }}</strong> · Publisert {{ listing.created_at|date_no }}{% if listing.updated_at != listing.created_at %} · Oppdatert {{ listing.updated_at|datetime_no }}{% endif %}</p>
+      <p class="machine-links">For agenter: <a href="/annonse/{{ listing.id }}.json">JSON</a> · <a href="/annonse/{{ listing.id }}.md">Markdown</a> · <a href="/api/v1/listings/{{ listing.id }}">API</a></p>
+    </section>
+
+    {% if not is_owner %}
+    <details class="report">
+      <summary>Rapporter annonsen</summary>
+      <form method="post" action="/annonse/{{ listing.id }}/rapporter">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="field">
+          <label for="report-reason">Hva er galt?</label>
+          <select id="report-reason" name="reason" required>
+            {% for key, label in REPORT_REASONS.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="report-comment">Kommentar (valgfritt)</label>
+          <textarea id="report-comment" name="comment" rows="3" maxlength="2000"></textarea>
+        </div>
+        <button type="submit" class="button">Send rapport</button>
+      </form>
+    </details>
+    {% endif %}
+  </article>
+
+  <aside class="listing-side">
+    <div class="panel">
+      <p class="muted small">Selger</p>
+      <p class="seller-name"><a href="/bruker/{{ listing.user_id }}">{{ listing.seller_name }}</a></p>
+      <p class="trust">
+        {% if listing.seller_is_new %}<span class="tag tag-new" title="Kontoen er mindre enn en uke gammel">Ny bruker</span>{% endif %}
+      </p>
+      <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} aktive annonser{% endif %}</p>
+    </div>
+
+    {% if is_owner or is_admin %}
+      <div class="panel owner-tools">
+        <h2 class="panel-title">Din annonse</h2>
+        <a class="button button-block" href="/annonse/{{ listing.id }}/rediger">Rediger annonsen</a>
+        <form method="post" action="/annonse/{{ listing.id }}/status">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% if listing.status == "active" %}
+            <button class="button button-block" name="status" value="sold">Merk som solgt</button>
+            <button class="button button-block" name="status" value="inactive">Skjul annonsen</button>
+          {% else %}
+            <button class="button button-block button-primary" name="status" value="active">Gjør aktiv igjen</button>
+          {% endif %}
+        </form>
+        <details>
+          <summary>Slett annonsen</summary>
+          <form method="post" action="/annonse/{{ listing.id }}/slett">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <p class="small">Sletting kan ikke angres.</p>
+            <button class="button button-danger button-block">Ja, slett for godt</button>
+          </form>
+        </details>
+      </div>
+    {% elif listing.status == "active" %}
+      <div class="panel" id="kontakt">
+        <h2 class="panel-title">{{ icon("chat", 20) }} Kontakt selger</h2>
+        {% if user %}
+          {% if conversation_id %}<p class="small">Du har allerede en <a href="/meldinger/{{ conversation_id }}">samtale om denne annonsen</a>.</p>{% endif %}
+          <form method="post" action="/annonse/{{ listing.id }}/melding">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label class="visually-hidden" for="message">Melding</label>
+            <textarea id="message" name="message" rows="5" required maxlength="5000">Hei! Er «{{ listing.title }}» fortsatt tilgjengelig?</textarea>
+            <button type="submit" class="button button-primary button-block">Send melding</button>
+          </form>
+        {% else %}
+          <p><a class="button button-primary button-block" href="/logg-inn?neste=/annonse/{{ listing.id }}">Logg inn for å sende melding</a></p>
+          <p class="small muted">Det er gratis å lage konto.</p>
+        {% endif %}
+      </div>
+    {% endif %}
+    {% if not is_owner %}
+    <div class="panel tips">
+      <h2 class="panel-title">{{ icon("shield", 20) }} Trygg handel</h2>
+      <ul class="small">
+        <li>Se varen før du betaler.</li>
+        <li>Oppgi aldri kortnummer, BankID eller koder for å motta penger.</li>
+        <li>Hold samtalen her på {{ site_name }}.</li>
+      </ul>
+      <p class="small"><a href="/trygg-handel">Flere tips</a></p>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+
+{% if more_from_seller %}
+<section aria-labelledby="flere">
+  <h2 id="flere" class="section-title">Flere annonser fra {{ listing.seller_name }}</h2>
+  {{ listing_grid(more_from_seller) }}
+</section>
+{% endif %}
+{% endblock %}

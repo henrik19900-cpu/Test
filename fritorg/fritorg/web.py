@@ -1,0 +1,982 @@
+"""HTML pages for people. Every page works without JavaScript, and key pages have
+Markdown and JSON twins (`.md` / `.json` suffix or the Accept header) for agents."""
+
+from __future__ import annotations
+
+import hmac
+import sqlite3
+from typing import Annotated, Any
+
+import markdown
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from starlette.datastructures import FormData, UploadFile
+
+from . import discovery, images, listings, messages, moderation, serializers, taxonomy, users
+from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
+from .errors import AppError, NotFound, RateLimited, ValidationProblem
+from .listings import SORTS, SearchParams
+from .templating import (
+    CSRF_COOKIE,
+    SESSION_COOKIE,
+    current_user,
+    redirect,
+    render,
+    render_error,
+    safe_next,
+)
+
+router = APIRouter(include_in_schema=False)
+Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
+PAGE_SIZE = 24
+
+
+async def get_form(request: Request) -> FormData:
+    return await request.form(max_files=20, max_fields=200)
+
+
+Form = Annotated[FormData, Depends(get_form)]
+
+
+# --- Helpers -------------------------------------------------------------------------------------
+
+
+def preferred_format(request: Request) -> str:
+    """Pick html, json or markdown from the Accept header (browsers get HTML)."""
+    best, best_q = "html", 0.0
+    for part in request.headers.get("accept", "").split(","):
+        media, _, params = part.strip().partition(";")
+        q = 1.0
+        for param in params.split(";"):
+            key, _, value = param.strip().partition("=")
+            if key == "q":
+                try:
+                    q = float(value)
+                except ValueError:
+                    q = 0.0
+        kind = {
+            "text/html": "html",
+            "application/xhtml+xml": "html",
+            "application/json": "json",
+            "text/markdown": "markdown",
+            "text/x-markdown": "markdown",
+        }.get(media.strip().lower())
+        if kind and q > best_q:
+            best, best_q = kind, q
+    return best
+
+
+def markdown_response(text: str) -> PlainTextResponse:
+    return PlainTextResponse(text, media_type="text/markdown; charset=utf-8", headers={"Vary": "Accept"})
+
+
+def json_response(data: Any) -> JSONResponse:
+    return JSONResponse(data, headers={"Vary": "Accept"})
+
+
+def check_csrf(request: Request, form: FormData) -> None:
+    sent = str(form.get("csrf_token") or "")
+    expected = request.cookies.get(CSRF_COOKIE, "")
+    if not expected or not hmac.compare_digest(sent, expected):
+        error = AppError("Skjemaet har utløpt. Gå tilbake, last inn siden på nytt og prøv igjen.")
+        error.status, error.code = 403, "csrf_failed"
+        raise error
+
+
+def login_redirect(request: Request) -> Response:
+    target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    return redirect(url_with_query("", "/logg-inn", [("neste", target)]))
+
+
+def _int_param(value: str | None) -> int | None:
+    try:
+        return int(value) if value not in (None, "") else None
+    except ValueError:
+        return None
+
+
+def search_params_from_request(request: Request, limit: int = PAGE_SIZE) -> SearchParams:
+    """Lenient parsing for web URLs: invalid values are ignored instead of failing the page."""
+    qp = request.query_params
+    attrs = []
+    for name, value in qp.multi_items():
+        if name == "attr" or name.startswith("a."):
+            try:
+                attrs.extend(listings.attr_filters_from_params([(name, value)]))
+            except ValidationProblem:
+                continue
+    county = qp.get("county") if qp.get("county") in taxonomy.COUNTIES else None
+    page = max(1, _int_param(qp.get("side")) or 1)
+    return SearchParams(
+        q=(qp.get("q") or "").strip() or None,
+        category=qp.get("category") if qp.get("category") in taxonomy.CATEGORIES else None,
+        type=qp.get("type") if qp.get("type") in taxonomy.LISTING_TYPES else None,
+        county=county,
+        location=(qp.get("location") or "").strip() or None,
+        price_min=_int_param(qp.get("price_min")),
+        price_max=_int_param(qp.get("price_max")),
+        attrs=attrs,
+        user_id=_int_param(qp.get("seller_id")),
+        status=qp.get("status") if qp.get("status") in ("active", "sold", "any") else "active",
+        has_images=qp.get("has_images") in ("1", "true", "on"),
+        sort=qp.get("sort") if qp.get("sort") in SORTS else None,
+        limit=limit,
+        offset=(page - 1) * limit,
+    )
+
+
+def api_query(params: SearchParams) -> list[tuple[str, str]]:
+    """The equivalent /api/v1/listings query for a search (used in <link rel=alternate>)."""
+    items: list[tuple[str, str]] = []
+    for key in ("q", "category", "type", "county", "location", "price_min", "price_max", "sort"):
+        value = getattr(params, key)
+        if value not in (None, ""):
+            items.append((key, str(value)))
+    items += [("attr", f.to_expression()) for f in params.attrs]
+    if params.user_id:
+        items.append(("seller_id", str(params.user_id)))
+    if params.status != "active":
+        items.append(("status", params.status))
+    return items
+
+
+# --- Home and search -----------------------------------------------------------------------------
+
+
+@router.get("/")
+def home(request: Request, conn: Conn) -> Response:
+    recent = discovery.recent_listings(conn, 12)
+    counts = listings.category_counts(conn)
+    if preferred_format(request) == "markdown":
+        return home_markdown(request, conn)
+    base = base_url(request)
+    website = {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": request.app.state.settings.site_name,
+        "url": f"{base}/",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": f"{base}/sok?q={{search_term_string}}",
+            "query-input": "required name=search_term_string",
+        },
+    }
+    return render(
+        request,
+        conn,
+        "index.html",
+        {
+            "recent": recent.items,
+            "counts": counts,
+            "total": recent.total,
+            "website_jsonld": serializers.jsonld_script(website),
+        },
+    )
+
+
+@router.get("/index.md")
+def home_markdown(request: Request, conn: Conn) -> Response:
+    base = base_url(request)
+    counts = listings.category_counts(conn)
+    recent = discovery.recent_listings(conn, 20)
+    lines = [discovery.render_doc(request, "home.md").rstrip(), "", "## Kategorier", ""]
+    for group_slug in taxonomy.GROUPS:
+        group = taxonomy.CATEGORIES[group_slug]
+        lines.append(
+            f"- [{group.name}]({base}/sok?category={group.slug}) ({counts.get(group.slug, 0)} annonser)"
+        )
+        for child_slug in group.children:
+            child = taxonomy.CATEGORIES[child_slug]
+            lines.append(
+                f"  - [{child.name}]({base}/sok?category={child.slug}) ({counts.get(child.slug, 0)})"
+            )
+    lines += ["", "## Nyeste annonser", ""]
+    for item in recent.items:
+        lines.append(
+            f"- [{item.title}]({base}/annonse/{item.id}) — {item.price_text() or item.type_label}, {item.place}"
+        )
+    return markdown_response("\n".join(lines) + "\n")
+
+
+def _search_title(params: SearchParams) -> str:
+    parts = []
+    if params.q:
+        parts.append(f"«{params.q}»")
+    if params.category:
+        parts.append(taxonomy.CATEGORIES[params.category].name)
+    if params.county:
+        parts.append(taxonomy.COUNTIES[params.county].name)
+    return "Søk: " + ", ".join(parts) if parts else "Alle annonser"
+
+
+@router.get("/sok")
+def search_page(request: Request, conn: Conn) -> Response:
+    return _search(request, conn, preferred_format(request))
+
+
+@router.get("/sok.md")
+def search_markdown(request: Request, conn: Conn) -> Response:
+    return _search(request, conn, "markdown")
+
+
+@router.get("/sok.json")
+def search_json(request: Request, conn: Conn) -> Response:
+    return _search(request, conn, "json")
+
+
+def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
+    params = search_params_from_request(request)
+    try:
+        result = listings.search(conn, params)
+    except ValidationProblem:
+        params = SearchParams(q=params.q, limit=PAGE_SIZE)
+        result = listings.search(conn, params)
+    base = base_url(request)
+    page = params.offset // params.limit + 1
+    next_url = None
+    if result.has_more:
+        next_url = url_with_query(base, request.url.path, replace_params(request, side=page + 1))
+    title = _search_title(params)
+    if fmt == "json":
+        return json_response(serializers.search_dict(result, base, next_url))
+    query = url_with_query("", "", api_query(params)).lstrip("?")
+    api_url = f"/api/v1/listings?{query}" if query else "/api/v1/listings"
+    if fmt == "markdown":
+        return markdown_response(serializers.search_markdown(result, base, title, next_url, base + api_url))
+
+    category = taxonomy.get_category(params.category)
+    leaf = category if category and category.is_leaf else None
+    selected_attrs: dict[str, Any] = {}
+    for flt in params.attrs:
+        if flt.values:
+            selected_attrs[flt.key] = flt.values[0]
+        if flt.min is not None:
+            selected_attrs[f"{flt.key}.min"] = flt.min
+        if flt.max is not None:
+            selected_attrs[f"{flt.key}.max"] = flt.max
+    pages = max(1, -(-result.total // params.limit))
+    return render(
+        request,
+        conn,
+        "search.html",
+        {
+            "result": result,
+            "params": params,
+            "header_q": params.q,
+            "title": title,
+            "category": category,
+            "leaf": leaf,
+            "selected_attrs": selected_attrs,
+            "page": page,
+            "pages": pages,
+            "page_url": lambda n: url_with_query(
+                "", "/sok", replace_params(request, side=n if n > 1 else None)
+            ),
+            "sort_url": lambda s: url_with_query("", "/sok", replace_params(request, sort=s, side=None)),
+            "api_url": api_url,
+            "feed_url": f"/feed.atom?{request.url.query}" if request.url.query else "/feed.atom",
+            "md_url": f"/sok.md?{request.url.query}" if request.url.query else "/sok.md",
+            "counts": listings.category_counts(conn),
+        },
+    )
+
+
+# --- Listing pages ------------------------------------------------------------------------------
+
+
+def _viewer(request: Request, conn: sqlite3.Connection) -> tuple[int | None, bool]:
+    user = current_user(request, conn)
+    return (user.id if user else None), bool(user and user.is_admin)
+
+
+@router.get("/annonse/{listing_id:int}.json")
+def listing_json(listing_id: int, request: Request, conn: Conn) -> Response:
+    viewer, admin = _viewer(request, conn)
+    listing = listings.get_visible_listing(conn, listing_id, viewer, admin)
+    return json_response(serializers.listing_detail(listing, base_url(request)))
+
+
+@router.get("/annonse/{listing_id:int}.md")
+def listing_markdown(listing_id: int, request: Request, conn: Conn) -> Response:
+    viewer, admin = _viewer(request, conn)
+    listing = listings.get_visible_listing(conn, listing_id, viewer, admin)
+    return markdown_response(serializers.listing_markdown(listing, base_url(request)))
+
+
+@router.get("/annonse/{listing_id:int}")
+def listing_page(listing_id: int, request: Request, conn: Conn) -> Response:
+    viewer, admin = _viewer(request, conn)
+    listing = listings.get_visible_listing(conn, listing_id, viewer, admin)
+    fmt = preferred_format(request)
+    base = base_url(request)
+    if fmt == "json":
+        return json_response(serializers.listing_detail(listing, base))
+    if fmt == "markdown":
+        return markdown_response(serializers.listing_markdown(listing, base))
+    conversation_id = None
+    if viewer and viewer != listing.user_id:
+        row = conn.execute(
+            "SELECT id FROM conversations WHERE listing_id = ? AND buyer_id = ?", (listing.id, viewer)
+        ).fetchone()
+        conversation_id = row["id"] if row else None
+    more = listings.search(conn, SearchParams(user_id=listing.user_id, limit=5))
+    return render(
+        request,
+        conn,
+        "listing.html",
+        {
+            "listing": listing,
+            "is_owner": viewer == listing.user_id,
+            "is_admin": admin,
+            "conversation_id": conversation_id,
+            "jsonld": serializers.jsonld_script(serializers.listing_jsonld(listing, base)),
+            "more_from_seller": [item for item in more.items if item.id != listing.id][:4],
+        },
+        headers={"Vary": "Accept"},
+    )
+
+
+@router.post("/annonse/{listing_id:int}/melding")
+def contact_seller(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return redirect(f"/logg-inn?neste=/annonse/{listing_id}")
+    settings = request.app.state.settings
+    try:
+        conversation_id = messages.contact_seller(
+            conn,
+            listing_id,
+            user.id,
+            str(form.get("message") or ""),
+            max_per_day=settings.max_messages_per_day,
+            new_account_max_per_day=settings.new_account_max_messages_per_day,
+        )
+    except (ValidationProblem, RateLimited) as exc:
+        return redirect(f"/annonse/{listing_id}#kontakt", flash=exc.message)
+    return redirect(f"/meldinger/{conversation_id}", flash="Meldingen er sendt.")
+
+
+@router.post("/annonse/{listing_id:int}/rapporter")
+def report_listing(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    decision = request.app.state.limiter.hit("report", client_ip(request), 20, 3600)
+    if not decision.allowed:
+        raise RateLimited("For mange rapporter. Prøv igjen senere.", retry_after=decision.reset_in)
+    user = current_user(request, conn)
+    try:
+        listings.create_report(
+            conn,
+            listing_id,
+            str(form.get("reason") or ""),
+            str(form.get("comment") or ""),
+            user.id if user else None,
+        )
+    except ValidationProblem as exc:
+        return redirect(f"/annonse/{listing_id}", flash=exc.message)
+    return redirect(f"/annonse/{listing_id}", flash="Takk! Vi ser på annonsen.")
+
+
+@router.post("/annonse/{listing_id:int}/status")
+def change_status(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    status = str(form.get("status") or "")
+    listings.set_status(conn, user.id, listing_id, status, is_admin=user.is_admin)
+    labels = {
+        "sold": "Annonsen er merket som solgt.",
+        "inactive": "Annonsen er skjult.",
+        "active": "Annonsen er aktiv.",
+    }
+    return redirect(
+        safe_next(str(form.get("neste") or ""), f"/annonse/{listing_id}"), flash=labels.get(status)
+    )
+
+
+@router.post("/annonse/{listing_id:int}/slett")
+def delete_listing(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    filenames = listings.delete_listing(conn, user.id, listing_id, is_admin=user.is_admin)
+    images.remove_files(request.app.state.settings.uploads_dir, filenames)
+    return redirect("/min-side", flash="Annonsen er slettet.")
+
+
+# --- Create and edit -----------------------------------------------------------------------------
+
+
+def _form_values(form: FormData, category: taxonomy.Category) -> dict[str, Any]:
+    attributes: dict[str, Any] = {}
+    for attr in category.attributes:
+        raw = form.get(f"attr.{attr.key}")
+        if attr.type == "boolean":
+            if raw:
+                attributes[attr.key] = True
+        elif isinstance(raw, str) and raw.strip():
+            attributes[attr.key] = raw
+    return {
+        "category": category.slug,
+        "type": str(form.get("type") or "") or None,
+        "title": str(form.get("title") or ""),
+        "description": str(form.get("description") or ""),
+        "price": str(form.get("price") or "") or None,
+        "price_unit": str(form.get("price_unit") or "total"),
+        "county": str(form.get("county") or "") or None,
+        "location": str(form.get("location") or ""),
+        "postal_code": str(form.get("postal_code") or ""),
+        "attributes": attributes,
+    }
+
+
+def _errors_by_field(exc: ValidationProblem) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    for error in exc.errors:
+        errors.setdefault(str(error.get("field", "")), str(error.get("message", "")))
+    return errors
+
+
+def _listing_form(
+    request: Request,
+    conn: sqlite3.Connection,
+    category: taxonomy.Category,
+    values: dict[str, Any],
+    errors: dict[str, str] | None = None,
+    listing: listings.Listing | None = None,
+    status: int = 200,
+) -> Response:
+    return render(
+        request,
+        conn,
+        "listing_form.html",
+        {"category": category, "values": values, "errors": errors or {}, "listing": listing},
+        status=status,
+    )
+
+
+def _upload_images(
+    request: Request,
+    conn: sqlite3.Connection,
+    user: users.User,
+    listing_id: int,
+    uploads: list[Any],
+    alt: str,
+) -> list[str]:
+    settings = request.app.state.settings
+    problems = []
+    for upload in uploads:
+        if not isinstance(upload, UploadFile) or not upload.filename:
+            continue
+        data = upload.file.read(settings.max_image_bytes + 1)
+        try:
+            images.add_image(
+                conn,
+                settings.uploads_dir,
+                user.id,
+                listing_id,
+                data,
+                alt_text=alt,
+                max_bytes=settings.max_image_bytes,
+                max_images=settings.max_images_per_listing,
+                is_admin=user.is_admin,
+            )
+        except AppError as exc:
+            problems.append(f"{upload.filename}: {exc.message}")
+    return problems
+
+
+@router.get("/ny-annonse")
+def new_listing(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    category = taxonomy.get_category(request.query_params.get("category"))
+    if category is None or not category.is_leaf:
+        return render(request, conn, "choose_category.html", {"selected_group": category})
+    values = {
+        "category": category.slug,
+        "type": request.query_params.get("type") or category.types[0],
+        "attributes": {},
+    }
+    return _listing_form(request, conn, category, values)
+
+
+@router.post("/ny-annonse")
+def create_listing(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    category = taxonomy.get_category(str(form.get("category") or ""))
+    if category is None or not category.is_leaf:
+        return redirect("/ny-annonse", flash="Velg en kategori først.")
+    values = _form_values(form, category)
+    settings = request.app.state.settings
+    try:
+        listing_id = listings.create_listing(
+            conn,
+            user.id,
+            values,
+            max_per_day=settings.max_listings_per_day,
+            new_account_max_per_day=settings.new_account_max_listings_per_day,
+        )
+    except ValidationProblem as exc:
+        return _listing_form(request, conn, category, values, _errors_by_field(exc), status=422)
+    problems = _upload_images(request, conn, user, listing_id, form.getlist("images"), values["title"])
+    if listings.get_listing(conn, listing_id).status == "review":
+        message = "Takk! Annonsen blir publisert så snart en moderator har sett på den."
+    else:
+        message = "Annonsen er publisert!"
+    if problems:
+        message += " Noen bilder ble ikke lagt til: " + "; ".join(problems)
+    return redirect(f"/annonse/{listing_id}", flash=message)
+
+
+def _own_listing(
+    request: Request, conn: sqlite3.Connection, listing_id: int
+) -> tuple[users.User, listings.Listing]:
+    user = current_user(request, conn)
+    if user is None:
+        raise AppError("Du må logge inn.")
+    listing = listings.get_listing(conn, listing_id)
+    if listing.user_id != user.id and not user.is_admin:
+        raise NotFound(f"Annonse {listing_id} finnes ikke.")
+    return user, listing
+
+
+@router.get("/annonse/{listing_id:int}/rediger")
+def edit_listing(listing_id: int, request: Request, conn: Conn) -> Response:
+    if current_user(request, conn) is None:
+        return login_redirect(request)
+    _, listing = _own_listing(request, conn, listing_id)
+    values = {name: getattr(listing, name) for name in listings.EDITABLE_FIELDS}
+    return _listing_form(request, conn, listing.category_obj, values, listing=listing)
+
+
+@router.post("/annonse/{listing_id:int}/rediger")
+def update_listing(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    if current_user(request, conn) is None:
+        return login_redirect(request)
+    user, listing = _own_listing(request, conn, listing_id)
+    category = taxonomy.get_category(str(form.get("category") or "")) or listing.category_obj
+    if not category.is_leaf:
+        category = listing.category_obj
+    values = _form_values(form, category)
+    try:
+        updated = listings.update_listing(
+            conn, user.id, listing_id, values, merge_attributes=False, is_admin=user.is_admin
+        )
+    except ValidationProblem as exc:
+        return _listing_form(
+            request, conn, category, values, _errors_by_field(exc), listing=listing, status=422
+        )
+    flash = "Endringene er lagret."
+    if updated.status == "review" and listing.status != "review":
+        flash += " Annonsen er sendt til kontroll hos en moderator før den blir synlig igjen."
+    return redirect(f"/annonse/{listing_id}", flash=flash)
+
+
+@router.post("/annonse/{listing_id:int}/bilder")
+def upload_images(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    if current_user(request, conn) is None:
+        return login_redirect(request)
+    user, listing = _own_listing(request, conn, listing_id)
+    alt = str(form.get("alt_text") or "") or listing.title
+    problems = _upload_images(request, conn, user, listing_id, form.getlist("images"), alt)
+    flash = (
+        "Bildene er lagt til." if not problems else "Noen bilder ble ikke lagt til: " + "; ".join(problems)
+    )
+    if listing.status != "review" and listings.get_listing(conn, listing_id).status == "review":
+        flash += " Annonsen er sendt til kontroll hos en moderator."
+    return redirect(f"/annonse/{listing_id}/rediger#bilder", flash=flash)
+
+
+@router.post("/annonse/{listing_id:int}/bilder/{image_id:int}/slett")
+def delete_image(listing_id: int, image_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    if current_user(request, conn) is None:
+        return login_redirect(request)
+    user, _ = _own_listing(request, conn, listing_id)
+    images.delete_image(
+        conn, request.app.state.settings.uploads_dir, user.id, listing_id, image_id, is_admin=user.is_admin
+    )
+    return redirect(f"/annonse/{listing_id}/rediger#bilder", flash="Bildet er fjernet.")
+
+
+# --- Messages -----------------------------------------------------------------------------------
+
+
+@router.get("/meldinger")
+def inbox(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    return render(request, conn, "inbox.html", {"conversations": messages.list_conversations(conn, user.id)})
+
+
+@router.get("/meldinger/{conversation_id:int}")
+def conversation_page(conversation_id: int, request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    conversation = messages.get_conversation(conn, conversation_id, user.id)
+    return render(request, conn, "conversation.html", {"conversation": conversation})
+
+
+@router.post("/meldinger/{conversation_id:int}")
+def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    settings = request.app.state.settings
+    try:
+        messages.reply(
+            conn,
+            conversation_id,
+            user.id,
+            str(form.get("message") or ""),
+            max_per_day=settings.max_messages_per_day,
+            new_account_max_per_day=settings.new_account_max_messages_per_day,
+        )
+    except (ValidationProblem, RateLimited) as exc:
+        return redirect(f"/meldinger/{conversation_id}", flash=exc.message)
+    return redirect(f"/meldinger/{conversation_id}#siste")
+
+
+@router.post("/meldinger/{conversation_id:int}/rapporter")
+def report_conversation(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    conversation = messages.get_conversation(conn, conversation_id, user.id, mark_read=False)
+    listings.create_report(
+        conn,
+        conversation.listing_id,
+        str(form.get("reason") or "fraud"),
+        str(form.get("comment") or ""),
+        user.id,
+        reported_user_id=conversation.other_id(user.id),
+        conversation_id=conversation.id,
+    )
+    return redirect(f"/meldinger/{conversation_id}", flash="Takk! En moderator ser på saken.")
+
+
+# --- Account ----------------------------------------------------------------------------------
+
+
+def _my_page(
+    request: Request, conn: sqlite3.Connection, user: users.User, new_token: str | None = None
+) -> Response:
+    mine = listings.search(conn, SearchParams(user_id=user.id, status="all", include_hidden=True, limit=100))
+    return render(
+        request,
+        conn,
+        "my_page.html",
+        {"my_listings": mine.items, "tokens": users.list_api_tokens(conn, user.id), "new_token": new_token},
+    )
+
+
+@router.get("/min-side")
+def my_page(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    return _my_page(request, conn, user)
+
+
+@router.post("/min-side/nokler")
+def create_token(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    token, _ = users.create_api_token(conn, user.id, str(form.get("name") or "API-nøkkel"))
+    response = _my_page(request, conn, user, new_token=token)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.post("/min-side/nokler/{token_id:int}/slett")
+def revoke_token(token_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    users.revoke_api_token(conn, user.id, token_id)
+    return redirect("/min-side#nokler", flash="Nøkkelen er slettet.")
+
+
+@router.post("/min-side/slett-konto")
+def delete_account(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    try:
+        users.authenticate(conn, user.email, str(form.get("password") or ""))
+    except AppError:
+        return redirect("/min-side#slett", flash="Feil passord. Kontoen ble ikke slettet.")
+    filenames = users.delete_user(conn, user.id)
+    images.remove_files(request.app.state.settings.uploads_dir, filenames)
+    response = redirect("/", flash="Kontoen din og alt innholdet ditt er slettet.")
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
+
+
+def _start_session(
+    request: Request, conn: sqlite3.Connection, user: users.User, target: str, flash: str
+) -> Response:
+    token = users.create_session(conn, user.id)
+    response = redirect(target, flash=flash)
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        max_age=users.SESSION_DAYS * 86400,
+        httponly=True,
+        samesite="lax",
+        secure=request.app.state.settings.cookies_secure,
+        path="/",
+    )
+    return response
+
+
+@router.get("/logg-inn")
+def login_page(request: Request, conn: Conn) -> Response:
+    if current_user(request, conn):
+        return redirect(safe_next(request.query_params.get("neste")))
+    return render(
+        request, conn, "login.html", {"next": safe_next(request.query_params.get("neste")), "values": {}}
+    )
+
+
+@router.post("/logg-inn")
+def login(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    settings = request.app.state.settings
+    target = safe_next(str(form.get("neste") or ""))
+    email = str(form.get("email") or "")
+    decision = request.app.state.limiter.hit(
+        "auth", client_ip(request), settings.rate_limit_auth_per_10min, 600
+    )
+    if not decision.allowed:
+        raise RateLimited(
+            "For mange innloggingsforsøk. Vent litt og prøv igjen.", retry_after=decision.reset_in
+        )
+    try:
+        user = users.authenticate(conn, email, str(form.get("password") or ""))
+    except AppError as exc:
+        return render(
+            request,
+            conn,
+            "login.html",
+            {"next": target, "error": exc.message, "values": {"email": email}},
+            status=401,
+        )
+    return _start_session(request, conn, user, target, f"Velkommen tilbake, {user.name}!")
+
+
+@router.get("/registrer")
+def register_page(request: Request, conn: Conn) -> Response:
+    if current_user(request, conn):
+        return redirect("/min-side")
+    return render(
+        request,
+        conn,
+        "register.html",
+        {"values": {}, "errors": {}, "next": request.query_params.get("neste")},
+    )
+
+
+@router.post("/registrer")
+def register(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    settings = request.app.state.settings
+    values = {"email": str(form.get("email") or ""), "name": str(form.get("name") or "")}
+    target = safe_next(str(form.get("neste") or ""), "/min-side")
+    decision = request.app.state.limiter.hit(
+        "register", client_ip(request), settings.max_registrations_per_hour, 3600
+    )
+    if not decision.allowed:
+        raise RateLimited(
+            "For mange nye kontoer fra denne adressen. Prøv igjen om en time.", retry_after=decision.reset_in
+        )
+    if not form.get("terms"):
+        errors = {"terms": "Du må godta vilkårene."}
+        return render(
+            request, conn, "register.html", {"values": values, "errors": errors, "next": target}, status=422
+        )
+    try:
+        user = users.create_user(conn, values["email"], values["name"], str(form.get("password") or ""))
+    except AppError as exc:
+        errors = _errors_by_field(exc) if isinstance(exc, ValidationProblem) else {"email": exc.message}
+        return render(
+            request,
+            conn,
+            "register.html",
+            {"values": values, "errors": errors, "next": target},
+            status=exc.status,
+        )
+    return _start_session(request, conn, user, target, f"Velkommen til {settings.site_name}, {user.name}!")
+
+
+@router.post("/logg-ut")
+def logout(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    users.delete_session(conn, request.cookies.get(SESSION_COOKIE))
+    response = redirect("/", flash="Du er logget ut.")
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return response
+
+
+@router.get("/bruker/{user_id:int}")
+def user_page(user_id: int, request: Request, conn: Conn) -> Response:
+    seller = users.get_user(conn, user_id)
+    if seller is None:
+        raise NotFound(f"Bruker {user_id} finnes ikke.")
+    result = listings.search(conn, SearchParams(user_id=user_id, status="any", limit=60))
+    return render(request, conn, "user.html", {"seller": seller, "result": result})
+
+
+# --- Moderation ------------------------------------------------------------------------------
+
+
+def _require_moderator(request: Request, conn: sqlite3.Connection) -> users.User | None:
+    """The logged-in moderator, None if not logged in. Other users get a 404 (the page is not advertised)."""
+    user = current_user(request, conn)
+    if user is not None and not user.is_admin:
+        raise NotFound("Siden finnes ikke.")
+    return user
+
+
+@router.get("/moderering")
+def moderation_page(request: Request, conn: Conn) -> Response:
+    if _require_moderator(request, conn) is None:
+        return login_redirect(request)
+    return render(
+        request,
+        conn,
+        "moderation.html",
+        {
+            "queue": moderation.review_queue(conn),
+            "cases": moderation.open_reports(conn),
+            "flagged": moderation.flagged_messages(conn),
+        },
+    )
+
+
+@router.post("/moderering/annonse/{listing_id:int}/godkjenn")
+def approve_listing(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    moderator = _require_moderator(request, conn)
+    if moderator is None:
+        return login_redirect(request)
+    moderation.approve_listing(conn, moderator, listing_id)
+    return redirect("/moderering", flash=f"Annonse {listing_id} er godkjent og publisert.")
+
+
+@router.post("/moderering/annonse/{listing_id:int}/fjern")
+def remove_listing(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    moderator = _require_moderator(request, conn)
+    if moderator is None:
+        return login_redirect(request)
+    try:
+        moderation.remove_listing(conn, moderator, listing_id, str(form.get("note") or ""))
+    except ValidationProblem as exc:
+        return redirect("/moderering", flash=exc.message)
+    return redirect("/moderering", flash=f"Annonse {listing_id} er fjernet.")
+
+
+@router.post("/moderering/rapporter/avvis")
+def dismiss_reports(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    moderator = _require_moderator(request, conn)
+    if moderator is None:
+        return login_redirect(request)
+    ids = [int(value) for value in form.getlist("report_id") if str(value).isdigit()]
+    moderation.dismiss_reports(conn, moderator, ids)
+    return redirect("/moderering", flash="Rapportene er avvist.")
+
+
+@router.post("/moderering/bruker/{user_id:int}/steng")
+def ban_user(user_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    moderator = _require_moderator(request, conn)
+    if moderator is None:
+        return login_redirect(request)
+    try:
+        moderation.ban_user(conn, moderator, user_id, str(form.get("reason") or ""))
+    except ValidationProblem as exc:
+        return redirect("/moderering", flash=exc.message)
+    return redirect("/moderering", flash="Kontoen er stengt, og annonsene er skjult.")
+
+
+# --- Documents (Markdown source, HTML for people) -----------------------------------------------
+
+DOCS = {
+    "for-agenter": ("for-agenter.md", "For AI-agenter"),
+    "trygg-handel": ("trygg-handel.md", "Trygg handel"),
+    "om": ("om.md", "Om Fritorg"),
+    "vilkar": ("vilkar.md", "Vilkår og personvern"),
+}
+
+
+def _doc(request: Request, conn: sqlite3.Connection, slug: str, fmt: str) -> Response:
+    filename, title = DOCS[slug]
+    text = discovery.render_doc(request, filename)
+    if fmt == "markdown":
+        return markdown_response(text)
+    html = markdown.markdown(text, extensions=["extra", "sane_lists", "toc"])
+    return render(
+        request, conn, "doc.html", {"title": title, "content": html, "slug": slug}, headers={"Vary": "Accept"}
+    )
+
+
+@router.get("/for-agenter")
+def agents_page(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "for-agenter", preferred_format(request))
+
+
+@router.get("/for-agenter.md")
+def agents_markdown(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "for-agenter", "markdown")
+
+
+@router.get("/trygg-handel")
+def safety_page(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "trygg-handel", preferred_format(request))
+
+
+@router.get("/trygg-handel.md")
+def safety_markdown(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "trygg-handel", "markdown")
+
+
+@router.get("/om")
+def about_page(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "om", preferred_format(request))
+
+
+@router.get("/om.md")
+def about_markdown(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "om", "markdown")
+
+
+@router.get("/vilkar")
+def terms_page(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "vilkar", preferred_format(request))
+
+
+@router.get("/vilkar.md")
+def terms_markdown(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "vilkar", "markdown")
+
+
+__all__ = ["router", "search_params_from_request", "render_error"]

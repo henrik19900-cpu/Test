@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Moderering – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<h1>Moderering</h1>
+<p class="muted">Annonser til kontroll, rapporter fra brukere og meldinger med sterke svindelsignaler. Alle beslutninger logges.</p>
+
+<section class="panel" aria-labelledby="kontroll">
+  <h2 id="kontroll">Til kontroll ({{ queue|length }})</h2>
+  {% if queue %}
+  <ul class="mod-list">
+    {% for item in queue %}
+    <li>
+      <p><a href="/annonse/{{ item.id }}"><strong>{{ item.title }}</strong></a> · {{ item.price_text(NBSP) or item.type_label }} · {{ item.category_obj.name }}</p>
+      <p class="small muted">Selger: <a href="/bruker/{{ item.user_id }}">{{ item.seller_name }}</a> (medlem siden {{ item.seller_since|date_no }}) · lagt ut {{ item.created_at|datetime_no }}{% if item.created_via != "web" %} · via {{ item.created_via|upper }}{% endif %} · risikopoeng {{ item.risk_score }}</p>
+      <ul class="reasons">{% for r in item.moderation_reasons %}<li>{{ r.reason }}</li>{% endfor %}</ul>
+      <details><summary>Vis tekst</summary><div class="description small">{{ item.description }}</div></details>
+      <div class="mod-actions">
+        <form method="post" action="/moderering/annonse/{{ item.id }}/godkjenn">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="button button-primary button-small">Godkjenn og publiser</button>
+        </form>
+        <form method="post" action="/moderering/annonse/{{ item.id }}/fjern" class="inline-note">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="note" required maxlength="500" placeholder="Begrunnelse til annonsøren" aria-label="Begrunnelse">
+          <button class="button button-small">Fjern</button>
+        </form>
+        <form method="post" action="/moderering/bruker/{{ item.user_id }}/steng" class="inline-note">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="reason" maxlength="500" placeholder="Grunn (valgfritt)" aria-label="Grunn for stenging">
+          <button class="button button-danger button-small">Steng kontoen</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Ingen annonser venter på kontroll.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="rapporter">
+  <h2 id="rapporter">Rapporter ({{ cases|length }})</h2>
+  {% if cases %}
+  <ul class="mod-list">
+    {% for case in cases %}
+    <li>
+      <p>
+        {% if case.listing_id %}
+          Annonse <a href="/annonse/{{ case.listing_id }}"><strong>{{ case.listing_title }}</strong></a> ({{ STATUSES.get(case.listing_status, case.listing_status) }})
+        {% else %}
+          Bruker <strong>{{ case.reported_user_name or "ukjent" }}</strong> (rapportert fra en samtale)
+        {% endif %}
+        · {{ case.reports|length }} rapport{{ "er" if case.reports|length > 1 }}
+      </p>
+      <ul class="reasons">
+        {% for r in case.reports %}
+        <li>{{ r.reason }}{% if r.comment %}: «{{ r.comment }}»{% endif %} <span class="muted small">– {{ r.reporter }}, {{ r.created_at|datetime_no }}</span></li>
+        {% endfor %}
+      </ul>
+      <div class="mod-actions">
+        <form method="post" action="/moderering/rapporter/avvis">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% for r in case.reports %}<input type="hidden" name="report_id" value="{{ r.id }}">{% endfor %}
+          <button class="button button-small">Avvis rapportene</button>
+        </form>
+        {% if case.listing_id and case.listing_status != "removed" %}
+        <form method="post" action="/moderering/annonse/{{ case.listing_id }}/fjern" class="inline-note">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="note" required maxlength="500" placeholder="Begrunnelse til annonsøren" aria-label="Begrunnelse">
+          <button class="button button-small">Fjern annonsen</button>
+        </form>
+        {% endif %}
+        {% if case.reported_user_id %}
+        <form method="post" action="/moderering/bruker/{{ case.reported_user_id }}/steng" class="inline-note">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="reason" maxlength="500" placeholder="Grunn (valgfritt)" aria-label="Grunn for stenging">
+          <button class="button button-danger button-small">Steng kontoen</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Ingen åpne rapporter.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="meldinger">
+  <h2 id="meldinger">Meldinger med sterke svindelsignaler (siste 14 dager)</h2>
+  {% if flagged %}
+  <ul class="mod-list">
+    {% for m in flagged %}
+    <li>
+      <p><strong>{{ m.sender_name }}</strong>{% if m.sender_banned %} <span class="tag">Stengt</span>{% endif %} · {{ m.created_at|datetime_no }}</p>
+      <p class="description small">{{ m.body|shorten(300) }}</p>
+      <ul class="reasons">{% for r in m.reasons %}<li>{{ r.reason }}</li>{% endfor %}</ul>
+      {% if not m.sender_banned %}
+      <form method="post" action="/moderering/bruker/{{ m.sender_id }}/steng" class="inline-note">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input name="reason" maxlength="500" placeholder="Grunn (valgfritt)" aria-label="Grunn for stenging">
+        <button class="button button-danger button-small">Steng kontoen</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Ingen flaggede meldinger.</p>
+  {% endif %}
+</section>
+{% endblock %}

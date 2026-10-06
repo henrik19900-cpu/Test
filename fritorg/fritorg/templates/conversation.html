@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+
+{% block title %}{{ conversation.listing_title }} – Meldinger – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<p><a href="/meldinger">← Alle meldinger</a></p>
+<h1>{{ conversation.other_name(user.id) }}</h1>
+<p class="muted">
+  Om {% if conversation.listing_id %}<a href="/annonse/{{ conversation.listing_id }}">{{ conversation.listing_title }}</a>{% else %}{{ conversation.listing_title }} (slettet){% endif %}
+</p>
+
+<ol class="thread">
+  {% for m in conversation.messages %}
+  <li class="bubble {% if m.sender_id == user.id %}mine{% else %}theirs{% endif %}" {% if loop.last %}id="siste"{% endif %}>
+    {% if m.sender_id != user.id and m.warnings %}
+      <div class="bubble-warning" role="alert">
+        <p><strong>{{ icon("shield", 16) }} Advarsel</strong></p>
+        <ul>{% for warning in m.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+    <p class="bubble-body">{{ m.body }}</p>
+    <p class="bubble-meta">
+      {{ m.sender_name }} · {{ m.created_at|datetime_no }}
+      {% if m.created_via == "mcp" %} · <span title="Skrevet av en AI-agent på vegne av avsenderen">{{ icon("robot", 14) }} via AI-agent</span>{% elif m.created_via == "api" %} · via API{% endif %}
+    </p>
+  </li>
+  {% endfor %}
+</ol>
+
+<form method="post" action="/meldinger/{{ conversation.id }}" class="reply-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label for="reply">Svar</label>
+  <textarea id="reply" name="message" rows="4" required maxlength="5000"></textarea>
+  <button type="submit" class="button button-primary">Send</button>
+</form>
+<p class="small muted">Tips: Avtal gjerne henting og betaling ansikt til ansikt. Send aldri penger til ukjente før du har sett varen, og oppgi aldri kortnummer eller BankID for å motta penger. <a href="/trygg-handel">Les mer om trygg handel</a>.</p>
+
+<details class="report">
+  <summary>Rapporter {{ conversation.other_name(user.id) }}</summary>
+  <form method="post" action="/meldinger/{{ conversation.id }}/rapporter">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="report-reason">Hva er galt?</label>
+      <select id="report-reason" name="reason" required>
+        {% for key, label in REPORT_REASONS.items() %}<option value="{{ key }}" {% if key == "fraud" %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="report-comment">Kommentar (valgfritt)</label>
+      <textarea id="report-comment" name="comment" rows="3" maxlength="2000"></textarea>
+    </div>
+    <button type="submit" class="button">Send rapport</button>
+  </form>
+</details>
+{% endblock %}

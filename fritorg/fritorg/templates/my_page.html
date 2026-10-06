@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+
+{% block title %}Min side – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Hei, {{ user.name }}!</h1>
+  <form method="post" action="/logg-ut">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button">Logg ut</button>
+  </form>
+</div>
+
+<section aria-labelledby="mine">
+  <div class="section-head">
+    <h2 id="mine" class="section-title">Mine annonser</h2>
+    <a class="button button-primary" href="/ny-annonse">{{ icon("plus", 18) }} Ny annonse</a>
+  </div>
+  {% if my_listings %}
+  <ul class="my-listings">
+    {% for item in my_listings %}
+    <li>
+      <a class="my-listing-title" href="/annonse/{{ item.id }}">{{ item.title }}</a>
+      <span class="tag tag-status-{{ item.status }}">{{ item.status_label }}</span>
+      <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
+      {% if item.status == "review" %}<span class="small status-note">Venter på godkjenning fra moderator.</span>{% elif item.status == "removed" %}<span class="small status-note status-note-danger">Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %}</span>{% endif %}
+      <span class="my-listing-actions">
+        <a href="/annonse/{{ item.id }}/rediger">Rediger</a>
+        <form method="post" action="/annonse/{{ item.id }}/status">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="neste" value="/min-side">
+          {% if item.status == "active" %}
+            <button class="link-button" name="status" value="sold">Merk solgt</button>
+            <button class="link-button" name="status" value="inactive">Skjul</button>
+          {% elif item.status in ("sold", "inactive") %}
+            <button class="link-button" name="status" value="active">Aktiver</button>
+          {% endif %}
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="empty">Du har ingen annonser ennå. <a href="/ny-annonse">Legg ut din første – det er gratis.</a></p>
+  {% endif %}
+</section>
+
+<section id="nokler" class="panel agent-panel" aria-labelledby="agent-title">
+  <h2 id="agent-title">{{ icon("robot", 24) }} Koble til AI-assistenten din</h2>
+  <p>Med en personlig API-nøkkel kan assistenten din (Claude, ChatGPT, Cursor og andre) søke, legge ut annonser og sende meldinger for deg. Nøkkelen er gratis og kan slettes når som helst. Alt assistenten lager, merkes som «via AI-agent».</p>
+
+  {% if new_token %}
+  <div class="token-box" role="status">
+    <p><strong>Ny nøkkel laget. Kopier den nå – den vises bare én gang.</strong></p>
+    <pre><code>{{ new_token }}</code></pre>
+    <h3>Claude Code</h3>
+    <pre><code>claude mcp add --transport http fritorg {{ base }}/mcp --header "Authorization: Bearer {{ new_token }}"</code></pre>
+    <h3>Claude.ai, ChatGPT og andre apper med «egendefinert connector»</h3>
+    <p>Lim inn denne personlige adressen. Den fungerer som et passord, så ikke del den.</p>
+    <pre><code>{{ base }}/mcp/{{ new_token }}</code></pre>
+    <h3>Cursor, VS Code og andre MCP-klienter (JSON)</h3>
+    <pre><code>{"mcpServers": {"fritorg": {"url": "{{ base }}/mcp", "headers": {"Authorization": "Bearer {{ new_token }}"}}}}</code></pre>
+    <h3>REST-API</h3>
+    <pre><code>curl -H "Authorization: Bearer {{ new_token }}" {{ base }}/api/v1/me</code></pre>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/min-side/nokler" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="token-name">Navn på nøkkelen</label>
+    <input id="token-name" name="name" type="text" maxlength="60" placeholder="F.eks. Claude på mobilen" required>
+    <button type="submit" class="button button-primary">Lag ny nøkkel</button>
+  </form>
+
+  {% if tokens %}
+  <table class="token-table">
+    <thead><tr><th>Navn</th><th>Nøkkel</th><th>Laget</th><th>Sist brukt</th><th><span class="visually-hidden">Handling</span></th></tr></thead>
+    <tbody>
+      {% for token in tokens %}
+      <tr>
+        <td>{{ token.name }}</td>
+        <td><code>{{ token.hint }}</code></td>
+        <td>{{ token.created_at|date_no }}</td>
+        <td>{{ token.last_used_at|datetime_no if token.last_used_at else "Aldri" }}</td>
+        <td>
+          <form method="post" action="/min-side/nokler/{{ token.id }}/slett">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link-button">Slett</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <p class="small">Uten nøkkel kan assistenten fortsatt søke og lese annonser via <code>{{ base }}/mcp</code>. Se <a href="/for-agenter">veiledningen</a>.</p>
+</section>
+
+<section class="panel" aria-labelledby="konto">
+  <h2 id="konto">Konto</h2>
+  <dl class="facts">
+    <div><dt>Visningsnavn</dt><dd>{{ user.name }}</dd></div>
+    <div><dt>E-post (vises aldri)</dt><dd>{{ user.email }}</dd></div>
+    <div><dt>Medlem siden</dt><dd>{{ user.created_at|date_no }}</dd></div>
+  </dl>
+  <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a></p>
+  <details id="slett" class="danger-zone">
+    <summary>Slett kontoen min</summary>
+    <form method="post" action="/min-side/slett-konto">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="small">Alle annonsene, bildene, meldingene og API-nøklene dine slettes for godt.</p>
+      <div class="field">
+        <label for="delete-password">Bekreft med passordet ditt</label>
+        <input id="delete-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="button button-danger">Slett kontoen for godt</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% from "icons.html" import icon %}<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }} – gratis markedsplass for mennesker og AI-agenter{% endblock %}</title>
+  <meta name="description" content="{% block description %}Kjøp, selg og gi bort gratis. {{ site_name }} er en åpen markedsplass for hele Norge – like enkel å bruke for AI-assistenter som for mennesker.{% endblock %}">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css?v={{ version }}">
+  <link rel="service-desc" type="application/openapi+json" href="/openapi.json">
+  <link rel="service-doc" href="/api/docs">
+  <link rel="help" type="text/markdown" href="/llms.txt" title="Dokumentasjon for AI-agenter">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#innhold">Hopp til innhold</a>
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="logo" href="/" aria-label="{{ site_name }} – til forsiden">
+        <img src="/static/logo.svg" alt="" width="34" height="34">
+        <span>{{ site_name }}</span>
+      </a>
+      <form class="header-search" action="/sok" method="get" role="search">
+        <label class="visually-hidden" for="header-q">Søk i annonser</label>
+        <input id="header-q" type="search" name="q" placeholder="Hva leter du etter?" value="{{ header_q or '' }}">
+        <button type="submit" class="button">Søk</button>
+      </form>
+      <nav class="header-nav" aria-label="Hovedmeny">
+        <a class="button button-primary" href="/ny-annonse">{{ icon("plus", 18) }} Ny annonse</a>
+        {% if user %}
+          {% if user.is_admin %}<a class="nav-link" href="/moderering">Moderering</a>{% endif %}
+          <a class="nav-link" href="/meldinger">Meldinger{% if unread %} <span class="badge" aria-label="{{ unread }} uleste">{{ unread }}</span>{% endif %}</a>
+          <a class="nav-link" href="/min-side">Min side</a>
+        {% else %}
+          <a class="nav-link" href="/logg-inn">Logg inn</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  {% if flash %}
+  <div class="container"><p class="flash" role="status">{{ flash }}</p></div>
+  {% endif %}
+
+  <main id="innhold" class="container main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <p class="footer-brand">{{ site_name }}</p>
+        <p>Gratis markedsplass for hele Norge. Ingen annonsekostnader, ingen reklame og ingen sporingskapsler.</p>
+      </div>
+      <div>
+        <p class="footer-heading">Tjenesten</p>
+        <ul>
+          <li><a href="/om">Om {{ site_name }}</a></li>
+          <li><a href="/trygg-handel">Trygg handel</a></li>
+          <li><a href="/vilkar">Vilkår og personvern</a></li>
+          <li><a href="/sok">Alle annonser</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-heading">For AI-agenter og utviklere</p>
+        <ul>
+          <li><a href="/for-agenter">Koble til din AI-assistent</a></li>
+          <li><a href="/llms.txt">llms.txt</a> · <a href="/api/docs">API-dokumentasjon</a></li>
+          <li><a href="/openapi.json">OpenAPI</a> · <a href="/mcp">MCP-server</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

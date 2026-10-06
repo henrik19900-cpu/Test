@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid %}
+{% from "icons.html" import icon %}
+
+{% block head %}
+<link rel="alternate" type="text/markdown" href="/index.md">
+<link rel="alternate" type="application/atom+xml" href="/feed.atom" title="Nyeste annonser">
+<script type="application/ld+json">{{ website_jsonld|safe }}</script>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Kjøp, selg og gi bort – helt gratis.</h1>
+    <p class="lead">{{ site_name }} er en åpen markedsplass for hele Norge. Ingen annonsekostnader, og like enkel å bruke for AI-assistenter som for mennesker.</p>
+    <form class="hero-search" action="/sok" method="get" role="search">
+      <label class="visually-hidden" for="hero-q">Søk</label>
+      <input id="hero-q" type="search" name="q" placeholder="Prøv «barnesykkel», «sofa» eller «Tesla»">
+      <label class="visually-hidden" for="hero-county">Fylke</label>
+      <select id="hero-county" name="county">
+        <option value="">Hele Norge</option>
+        {% for county in COUNTIES.values() %}<option value="{{ county.slug }}">{{ county.name }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="button button-primary">Søk</button>
+    </form>
+    <p class="hero-stats">{{ total }} aktive annonser · <a href="/sok?type=give">Se alt som gis bort</a></p>
+  </div>
+</section>
+
+<section aria-labelledby="kategorier">
+  <h2 id="kategorier" class="section-title">Kategorier</h2>
+  <div class="category-grid">
+    {% for slug in GROUPS %}{% set group = CATEGORIES[slug] %}
+    <div class="category-card">
+      <a class="category-head" href="/sok?category={{ group.slug }}">
+        <span class="category-icon">{{ icon(group.slug, 28) }}</span>
+        <span><strong>{{ group.name }}</strong><br><span class="muted">{{ counts.get(group.slug, 0) }} annonser</span></span>
+      </a>
+      <ul class="category-links">
+        {% for child_slug in group.children %}{% set child = CATEGORIES[child_slug] %}
+        <li><a href="/sok?category={{ child.slug }}">{{ child.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="nyeste">
+  <div class="section-head">
+    <h2 id="nyeste" class="section-title">Nyeste annonser</h2>
+    <a href="/sok?sort=newest">Se alle →</a>
+  </div>
+  {% if recent %}
+    {{ listing_grid(recent) }}
+  {% else %}
+    <p class="empty">Ingen annonser ennå. <a href="/ny-annonse">Bli den første!</a></p>
+  {% endif %}
+</section>
+
+<section class="agent-banner" aria-labelledby="agenter">
+  <div class="agent-banner-icon">{{ icon("robot", 40) }}</div>
+  <div>
+    <h2 id="agenter">Bruk {{ site_name }} fra AI-assistenten din</h2>
+    <p>Be assistenten finne en brukt sykkel i nærheten, følge med på nye boligannonser eller legge ut sofaen din for deg. Alt er gratis og åpent: MCP-server, REST-API og maskinlesbare sider – uten CAPTCHA og uten betalingsmur.</p>
+    <p><code>{{ base }}/mcp</code></p>
+    <p><a class="button" href="/for-agenter">Slik kobler du til</a></p>
+  </div>
+</section>
+
+<section class="principles" aria-label="Prinsipper">
+  <div>{{ icon("gift", 28) }}<h3>Gratis</h3><p>Det koster ingenting å legge ut, søke eller sende meldinger.</p></div>
+  <div>{{ icon("code", 28) }}<h3>Åpent</h3><p>Alle offentlige annonser er tilgjengelige via API, MCP og eksport – også for agenter.</p></div>
+  <div>{{ icon("shield", 28) }}<h3>Tydelig</h3><p>Innhold laget av AI-agenter merkes, og e-postadressen din vises aldri.</p></div>
+</section>
+{% endblock %}

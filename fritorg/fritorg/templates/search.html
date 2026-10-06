@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid, pagination, attribute_filter %}
+
+{% block title %}{{ title }} – {{ site_name }}{% endblock %}
+{% block description %}{{ result.total }} annonser på {{ site_name }}. {{ title }}.{% endblock %}
+{% block head %}
+<link rel="alternate" type="application/json" href="{{ api_url }}" title="Samme søk som JSON (API)">
+<link rel="alternate" type="text/markdown" href="{{ md_url }}" title="Samme søk som Markdown">
+<link rel="alternate" type="application/atom+xml" href="{{ feed_url }}" title="Nye treff (Atom)">
+{% if page > 1 %}<meta name="robots" content="noindex, follow">{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="search-layout">
+  <aside class="filters" aria-label="Filtre">
+    <form action="/sok" method="get">
+      <div class="field">
+        <label for="f-q">Søkeord</label>
+        <input id="f-q" type="search" name="q" value="{{ params.q or '' }}">
+      </div>
+      <div class="field">
+        <label for="f-category">Kategori</label>
+        <select id="f-category" name="category">
+          <option value="">Alle kategorier</option>
+          {% for slug in GROUPS %}{% set group = CATEGORIES[slug] %}
+            <optgroup label="{{ group.name }}">
+              <option value="{{ group.slug }}" {% if params.category == group.slug %}selected{% endif %}>Alt i {{ group.name }}</option>
+              {% for child_slug in group.children %}{% set child = CATEGORIES[child_slug] %}
+                <option value="{{ child.slug }}" {% if params.category == child.slug %}selected{% endif %}>{{ child.name }}</option>
+              {% endfor %}
+            </optgroup>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-type">Annonsetype</label>
+        <select id="f-type" name="type">
+          <option value="">Alle typer</option>
+          {% for t in LISTING_TYPES.values() %}
+            <option value="{{ t.slug }}" {% if params.type == t.slug %}selected{% endif %}>{{ t.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-county">Fylke</label>
+        <select id="f-county" name="county">
+          <option value="">Hele Norge</option>
+          {% for county in COUNTIES.values() %}
+            <option value="{{ county.slug }}" {% if params.county == county.slug %}selected{% endif %}>{{ county.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-location">Sted</label>
+        <input id="f-location" type="text" name="location" placeholder="F.eks. Bergen" value="{{ params.location or '' }}">
+      </div>
+      <div class="field">
+        <span class="label">Pris (kr)</span>
+        <div class="range">
+          <input aria-label="Pris fra" type="number" name="price_min" min="0" placeholder="Fra" value="{{ params.price_min if params.price_min is not none else '' }}">
+          <input aria-label="Pris til" type="number" name="price_max" min="0" placeholder="Til" value="{{ params.price_max if params.price_max is not none else '' }}">
+        </div>
+      </div>
+      {% if leaf and leaf.attributes %}
+        <fieldset class="attr-filters">
+          <legend>{{ leaf.name }}</legend>
+          {% for attr in leaf.attributes %}{{ attribute_filter(attr, selected_attrs) }}{% endfor %}
+        </fieldset>
+      {% endif %}
+      <div class="field">
+        <label class="checkbox"><input type="checkbox" name="has_images" value="1" {% if params.has_images %}checked{% endif %}> Bare med bilder</label>
+        <label class="checkbox"><input type="checkbox" name="status" value="any" {% if params.status == "any" %}checked{% endif %}> Vis også solgte</label>
+      </div>
+      {% if params.sort %}<input type="hidden" name="sort" value="{{ params.sort }}">{% endif %}
+      <button type="submit" class="button button-primary button-block">Vis treff</button>
+      <p class="reset"><a href="/sok">Nullstill filtre</a></p>
+    </form>
+  </aside>
+
+  <section class="results" aria-labelledby="results-title">
+    <div class="results-head">
+      <div>
+        <h1 id="results-title">{{ title }}</h1>
+        <p class="muted">{{ result.total }} treff</p>
+      </div>
+      <nav class="sort" aria-label="Sortering">
+        {% for key, label in SORTS.items() %}
+          {% if key != "relevance" or params.q %}
+            {% if params.effective_sort == key %}<strong aria-current="true">{{ label }}</strong>{% else %}<a href="{{ sort_url(key) }}">{{ label }}</a>{% endif %}
+          {% endif %}
+        {% endfor %}
+      </nav>
+    </div>
+
+    {% if category and not category.is_leaf %}
+      <ul class="chips">
+        {% for child_slug in category.children %}{% set child = CATEGORIES[child_slug] %}
+          <li><a class="chip" href="/sok?category={{ child.slug }}{% if params.q %}&amp;q={{ params.q|urlencode }}{% endif %}">{{ child.name }} <span class="muted">{{ counts.get(child.slug, 0) }}</span></a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if result.items %}
+      {{ listing_grid(result.items) }}
+      {{ pagination(page, pages, page_url) }}
+    {% else %}
+      <div class="empty">
+        <p><strong>Ingen treff.</strong> Prøv færre filtre eller et annet søkeord.</p>
+        <p>Tips: Søket finner også deler av ord, så «sykkel» gir treff på «barnesykkel».</p>
+      </div>
+    {% endif %}
+
+    <p class="machine-links">
+      For agenter: <a href="{{ api_url }}">JSON</a> · <a href="{{ md_url }}">Markdown</a> · <a href="{{ feed_url }}">Atom-feed med nye treff</a>
+    </p>
+  </section>
+</div>
+{% endblock %}

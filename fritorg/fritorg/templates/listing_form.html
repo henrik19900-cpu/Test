@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "macros.html" import attribute_input, field_error %}
+
+{% block title %}{% if listing %}Rediger annonse{% else %}Ny annonse i {{ category.name }}{% endif %} – {{ site_name }}{% endblock %}
+
+{% block content %}
+{% set group = CATEGORIES[category.group] %}
+<h1>{% if listing %}Rediger annonse{% else %}Ny annonse{% endif %}</h1>
+<p class="muted">{{ group.name }} › <strong>{{ category.name }}</strong>{% if not listing %} · <a href="/ny-annonse">Bytt kategori</a>{% endif %}</p>
+
+{% if errors %}
+  <div class="error-summary" role="alert">
+    <p><strong>Noe må rettes før annonsen kan lagres:</strong></p>
+    <ul>{% for field, message in errors.items() %}<li>{{ message }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+
+<form class="listing-form" method="post" enctype="multipart/form-data"
+      action="{% if listing %}/annonse/{{ listing.id }}/rediger{% else %}/ny-annonse{% endif %}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="category" value="{{ category.slug }}">
+
+  {% if category.types|length > 1 %}
+  <fieldset class="field">
+    <legend>Type annonse</legend>
+    <div class="radio-row">
+      {% for t in category.types %}
+        <label class="radio"><input type="radio" name="type" value="{{ t }}" {% if (values.type or category.types[0]) == t %}checked{% endif %}> {{ LISTING_TYPES[t].label }}</label>
+      {% endfor %}
+    </div>
+    {{ field_error(errors, "type") }}
+  </fieldset>
+  {% else %}
+    <input type="hidden" name="type" value="{{ category.types[0] }}">
+  {% endif %}
+
+  <div class="field">
+    <label for="title">Overskrift</label>
+    <input id="title" name="title" type="text" required minlength="3" maxlength="120" value="{{ values.title or '' }}" placeholder="F.eks. Pent brukt sovesofa fra IKEA">
+    {{ field_error(errors, "title") }}
+  </div>
+
+  <div class="field">
+    <label for="description">Beskrivelse</label>
+    <textarea id="description" name="description" rows="8" required minlength="10" maxlength="10000" placeholder="Tilstand, mål, hva som følger med, henting eller frakt …">{{ values.description or '' }}</textarea>
+    {{ field_error(errors, "description") }}
+  </div>
+
+  {% if category.group != "jobb" %}
+  <div class="field-row">
+    <div class="field">
+      <label for="price">Pris (kr)</label>
+      <input id="price" name="price" type="text" inputmode="numeric" value="{{ values.price if values.price is not none else '' }}" placeholder="La stå tom for «pris ikke oppgitt»">
+      <p class="hint">Annonser av typen «Gis bort» får alltid pris 0.</p>
+      {{ field_error(errors, "price") }}
+    </div>
+    <div class="field">
+      <label for="price_unit">Prisen gjelder</label>
+      <select id="price_unit" name="price_unit">
+        {% for key, label in PRICE_UNIT_LABELS.items() %}
+          <option value="{{ key }}" {% if (values.price_unit or "total") == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if category.attributes %}
+  <fieldset class="attr-fields">
+    <legend>Detaljer om {{ category.name|lower }}</legend>
+    <div class="attr-grid">
+      {% for attr in category.attributes %}{{ attribute_input(attr, values.attributes.get(attr.key), errors) }}{% endfor %}
+    </div>
+  </fieldset>
+  {% endif %}
+
+  <fieldset>
+    <legend>Hvor?</legend>
+    <div class="field-row">
+      <div class="field">
+        <label for="county">Fylke</label>
+        <select id="county" name="county">
+          <option value="">Velg fylke …</option>
+          {% for county in COUNTIES.values() %}
+            <option value="{{ county.slug }}" {% if values.county == county.slug %}selected{% endif %}>{{ county.name }}</option>
+          {% endfor %}
+        </select>
+        {{ field_error(errors, "county") }}
+      </div>
+      <div class="field">
+        <label for="location">Sted</label>
+        <input id="location" name="location" type="text" maxlength="80" value="{{ values.location or '' }}" placeholder="F.eks. Tromsø sentrum">
+        {{ field_error(errors, "location") }}
+      </div>
+      <div class="field field-small">
+        <label for="postal_code">Postnummer</label>
+        <input id="postal_code" name="postal_code" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" value="{{ values.postal_code or '' }}">
+        {{ field_error(errors, "postal_code") }}
+      </div>
+    </div>
+  </fieldset>
+
+  {% if not listing %}
+  <div class="field">
+    <label for="images">Bilder (valgfritt)</label>
+    <input id="images" name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+    <p class="hint">JPEG, PNG, WebP eller GIF, maks 8 MB per bilde. Første bilde blir hovedbildet.</p>
+  </div>
+  {% endif %}
+
+  <div class="form-actions">
+    <button type="submit" class="button button-primary">{% if listing %}Lagre endringer{% else %}Publiser annonsen{% endif %}</button>
+    <a href="{% if listing %}/annonse/{{ listing.id }}{% else %}/{% endif %}">Avbryt</a>
+  </div>
+  <p class="hint">Ved å publisere godtar du <a href="/vilkar">vilkårene</a>. Annonsen blir offentlig – også for søkemotorer og AI-agenter.</p>
+</form>
+
+{% if listing %}
+<section id="bilder" class="panel">
+  <h2>Bilder</h2>
+  {% if listing.images %}
+    <ul class="image-admin">
+      {% for image in listing.images %}
+      <li>
+        <img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}">
+        <form method="post" action="/annonse/{{ listing.id }}/bilder/{{ image.id }}/slett">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="button button-small">Fjern</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">Ingen bilder ennå.</p>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" action="/annonse/{{ listing.id }}/bilder">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="more-images">Legg til bilder</label>
+      <input id="more-images" name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple required>
+    </div>
+    <div class="field">
+      <label for="alt_text">Kort bildebeskrivelse (hjelper blinde og AI-agenter)</label>
+      <input id="alt_text" name="alt_text" type="text" maxlength="200" placeholder="F.eks. Sofaen sett forfra">
+    </div>
+    <button type="submit" class="button">Last opp</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

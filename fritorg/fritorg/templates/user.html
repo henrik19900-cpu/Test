@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid %}
+
+{% block title %}{{ seller.name }} – {{ site_name }}{% endblock %}
+{% block head %}<link rel="alternate" type="application/json" href="/api/v1/listings?seller_id={{ seller.id }}&amp;status=any">{% endblock %}
+
+{% block content %}
+<h1>{{ seller.name }}</h1>
+<p class="muted">Medlem siden {{ seller.created_at|date_no }} · {{ result.total }} annonser</p>
+{% if result.items %}
+  {{ listing_grid(result.items) }}
+{% else %}
+  <p class="empty">Ingen aktive annonser.</p>
+{% endif %}
+{% endblock %}

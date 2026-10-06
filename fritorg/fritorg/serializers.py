@@ -80,6 +80,7 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
                 "name": listing.seller_name,
                 "url": f"{base}/bruker/{listing.user_id}",
                 "member_since": listing.seller_since,
+                "verified": listing.seller_verified,
                 "new_account": listing.seller_is_new,
                 "active_listings": listing.seller_active,
                 "sold_listings": listing.seller_sold,
@@ -258,6 +259,8 @@ def listing_markdown(listing: Listing, base: str) -> str:
         ("Annonse-ID", str(listing.id)),
     ]
     lines += [f"- **{label}:** {value}" for label, value in facts if value]
+    if listing.seller_verified:
+        lines.append("- **Selger verifisert med:** BankID")
     if listing.seller_is_new:
         lines.append("- **Merk:** Selgeren er en ny bruker")
     if listing.created_via == "mcp":

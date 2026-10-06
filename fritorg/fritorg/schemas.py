@@ -102,6 +102,7 @@ class SellerOut(BaseModel):
     name: str
     url: str
     member_since: str
+    verified: bool = Field(description="The seller has verified their identity with BankID.")
     new_account: bool = Field(description="The account is less than a week old.")
     active_listings: int | None = None
     sold_listings: int | None = None
@@ -234,6 +235,7 @@ class CountyOut(BaseModel):
 class UserPublicOut(BaseModel):
     id: int
     name: str
+    verified: bool = Field(description="Identity verified with BankID.")
     member_since: str
     active_listings: int
     url: str
@@ -243,6 +245,7 @@ class AccountOut(BaseModel):
     id: int
     name: str
     email: str
+    verified: bool
     member_since: str
     unread_messages: int
     listings: dict[str, int]
@@ -283,6 +286,33 @@ class LoginIn(BaseModel):
 class AuthOut(BaseModel):
     account: AccountOut
     token: NewTokenOut
+
+
+class DeviceStartIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_name: str = Field(
+        "AI-agent",
+        max_length=60,
+        description="Shown to the person who approves, e.g. 'Claude' or 'Min handleagent'.",
+    )
+
+
+class DeviceStartOut(BaseModel):
+    device_code: str = Field(description="Secret. Use it to poll POST /api/v1/auth/device/token.")
+    user_code: str = Field(description="Short code the person confirms, e.g. 'WDJB-MJHT'.")
+    verification_uri: str
+    verification_uri_complete: str = Field(
+        description="Give this link to the person; it has the code filled in."
+    )
+    expires_in: int = Field(description="Seconds until the codes expire.")
+    interval: int = Field(description="Poll at most this often (seconds).")
+
+
+class DeviceTokenIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_code: str
 
 
 class TokenCreateIn(BaseModel):

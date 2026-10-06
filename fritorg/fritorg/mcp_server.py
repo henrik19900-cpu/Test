@@ -681,9 +681,9 @@ def instructions(base: str, user: users.User | None) -> str:
         )
     else:
         lines.append(
-            "This connection is anonymous and read-only. To create listings or contact sellers, the user can make "
-            f"a free account and API token at {base}/min-side and reconnect with the header "
-            "'Authorization: Bearer <token>' or the personal MCP URL shown there."
+            "This connection is anonymous and read-only. To create listings or contact sellers, the user logs in "
+            f"with BankID at {base}/min-side (a free account is created on first login), creates an API token there "
+            "and reconnects with the header 'Authorization: Bearer <token>' or the personal MCP URL shown there."
         )
     lines.append(
         f"For bulk data use {base}/api/v1/export/listings.ndjson instead of paging through searches."

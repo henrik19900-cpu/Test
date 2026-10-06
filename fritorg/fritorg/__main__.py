@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
 
         db = Database(settings.db_path)
         db.init()
-        created = seed(db, force=args.force)
+        created = seed(db, settings, force=args.force)
         print(
             f"La til {created} demo-annonser i {settings.db_path}"
             if created

@@ -95,13 +95,13 @@
     </tbody>
   </table>
   {% endif %}
-  <p class="small">Uten nøkkel kan assistenten fortsatt søke og lese annonser via <code>{{ base }}/mcp</code>. Se <a href="/for-agenter">veiledningen</a>.</p>
+  <p class="small">Agenter som bruker REST-API-et, kan også be om tilgang selv: de viser deg en kode som du godkjenner på <a href="/koble-til">{{ base }}/koble-til</a>. Uten nøkkel kan assistenten fortsatt søke og lese annonser via <code>{{ base }}/mcp</code>. Se <a href="/for-agenter">veiledningen</a>.</p>
 </section>
 
 <section class="panel" aria-labelledby="konto">
   <h2 id="konto">Konto</h2>
   <dl class="facts">
-    <div><dt>Visningsnavn</dt><dd>{{ user.name }}</dd></div>
+    <div><dt>Visningsnavn</dt><dd>{{ user.name }}{% if user.is_verified %} <span class="tag tag-verified">BankID-verifisert</span>{% endif %}</dd></div>
     <div><dt>E-post (vises aldri)</dt><dd>{{ user.email }}</dd></div>
     <div><dt>Medlem siden</dt><dd>{{ user.created_at|date_no }}</dd></div>
   </dl>
@@ -111,10 +111,17 @@
     <form method="post" action="/min-side/slett-konto">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <p class="small">Alle annonsene, bildene, meldingene og API-nøklene dine slettes for godt.</p>
+      {% if user.has_password %}
       <div class="field">
         <label for="delete-password">Bekreft med passordet ditt</label>
         <input id="delete-password" name="password" type="password" autocomplete="current-password" required>
       </div>
+      {% else %}
+      <div class="field">
+        <label for="delete-confirm">Skriv SLETT for å bekrefte</label>
+        <input id="delete-confirm" name="confirm" type="text" autocomplete="off" required>
+      </div>
+      {% endif %}
       <button type="submit" class="button button-danger">Slett kontoen for godt</button>
     </form>
   </details>

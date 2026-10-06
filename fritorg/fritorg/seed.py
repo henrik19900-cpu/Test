@@ -7,22 +7,25 @@ import secrets
 from datetime import timedelta
 from typing import Any
 
-from . import listings, messages, users
+from . import identity, listings, messages, users
+from .config import Settings
 from .db import Database
 from .util import to_iso, utcnow
 
 DEMO_EMAIL = "demo@fritorg.no"
-DEMO_PASSWORD = "demo1234"
+DEMO_PASSWORD = "demo1234"  # used when BankID is off
+DEMO_TEST_IDENTITY = "01017012345"  # log in with this in the BankID simulator
 
+# (email, full name as BankID would report it, fake 11-digit test identity)
 USERS = [
-    ("kari@example.no", "Kari Nordmann"),
-    ("ola@example.no", "Ola Hansen"),
-    ("ingrid@example.no", "Ingrid B."),
-    ("sara@example.no", "Sara Ahmed"),
-    ("fjordbil@example.no", "Fjordbil AS"),
-    ("bolig@example.no", "Nordlys Eiendom"),
-    ("jobb@example.no", "Byggmester Lien AS"),
-    (DEMO_EMAIL, "Demo-bruker"),
+    ("kari@example.no", "Kari Nordmann", "01017010001"),
+    ("ola@example.no", "Ola Hansen", "01017010002"),
+    ("ingrid@example.no", "Ingrid Berg", "01017010003"),
+    ("sara@example.no", "Sara Ahmed", "01017010004"),
+    ("fjordbil@example.no", "Jonas Fjeld", "01017010005"),
+    ("bolig@example.no", "Mette Lund", "01017010006"),
+    ("jobb@example.no", "Lars Lien", "01017010007"),
+    (DEMO_EMAIL, "Demo Bruker", DEMO_TEST_IDENTITY),
 ]
 
 # (owner email, via, data)
@@ -823,19 +826,41 @@ LISTINGS: list[tuple[str, str, dict[str, Any]]] = [
 ]
 
 
-def seed(db: Database, *, force: bool = False) -> int:
+def seed(db: Database, settings: Settings | None = None, *, force: bool = False) -> int:
+    settings = settings or Settings()
+    secret = identity.load_secret_key(settings)
     with db.session() as conn:
         if not force and conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0:
             return 0
         rng = random.Random(2026)
         accounts: dict[str, int] = {}
-        for email, name in USERS:
+        for number, (email, full_name, subject) in enumerate(USERS):
             existing = users.get_user_by_email(conn, email)
             if existing:
                 accounts[email] = existing.id
                 continue
-            password = DEMO_PASSWORD if email == DEMO_EMAIL else secrets.token_urlsafe(18)
-            accounts[email] = users.create_user(conn, email, name, password).id
+            verified = identity.VerifiedIdentity(identity.SIMULATED_ISSUER, subject, full_name)
+            if settings.bankid_required:
+                user = users.create_user(
+                    conn,
+                    email,
+                    verified.display_name,
+                    None,
+                    identity_hash=identity.identity_hash(secret, verified),
+                    verified_name=full_name,
+                    verified_via="bankid-simulert",
+                )
+            else:
+                password = DEMO_PASSWORD if email == DEMO_EMAIL else secrets.token_urlsafe(18)
+                user = users.create_user(conn, email, verified.display_name, password)
+            # Established demo members, so their listings don't look like brand-new accounts.
+            joined = to_iso(utcnow() - timedelta(days=200 + 97 * number))
+            conn.execute(
+                "UPDATE users SET created_at = ?, verified_at = CASE WHEN verified_at IS NULL THEN NULL ELSE ? END "
+                "WHERE id = ?",
+                (joined, joined, user.id),
+            )
+            accounts[email] = user.id
 
         now = utcnow()
         created = 0
@@ -868,5 +893,5 @@ def seed(db: Database, *, force: bool = False) -> int:
         return created
 
 
-def seed_if_empty(db: Database) -> int:
-    return seed(db, force=False)
+def seed_if_empty(db: Database, settings: Settings | None = None) -> int:
+    return seed(db, settings, force=False)

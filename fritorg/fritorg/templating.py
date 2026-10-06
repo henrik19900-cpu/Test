@@ -58,6 +58,7 @@ def base_context(request: Request, conn: sqlite3.Connection | None) -> dict[str,
         "csrf_token": getattr(request.state, "csrf_token", ""),
         "flash": unquote(flash) if flash else None,
         "site_name": settings.site_name,
+        "bankid_mode": settings.bankid_mode,
         "base": settings.base_url or str(request.base_url).rstrip("/"),
         "path": request.url.path,
     }

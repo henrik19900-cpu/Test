@@ -20,7 +20,13 @@ CREATE TABLE users (
     created_via TEXT NOT NULL DEFAULT 'web',
     created_at TEXT NOT NULL,
     banned_at TEXT,
-    ban_reason TEXT
+    ban_reason TEXT,
+    -- BankID: a keyed hash of the person's identifier (one person, one account). The
+    -- identifier itself (e.g. the national identity number) is never stored.
+    identity_hash TEXT UNIQUE,
+    verified_name TEXT,
+    verified_at TEXT,
+    verified_via TEXT
 );
 
 CREATE TABLE sessions (
@@ -136,6 +142,39 @@ CREATE TABLE reports (
 );
 CREATE INDEX idx_reports_open ON reports(resolved_at, created_at);
 CREATE INDEX idx_reports_listing ON reports(listing_id);
+
+-- OpenID Connect login in progress (state, nonce and PKCE verifier), kept for minutes.
+CREATE TABLE login_states (
+    state_hash TEXT PRIMARY KEY,
+    nonce TEXT NOT NULL,
+    code_verifier TEXT NOT NULL,
+    return_to TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- A person who has logged in with BankID but not finished creating an account yet.
+CREATE TABLE pending_identities (
+    token_hash TEXT PRIMARY KEY,
+    identity_hash TEXT NOT NULL,
+    verified_name TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    verified_via TEXT NOT NULL,
+    return_to TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- Device authorization for agents: the agent shows a code, a logged-in person approves it.
+CREATE TABLE device_grants (
+    id INTEGER PRIMARY KEY,
+    device_code_hash TEXT NOT NULL UNIQUE,
+    user_code TEXT NOT NULL UNIQUE,
+    client_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    polled_at TEXT
+);
 
 -- Every moderator decision, kept for accountability.
 CREATE TABLE moderation_log (

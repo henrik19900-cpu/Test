@@ -118,6 +118,7 @@
       <p class="muted small">Selger</p>
       <p class="seller-name"><a href="/bruker/{{ listing.user_id }}">{{ listing.seller_name }}</a></p>
       <p class="trust">
+        {% if listing.seller_verified %}<span class="tag tag-verified" title="Selgeren har logget inn med BankID">{{ icon("shield", 14) }} BankID-verifisert</span>{% endif %}
         {% if listing.seller_is_new %}<span class="tag tag-new" title="Kontoen er mindre enn en uke gammel">Ny bruker</span>{% endif %}
       </p>
       <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} aktive annonser{% endif %}</p>

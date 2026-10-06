@@ -10,10 +10,10 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Up
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import images, listings, messages, serializers, taxonomy, users
+from . import identity, images, listings, messages, serializers, taxonomy, users
 from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
-from .errors import NotFound, RateLimited, Unauthorized
+from .errors import Forbidden, NotFound, RateLimited, Unauthorized
 from .listings import SORTS, SearchParams
 from .ratelimit import RateLimiter
 from .schemas import (
@@ -23,6 +23,9 @@ from .schemas import (
     ContactIn,
     ConversationOut,
     CountyOut,
+    DeviceStartIn,
+    DeviceStartOut,
+    DeviceTokenIn,
     ImageUploadOut,
     ListingCreate,
     ListingOut,
@@ -56,9 +59,19 @@ Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 AUTH_HINT = (
-    "Send 'Authorization: Bearer <token>'. Get a free token with POST /api/v1/auth/register (new account) "
-    "or POST /api/v1/auth/token (existing account), or create one at /min-side."
+    "Send 'Authorization: Bearer <token>'. To get one, start POST /api/v1/auth/device and let your user approve "
+    "the link (they log in with BankID), or ask them to create a token at /min-side."
 )
+
+
+def _bankid_only(request: Request) -> None:
+    if request.app.state.settings.bankid_required:
+        base = base_url(request)
+        raise Forbidden(
+            "Kontoer lages og brukes med BankID av personen selv.",
+            hint=f"Start POST {base}/api/v1/auth/device and give your user the verification link; they log in "
+            f"with BankID (creating a free account if needed) and approve. Or they create a token at {base}/min-side.",
+        )
 
 
 def optional_user(
@@ -95,6 +108,7 @@ def _account(conn: sqlite3.Connection, user: users.User) -> dict:
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "verified": user.is_verified,
         "member_since": user.created_at,
         "unread_messages": messages.unread_count(conn, user.id),
         "listings": counts,
@@ -387,6 +401,7 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
     return {
         "id": user.id,
         "name": user.name,
+        "verified": user.is_verified,
         "member_since": user.created_at,
         "active_listings": active,
         "url": f"{base_url(request)}/bruker/{user.id}",
@@ -418,7 +433,11 @@ def export_listings(request: Request) -> StreamingResponse:
     "/auth/register", status_code=201, response_model=AuthOut, tags=["account"], summary="Create account"
 )
 def register(body: RegisterIn, request: Request, conn: Conn, settings: SettingsDep) -> dict:
-    """Create a free account and get an API token in one step. Agents may do this on behalf of their user."""
+    """Create a free account with email and password and get an API token in one step.
+
+    Only available when BankID is turned off. With BankID (the default), use the device flow instead.
+    """
+    _bankid_only(request)
     limiter = request.app.state.limiter
     _limit(
         limiter,
@@ -438,6 +457,8 @@ def register(body: RegisterIn, request: Request, conn: Conn, settings: SettingsD
     "/auth/token", status_code=201, response_model=AuthOut, tags=["account"], summary="Log in, get a token"
 )
 def login(body: LoginIn, request: Request, conn: Conn, settings: SettingsDep) -> dict:
+    """Get a token with email and password. Only available when BankID is turned off; use the device flow."""
+    _bankid_only(request)
     _limit(
         request.app.state.limiter,
         "auth",
@@ -448,6 +469,58 @@ def login(body: LoginIn, request: Request, conn: Conn, settings: SettingsDep) ->
     )
     user = users.authenticate(conn, body.email, body.password)
     token, record = users.create_api_token(conn, user.id, body.token_name)
+    return {"account": _account(conn, user), "token": _new_token(token, record, base_url(request))}
+
+
+@router.post(
+    "/auth/device",
+    status_code=201,
+    response_model=DeviceStartOut,
+    tags=["account"],
+    summary="Ask a person for access (device flow)",
+)
+def device_start(body: DeviceStartIn, request: Request, conn: Conn) -> dict:
+    """The easiest way for an agent to get a token (OAuth 2.0 device flow, RFC 8628).
+
+    1. Call this endpoint. 2. Give your user `verification_uri_complete` (or the URL and `user_code`).
+    They log in with BankID (a free account is created if needed) and approve.
+    3. Poll POST /api/v1/auth/device/token with the `device_code` every `interval` seconds.
+    """
+    _limit(
+        request.app.state.limiter,
+        "device",
+        client_ip(request),
+        30,
+        3600,
+        "For mange forespørsler. Prøv igjen senere.",
+    )
+    grant = identity.start_device_grant(conn, body.client_name)
+    base = base_url(request)
+    return {
+        "device_code": grant.device_code,
+        "user_code": grant.user_code,
+        "verification_uri": f"{base}/koble-til",
+        "verification_uri_complete": f"{base}/koble-til?kode={grant.user_code}",
+        "expires_in": grant.expires_in,
+        "interval": grant.interval,
+    }
+
+
+@router.post(
+    "/auth/device/token",
+    status_code=201,
+    response_model=AuthOut,
+    tags=["account"],
+    summary="Poll for the token (device flow)",
+)
+def device_token(body: DeviceTokenIn, request: Request, conn: Conn) -> dict:
+    """Returns the token once the person has approved. Until then: 400 with code `authorization_pending`
+    (keep polling), `slow_down` (poll less often), `access_denied` or `expired_token` (start again)."""
+    user_id = identity.poll_device_grant(conn, body.device_code)
+    user = users.get_user(conn, user_id)
+    if user is None or user.banned_at:
+        raise Unauthorized("Kontoen finnes ikke lenger.")
+    token, record = users.create_api_token(conn, user.id, identity.grant_client_name(conn, body.device_code))
     return {"account": _account(conn, user), "token": _new_token(token, record, base_url(request))}
 
 

@@ -45,6 +45,20 @@ class Settings:
     new_account_max_listings_per_day: int = 5
     new_account_max_messages_per_day: int = 20
 
+    # Identity: "simulated" (development: a fake BankID page), "oidc" (real BankID through an
+    # OpenID Connect provider such as BankID, Signicat or Idura/Criipto) or "off" (email + password).
+    bankid_mode: str = "simulated"
+    bankid_issuer: str | None = None
+    bankid_client_id: str | None = None
+    bankid_client_secret: str | None = None
+    bankid_scope: str = "openid profile"
+    bankid_acr_values: str | None = None
+    # Claim that identifies the person; it is only ever stored as a keyed hash.
+    bankid_id_claim: str = "sub"
+    allow_simulated_bankid: bool = False
+    # Keys the identity hashes and signed codes. Keep it stable and secret (see README).
+    secret_key: str | None = None
+
     max_image_bytes: int = 8 * 1024 * 1024
     max_images_per_listing: int = 12
     max_request_bytes: int = 64 * 1024 * 1024
@@ -56,6 +70,10 @@ class Settings:
     @property
     def uploads_dir(self) -> Path:
         return self.data_dir / "uploads"
+
+    @property
+    def bankid_required(self) -> bool:
+        return self.bankid_mode != "off"
 
     @property
     def cookies_secure(self) -> bool:
@@ -87,6 +105,15 @@ class Settings:
             new_account_max_messages_per_day=_env_int(
                 "NEW_ACCOUNT_MAX_MESSAGES_PER_DAY", defaults.new_account_max_messages_per_day
             ),
+            bankid_mode=(_env("BANKID", defaults.bankid_mode) or "simulated").lower(),
+            bankid_issuer=(_env("BANKID_ISSUER") or "").rstrip("/") or None,
+            bankid_client_id=_env("BANKID_CLIENT_ID"),
+            bankid_client_secret=_env("BANKID_CLIENT_SECRET"),
+            bankid_scope=_env("BANKID_SCOPE", defaults.bankid_scope),
+            bankid_acr_values=_env("BANKID_ACR_VALUES"),
+            bankid_id_claim=_env("BANKID_ID_CLAIM", defaults.bankid_id_claim),
+            allow_simulated_bankid=_env_bool("ALLOW_SIMULATED_BANKID", False),
+            secret_key=_env("SECRET_KEY"),
             max_image_bytes=_env_int("MAX_IMAGE_BYTES", defaults.max_image_bytes),
             max_images_per_listing=_env_int("MAX_IMAGES_PER_LISTING", defaults.max_images_per_listing),
         )

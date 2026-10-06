@@ -6,6 +6,7 @@
 
 {% block content %}
 <h1>{{ seller.name }}</h1>
+{% if seller.is_verified %}<p><span class="tag tag-verified">BankID-verifisert</span></p>{% endif %}
 <p class="muted">Medlem siden {{ seller.created_at|date_no }} · {{ result.total }} annonser</p>
 {% if result.items %}
   {{ listing_grid(result.items) }}

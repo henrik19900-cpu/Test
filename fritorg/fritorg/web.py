@@ -719,10 +719,13 @@ def delete_account(request: Request, conn: Conn, form: Form) -> Response:
     user = current_user(request, conn)
     if user is None:
         return login_redirect(request)
-    try:
-        users.authenticate(conn, user.email, str(form.get("password") or ""))
-    except AppError:
-        return redirect("/min-side#slett", flash="Feil passord. Kontoen ble ikke slettet.")
+    if user.has_password:
+        try:
+            users.authenticate(conn, user.email, str(form.get("password") or ""))
+        except AppError:
+            return redirect("/min-side#slett", flash="Feil passord. Kontoen ble ikke slettet.")
+    elif str(form.get("confirm") or "").strip().upper() != "SLETT":
+        return redirect("/min-side#slett", flash="Skriv SLETT for å bekrefte. Kontoen ble ikke slettet.")
     filenames = users.delete_user(conn, user.id)
     images.remove_files(request.app.state.settings.uploads_dir, filenames)
     response = redirect("/", flash="Kontoen din og alt innholdet ditt er slettet.")
@@ -761,6 +764,8 @@ def login(request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)
     settings = request.app.state.settings
     target = safe_next(str(form.get("neste") or ""))
+    if settings.bankid_required:
+        return redirect(url_with_query("", "/bankid/start", [("neste", target)]))
     email = str(form.get("email") or "")
     decision = request.app.state.limiter.hit(
         "auth", client_ip(request), settings.rate_limit_auth_per_10min, 600
@@ -800,6 +805,8 @@ def register(request: Request, conn: Conn, form: Form) -> Response:
     settings = request.app.state.settings
     values = {"email": str(form.get("email") or ""), "name": str(form.get("name") or "")}
     target = safe_next(str(form.get("neste") or ""), "/min-side")
+    if settings.bankid_required:
+        return redirect(url_with_query("", "/bankid/start", [("neste", target)]))
     decision = request.app.state.limiter.hit(
         "register", client_ip(request), settings.max_registrations_per_hour, 3600
     )

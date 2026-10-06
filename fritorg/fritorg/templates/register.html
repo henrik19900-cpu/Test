@@ -1,12 +1,25 @@
 {% extends "base.html" %}
 {% from "macros.html" import field_error %}
+{% from "icons.html" import icon %}
 
 {% block title %}Lag konto – {{ site_name }}{% endblock %}
 
 {% block content %}
 <div class="narrow">
   <h1>Lag en gratis konto</h1>
-  <p class="lead">Med konto kan du legge ut annonser, sende meldinger og lage API-nøkler til AI-assistenten din.</p>
+  <p class="lead">Med konto kan du legge ut annonser, sende meldinger og gi AI-assistenten din tilgang.</p>
+  {% if bankid_mode != "off" %}
+    <div class="panel">
+      <h2>Kontoen lages med BankID</h2>
+      <ul>
+        <li>Én person kan bare ha én konto, og alle er ekte personer.</li>
+        <li>Navnet ditt vises som fornavn og forbokstav i etternavnet, for eksempel «Kari N.».</li>
+        <li>Fødselsnummeret ditt lagres aldri.</li>
+      </ul>
+      <a class="button button-block bankid-button" href="/bankid/start{% if next %}?neste={{ next|urlencode }}{% endif %}">{{ icon("shield", 20) }} Fortsett med BankID</a>
+    </div>
+    <p>Har du konto? <a href="/logg-inn">Logg inn</a>.</p>
+  {% else %}
   <form method="post" action="/registrer" class="panel">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if next %}<input type="hidden" name="neste" value="{{ next }}">{% endif %}
@@ -34,5 +47,6 @@
     <button type="submit" class="button button-primary button-block">Lag konto</button>
   </form>
   <p>Har du konto? <a href="/logg-inn">Logg inn</a>.</p>
+  {% endif %}
 </div>
 {% endblock %}

@@ -16,6 +16,9 @@ SESSION_DAYS = 30
 MAX_TOKENS_PER_USER = 25
 
 
+UNUSABLE_PASSWORD = "!"  # BankID accounts log in with BankID only
+
+
 @dataclass
 class User:
     id: int
@@ -25,11 +28,18 @@ class User:
     created_at: str
     banned_at: str | None = None
     ban_reason: str | None = None
+    verified_at: str | None = None
+    verified_via: str | None = None
+    has_password: bool = True
 
     @property
     def is_new(self) -> bool:
         """Accounts younger than a day get stricter quotas."""
         return self.created_at > iso_ago(days=1)
+
+    @property
+    def is_verified(self) -> bool:
+        return self.verified_at is not None
 
 
 @dataclass
@@ -43,13 +53,16 @@ class ApiToken:
 
 def _user(row: sqlite3.Row) -> User:
     return User(
-        row["id"],
-        row["email"],
-        row["name"],
-        bool(row["is_admin"]),
-        row["created_at"],
-        row["banned_at"],
-        row["ban_reason"],
+        id=row["id"],
+        email=row["email"],
+        name=row["name"],
+        is_admin=bool(row["is_admin"]),
+        created_at=row["created_at"],
+        banned_at=row["banned_at"],
+        ban_reason=row["ban_reason"],
+        verified_at=row["verified_at"],
+        verified_via=row["verified_via"],
+        has_password=row["password_hash"] != UNUSABLE_PASSWORD,
     )
 
 
@@ -57,12 +70,14 @@ def normalize_name(name: str) -> str:
     return " ".join(name.split())
 
 
-def validate_registration(email: str, name: str, password: str) -> list[dict[str, str]]:
+def validate_registration(email: str, name: str, password: str | None) -> list[dict[str, str]]:
     errors = []
     if not EMAIL_RE.match(email.strip()) or len(email) > 254:
         errors.append({"field": "email", "message": "Ugyldig e-postadresse."})
     if not 2 <= len(normalize_name(name)) <= 60:
         errors.append({"field": "name", "message": "Visningsnavnet må være mellom 2 og 60 tegn."})
+    if password is None:
+        return errors
     if len(password) < 8:
         errors.append({"field": "password", "message": "Passordet må ha minst 8 tegn."})
     elif len(password) > 200:
@@ -70,23 +85,59 @@ def validate_registration(email: str, name: str, password: str) -> list[dict[str
     return errors
 
 
-def create_user(conn: sqlite3.Connection, email: str, name: str, password: str, via: str = "web") -> User:
+def create_user(
+    conn: sqlite3.Connection,
+    email: str,
+    name: str,
+    password: str | None,
+    via: str = "web",
+    *,
+    identity_hash: str | None = None,
+    verified_name: str | None = None,
+    verified_via: str | None = None,
+) -> User:
+    """Create an account: with a password, or (BankID) with a verified identity and no password."""
+    if password is None and identity_hash is None:
+        raise ValueError("an account needs a password or a verified identity")
     errors = validate_registration(email, name, password)
     if errors:
         raise ValidationProblem.from_errors(errors)
     email = email.strip()
-    password_hash = hash_password(password)  # slow on purpose; keep it outside the write lock
+    # Hashing is slow on purpose; keep it outside the write lock.
+    password_hash = hash_password(password) if password is not None else UNUSABLE_PASSWORD
     with transaction(conn):
         if conn.execute("SELECT 1 FROM users WHERE email = ?", (email,)).fetchone():
             raise Conflict(
                 "Det finnes allerede en konto med denne e-postadressen.",
-                hint="Log in with POST /api/v1/auth/token to get a new API token for an existing account.",
+                hint="Log in to the existing account instead.",
             )
+        if (
+            identity_hash
+            and conn.execute("SELECT 1 FROM users WHERE identity_hash = ?", (identity_hash,)).fetchone()
+        ):
+            raise Conflict("Du har allerede en konto. Logg inn med BankID.")
+        now = now_iso()
         cursor = conn.execute(
-            "INSERT INTO users (email, name, password_hash, created_via, created_at) VALUES (?, ?, ?, ?, ?)",
-            (email, normalize_name(name), password_hash, via, now_iso()),
+            "INSERT INTO users (email, name, password_hash, created_via, created_at, identity_hash, verified_name, "
+            "verified_at, verified_via) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                email,
+                normalize_name(name),
+                password_hash,
+                via,
+                now,
+                identity_hash,
+                verified_name,
+                now if identity_hash else None,
+                verified_via,
+            ),
         )
     return get_user(conn, cursor.lastrowid)  # type: ignore[return-value]
+
+
+def get_user_by_identity(conn: sqlite3.Connection, identity_hash: str) -> User | None:
+    row = conn.execute("SELECT * FROM users WHERE identity_hash = ?", (identity_hash,)).fetchone()
+    return _user(row) if row else None
 
 
 def authenticate(conn: sqlite3.Connection, email: str, password: str) -> User:

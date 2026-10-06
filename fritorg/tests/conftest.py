@@ -22,7 +22,8 @@ PNG_1PX = bytes.fromhex(
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(data_dir=tmp_path / "data")
+    # Most tests use simple password accounts; test_bankid.py covers the BankID flows.
+    return Settings(data_dir=tmp_path / "data", bankid_mode="off")
 
 
 @pytest.fixture

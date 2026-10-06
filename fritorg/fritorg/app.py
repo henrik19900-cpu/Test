@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, api, discovery, mcp_server, web
+from . import __version__, api, bankid_web, discovery, identity, mcp_server, web
 from .config import Settings
 from .db import Database
 from .deps import client_ip
@@ -102,10 +102,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db = Database(settings.db_path)
     db.init()
     settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+    secret_key = identity.load_secret_key(settings)
+    provider = identity.create_provider(settings, secret_key)
     if settings.seed_demo:
         from .seed import seed_if_empty
 
-        seed_if_empty(db)
+        seed_if_empty(db, settings)
 
     app = FastAPI(
         title=f"{settings.site_name} API",
@@ -121,10 +123,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.limiter = RateLimiter()
     app.state.templates = templates
     app.state.mcp = mcp_server.McpServer(db, settings)
+    app.state.secret_key = secret_key
+    app.state.identity_provider = provider
 
     app.include_router(api.router)
     app.include_router(mcp_server.router)
     app.include_router(discovery.router)
+    app.include_router(bankid_web.router)
     app.include_router(web.router)
     app.mount("/static", StaticFiles(directory=PACKAGE_DIR / "static"), name="static")
     app.mount("/uploads", StaticFiles(directory=settings.uploads_dir), name="uploads")

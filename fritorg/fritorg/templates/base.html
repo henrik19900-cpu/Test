@@ -14,6 +14,7 @@
 </head>
 <body>
   <a class="skip-link" href="#innhold">Hopp til innhold</a>
+  {% if bankid_mode == "simulated" %}<div class="test-banner">Testmodus: BankID er simulert. Kontoer og innlogging her er ikke ekte.</div>{% endif %}
   <header class="site-header">
     <div class="container header-row">
       <a class="logo" href="/" aria-label="{{ site_name }} – til forsiden">

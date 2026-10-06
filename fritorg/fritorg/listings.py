@@ -93,6 +93,7 @@ class Listing:
     reviewed_at: str | None = None
     moderation_note: str | None = None
     seller_banned: bool = False
+    seller_verified: bool = False
     images: list[Image] = field(default_factory=list)
     rank: float | None = None
     # Seller statistics, only loaded for single-listing views (get_listing).
@@ -357,7 +358,10 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
 
 # --- Storage ----------------------------------------------------------------------------------
 
-_SELLER_COLUMNS = "u.name AS seller_name, u.created_at AS seller_since, u.banned_at AS seller_banned_at"
+_SELLER_COLUMNS = (
+    "u.name AS seller_name, u.created_at AS seller_since, u.banned_at AS seller_banned_at, "
+    "u.verified_at AS seller_verified_at"
+)
 _SELECT = f"SELECT l.*, {_SELLER_COLUMNS} FROM listings l JOIN users u ON u.id = l.user_id"
 
 
@@ -387,6 +391,7 @@ def _listing(row: sqlite3.Row) -> Listing:
         reviewed_at=row["reviewed_at"],
         moderation_note=row["moderation_note"],
         seller_banned=bool(row["seller_banned_at"]),
+        seller_verified=bool(row["seller_verified_at"]),
         rank=row["rank"] if "rank" in keys else None,
     )
 

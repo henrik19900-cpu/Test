@@ -78,7 +78,7 @@ def test_writing_requires_a_token(client):
     assert response.headers["www-authenticate"].startswith("Bearer")
     problem = response.json()
     assert problem["code"] == "unauthorized"
-    assert "/api/v1/auth/register" in problem["hint"]
+    assert "/api/v1/auth/device" in problem["hint"]
 
     bad = client.get("/api/v1/me", headers={"Authorization": "Bearer ft_not-a-real-token-at-all-123456"})
     assert bad.status_code == 401
@@ -321,6 +321,7 @@ def test_public_profile(client, auth):
     assert profile == {
         "id": listing["seller_id"],
         "name": "Kari Nordmann",
+        "verified": False,
         "member_since": profile["member_since"],
         "active_listings": 1,
         "url": f"http://testserver/bruker/{listing['seller_id']}",

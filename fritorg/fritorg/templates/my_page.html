@@ -13,6 +13,14 @@
   </form>
 </div>
 
+{% if needs_verification %}
+<section class="panel verify-panel" aria-labelledby="verify-title">
+  <h2 id="verify-title">Bekreft mobilnummeret ditt</h2>
+  <p>Før du kan legge ut annonser og sende meldinger, bekrefter du et norsk mobilnummer med en kode på SMS. Det gjør {{ site_name }} tryggere for alle, og hvert nummer kan bare brukes på én konto.</p>
+  <a class="button button-primary" href="/verifiser-telefon">Bekreft mobilnummer</a>
+</section>
+{% endif %}
+
 <section aria-labelledby="mine">
   <div class="section-head">
     <h2 id="mine" class="section-title">Mine annonser</h2>
@@ -101,7 +109,8 @@
 <section class="panel" aria-labelledby="konto">
   <h2 id="konto">Konto</h2>
   <dl class="facts">
-    <div><dt>Visningsnavn</dt><dd>{{ user.name }}{% if user.is_verified %} <span class="tag tag-verified">BankID-verifisert</span>{% endif %}</dd></div>
+    <div><dt>Visningsnavn</dt><dd>{{ user.name }}{% if user.is_verified %} <span class="tag tag-verified" title="{{ user.verification_title }}">{{ user.verification_label }}</span>{% endif %}</dd></div>
+    {% if verification_mode == "sms" %}<div><dt>Mobilnummer (vises aldri)</dt><dd>{% if user.phone_hint %}{{ user.phone_hint }} <span class="tag tag-verified">Bekreftet</span> <a class="small" href="/verifiser-telefon">Bytt nummer</a>{% else %}<span class="tag tag-new">Ikke bekreftet</span> <a href="/verifiser-telefon">Bekreft nå</a>{% endif %}</dd></div>{% endif %}
     <div><dt>E-post (vises aldri)</dt><dd>{{ user.email }}{% if mail_enabled %}{% if user.email_verified_at %} <span class="tag tag-verified">Bekreftet</span>{% else %} <span class="tag tag-new">Ikke bekreftet</span>{% endif %}{% endif %}</dd></div>
     <div><dt>Medlem siden</dt><dd>{{ user.created_at|date_no }}</dd></div>
   </dl>

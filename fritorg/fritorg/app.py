@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, api, bankid_web, discovery, identity, mailer, mcp_server, web
+from . import __version__, api, bankid_web, discovery, identity, mailer, mcp_server, phone, web
 from .config import Settings
 from .db import Database
 from .deps import client_ip
@@ -33,7 +33,8 @@ built to be just as easy for AI agents as for people.
 
 * **Reading is free and anonymous.** No API key, no CAPTCHA, CORS open to all origins.
 * **Writing needs a free personal token**: `POST /api/v1/auth/register` (or create one at `/min-side`), then send
-  `Authorization: Bearer <token>`.
+  `Authorization: Bearer <token>`. Before posting or messaging, the account confirms a Norwegian mobile number
+  with an SMS code (`POST /api/v1/me/phone`, then `POST /api/v1/me/phone/verify`): one account per number.
 * **MCP:** the same features as tools on the Model Context Protocol endpoint `/mcp` (Streamable HTTP).
 * **Bulk data:** `GET /api/v1/export/listings.ndjson` gives every public listing in one stream.
 * **Errors** use RFC 9457 problem details. `detail` is Norwegian (shown to people), `hint` is English (how to fix it).
@@ -104,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings.uploads_dir.mkdir(parents=True, exist_ok=True)
     secret_key = identity.load_secret_key(settings)
     provider = identity.create_provider(settings, secret_key)
+    sms = phone.create_sender(settings)
     if settings.seed_demo:
         from .seed import seed_if_empty
 
@@ -126,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.mcp = mcp_server.McpServer(db, settings, app.state)
     app.state.secret_key = secret_key
     app.state.identity_provider = provider
+    app.state.sms = sms
 
     app.include_router(api.router)
     app.include_router(mcp_server.router)

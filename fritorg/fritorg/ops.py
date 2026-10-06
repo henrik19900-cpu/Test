@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import identity
+from . import identity, phone
 from .config import Settings
 from .db import Database
 from .mailer import Mail, Mailer
@@ -48,7 +48,9 @@ class Check:
         return f"[{mark}] {self.text}"
 
 
-def doctor(settings: Settings, *, test_mail_to: str | None = None) -> list[Check]:
+def doctor(
+    settings: Settings, *, test_mail_to: str | None = None, test_sms_to: str | None = None
+) -> list[Check]:
     """Everything that should be in place before the site opens to the public."""
     checks: list[Check] = []
     base = settings.base_url or ""
@@ -66,20 +68,7 @@ def doctor(settings: Settings, *, test_mail_to: str | None = None) -> list[Check
                 None, "FRITORG_SECRET_KEY mangler: nøkkelen i datamappen brukes, så ta vare på den i backup"
             )
         )
-    if settings.bankid_mode == "oidc":
-        try:
-            provider = identity.OidcProvider(settings)
-            issuer = provider.metadata.get("issuer")
-            checks.append(Check(issuer == settings.bankid_issuer, f"BankID-leverandøren svarer ({issuer})"))
-        except Exception as exc:  # noqa: BLE001 - report every kind of failure
-            checks.append(Check(False, f"BankID-leverandøren svarer ikke: {exc}"))
-    else:
-        checks.append(
-            Check(
-                False,
-                f"FRITORG_BANKID er «{settings.bankid_mode}». Bruk «oidc» med en BankID-leverandør i produksjon",
-            )
-        )
+    checks += _verification_checks(settings, test_sms_to)
     if settings.smtp_host:
         checks.append(Check(True, f"E-post sendes via {settings.smtp_host}:{settings.smtp_port}"))
         if test_mail_to:
@@ -107,4 +96,59 @@ def doctor(settings: Settings, *, test_mail_to: str | None = None) -> list[Check
         Check(moderators > 0, f"{moderators} moderator(er). Lag en med: python -m fritorg make-admin E-POST")
     )
     checks.append(Check(True, f"Databasen svarer ({listings} annonser) i {settings.db_path}"))
+    return checks
+
+
+def _verification_checks(settings: Settings, test_sms_to: str | None) -> list[Check]:
+    """Every seller must be a verified person: by SMS code (default) or BankID."""
+    if settings.bankid_mode == "oidc":
+        try:
+            provider = identity.OidcProvider(settings)
+            issuer = provider.metadata.get("issuer")
+            return [Check(issuer == settings.bankid_issuer, f"BankID-leverandøren svarer ({issuer})")]
+        except Exception as exc:  # noqa: BLE001 - report every kind of failure
+            return [Check(False, f"BankID-leverandøren svarer ikke: {exc}")]
+    if settings.bankid_required:
+        return [
+            Check(
+                False,
+                f"FRITORG_BANKID er «{settings.bankid_mode}» (bare for utvikling). Bruk «oidc» med en "
+                "BankID-avtale, eller «off» og bekreftelse med SMS",
+            )
+        ]
+    if settings.verification != "sms":
+        return [
+            Check(
+                False,
+                f"FRITORG_VERIFICATION er «{settings.verification}»: hvem som helst kan legge ut annonser uten å "
+                "bekrefte hvem de er. Bruk «sms»",
+            )
+        ]
+    if settings.sms_provider == "console":
+        return [
+            Check(
+                False,
+                "SMS-koder sendes ikke, de vises på skjermen (FRITORG_SMS_PROVIDER=console). Koble til en "
+                "SMS-leverandør med «twilio» eller «http» (se deploy/.env.example)",
+            )
+        ]
+    try:
+        sender = phone.create_sender(settings)
+    except RuntimeError as exc:
+        return [Check(False, str(exc))]
+    checks = [
+        Check(True, f"Brukerne bekrefter mobilnummeret med SMS via {settings.sms_provider}"),
+        Check(
+            None if settings.sms_daily_limit > 20_000 else True,
+            f"Maks {settings.sms_daily_limit} SMS-koder per døgn (FRITORG_SMS_DAILY_LIMIT) og "
+            f"{settings.sms_per_ip_per_hour} per IP-adresse per time",
+        ),
+    ]
+    if test_sms_to and sender is not None:
+        try:
+            number = phone.normalize_mobile(test_sms_to)
+            sender.send(number, f"Test fra {settings.site_name}: SMS virker.")
+            checks.append(Check(True, f"Test-SMS sendt til {phone.phone_hint(number)}"))
+        except Exception as exc:  # noqa: BLE001
+            checks.append(Check(False, f"Kunne ikke sende SMS: {getattr(exc, 'message', exc)}"))
     return checks

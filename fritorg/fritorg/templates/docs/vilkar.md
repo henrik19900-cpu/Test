@@ -7,8 +7,10 @@
 ## Bruk av tjenesten
 
 - Det er gratis å bruke {{ site_name }}.
-- Du lager og logger inn på kontoen med BankID. Hver person kan ha én konto.
-- Du er ansvarlig for annonsene og meldingene du publiserer – også når en AI-agent publiserer dem på dine vegne.
+{% if settings.bankid_required %}- Du lager og logger inn på kontoen med BankID. Hver person kan ha én konto.
+{% elif settings.phone_verification_required %}- Du lager kontoen med e-post og passord. Før du legger ut annonser eller sender meldinger, bekrefter du et norsk mobilnummer som du selv disponerer, med en kode på SMS. Hvert nummer kan bare brukes på én konto.
+{% else %}- Du lager kontoen med e-post og passord.
+{% endif %}- Du er ansvarlig for annonsene og meldingene du publiserer – også når en AI-agent publiserer dem på dine vegne.
 - Ulovlige varer og tjenester, svindel, spam og støtende innhold er ikke tillatt og blir fjernet.
 - Kontoer som misbruker tjenesten, kan bli begrenset eller stengt.
 
@@ -20,9 +22,12 @@
 
 ## Personopplysninger
 
-- Fra BankID lagrer vi navnet ditt og tidspunktet du ble verifisert. Fødselsnummeret lagres aldri, bare en kryptografisk hash. Den brukes til å sikre at hver person har én konto.
-- Vi lagrer også e-postadressen din, visningsnavnet, annonsene og meldingene dine. Kontoer uten BankID (testinstallasjoner) har et passord, lagret som en kryptografisk hash.
+{% if settings.bankid_required %}- Fra BankID lagrer vi navnet ditt og tidspunktet du ble verifisert. Fødselsnummeret lagres aldri, bare en kryptografisk hash. Den brukes til å sikre at hver person har én konto.
+- Vi lagrer også e-postadressen din, visningsnavnet, annonsene og meldingene dine.
 - Bare visningsnavnet ditt (fornavn og forbokstav i etternavnet) vises offentlig. E-postadressen din deles aldri.
-- For å stoppe svindel sjekkes annonser og meldinger automatisk for kjente svindelmønstre. Meldinger med sterke svindelsignaler og saker som er rapportert, kan bli lest av en moderator.
+{% else %}- Vi lagrer e-postadressen din, visningsnavnet, annonsene og meldingene dine. Passordet lagres bare som en kryptografisk hash.
+{% if settings.phone_verification_required %}- Mobilnummeret ditt lagres ikke i klartekst. Vi lagrer en kryptografisk hash av det, for å sikre at hvert nummer bare brukes på én konto, og de tre siste sifrene, som bare du ser. For å sende koden gir vi nummeret til SMS-leverandøren vår, som behandler det på våre vegne.
+{% endif %}- Bare visningsnavnet ditt vises offentlig. E-postadressen{% if settings.phone_verification_required %} og mobilnummeret{% endif %} ditt deles aldri.
+{% endif %}- For å stoppe svindel sjekkes annonser og meldinger automatisk for kjente svindelmønstre. Meldinger med sterke svindelsignaler og saker som er rapportert, kan bli lest av en moderator.
 - Vi bruker bare nødvendige informasjonskapsler: innlogging, beskyttelse av skjemaer og korte bekreftelsesmeldinger. Ingen sporing og ingen reklame.
 - Du kan slette annonsene dine og hele kontoen din selv, på [Min side]({{ base }}/min-side). Da slettes også annonsene, bildene og meldingene dine.

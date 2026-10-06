@@ -860,6 +860,12 @@ def seed(db: Database, settings: Settings | None = None, *, force: bool = False)
                 "WHERE id = ?",
                 (joined, joined, user.id),
             )
+            if settings.phone_verification_required:
+                # Demo members count as having confirmed a number (none is stored, so real numbers stay free).
+                conn.execute(
+                    "UPDATE users SET verified_at = ?, verified_via = 'sms', phone_verified_at = ? WHERE id = ?",
+                    (joined, joined, user.id),
+                )
             accounts[email] = user.id
 
         now = utcnow()

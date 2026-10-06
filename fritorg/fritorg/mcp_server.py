@@ -22,9 +22,9 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import ValidationError
 
-from . import __version__, images, listings, messages, serializers, taxonomy, users
+from . import __version__, images, listings, messages, phone, serializers, taxonomy, users
 from .config import Settings
-from .deps import base_url
+from .deps import base_url, client_ip
 from .errors import AppError, Unauthorized, ValidationProblem
 from .listings import SORTS, SearchParams
 from .mailer import Mailer, notify_new_message
@@ -54,6 +54,10 @@ class ToolContext:
     base: str
     settings: Settings
     mailer: Mailer | None = None
+    sms: phone.SmsSender | None = None
+    limiter: Any = None
+    secret_key: str = ""
+    client_ip: str = "unknown"
 
 
 @dataclass
@@ -68,6 +72,8 @@ class Tool:
     read_only: bool = True
     destructive: bool = False
     idempotent: bool = True
+    # Only offered when this returns True for the server's settings (e.g. verify_phone).
+    condition: Callable[[Settings], bool] | None = None
 
     def describe(self) -> dict[str, Any]:
         return {
@@ -147,6 +153,17 @@ def _compact(listing: listings.Listing, base: str) -> dict[str, Any]:
 # --- Tool handlers ---------------------------------------------------------------------------
 
 
+def _ensure_verified(ctx: ToolContext) -> None:
+    try:
+        phone.ensure_verified(ctx.settings, ctx.user, ctx.base)
+    except phone.VerificationRequired as exc:
+        exc.hint = (
+            "Verify the user's Norwegian mobile number first: ask for the number and call verify_phone(phone=...), "
+            "then ask for the 6-digit SMS code and call verify_phone(code=...). Then retry."
+        )
+        raise
+
+
 def _search_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params = SearchParams(
         q=_str(args, "query"),
@@ -223,18 +240,69 @@ def _list_categories(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def _whoami(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     assert ctx.user is not None
-    return {
+    info = {
         "id": ctx.user.id,
         "name": ctx.user.name,
         "email": ctx.user.email,
         "member_since": ctx.user.created_at,
+        "verified": ctx.user.is_verified,
+        "verification": ctx.user.verification,
+        "verification_required": phone.verification_needed(ctx.settings, ctx.user),
         "unread_messages": messages.unread_count(ctx.conn, ctx.user.id),
         "profile_url": f"{ctx.base}/bruker/{ctx.user.id}",
     }
+    if info["verification_required"]:
+        info["next_steps"] = (
+            "Before creating listings or sending messages, verify the user's Norwegian mobile number with "
+            "verify_phone: ask for the number, call verify_phone(phone=...), then ask for the SMS code and call "
+            "verify_phone(code=...)."
+        )
+    return info
+
+
+def _verify_phone(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    if ctx.sms is None:
+        raise ValidationProblem("Bekreftelse med mobilnummer er ikke slått på her.")
+    code, number = _str(args, "code"), _str(args, "phone")
+    if code:
+        phone.confirm(ctx.conn, ctx.secret_key, ctx.user.id, code)
+        return {
+            "verified": True,
+            "verification": "phone",
+            "next_steps": "Done. The user can now create listings and send messages.",
+        }
+    if not number:
+        raise ValidationProblem.field(
+            "phone",
+            "Oppgi mobilnummeret (phone) eller koden fra SMS-en (code).",
+            hint="Call with phone first; Fritorg sends a code by SMS. Then call again with code.",
+        )
+    sent = phone.start(
+        ctx.conn,
+        ctx.sms,
+        ctx.secret_key,
+        ctx.settings,
+        ctx.user.id,
+        number,
+        limiter=ctx.limiter,
+        client_ip=ctx.client_ip,
+    )
+    result: dict[str, Any] = {
+        "status": "code_sent",
+        "phone_hint": sent.phone_hint,
+        "expires_in": sent.expires_in,
+        "next_steps": "Ask the user for the 6-digit code in the SMS and call verify_phone(code=...).",
+    }
+    if sent.test_code:
+        result["test_code"] = sent.test_code
+        result["note"] = "Development server: no SMS is sent, use test_code."
+    return result
 
 
 def _create_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     assert ctx.user is not None
+    _ensure_verified(ctx)
     try:
         body = ListingCreate.model_validate({k: v for k, v in args.items() if v is not None})
     except ValidationError as exc:
@@ -271,9 +339,10 @@ def _update_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     except ValidationError as exc:
         raise _pydantic_problem(exc) from None
     assert listing_id is not None
-    listing = listings.update_listing(
-        ctx.conn, ctx.user.id, listing_id, body.model_dump(exclude_unset=True), is_admin=ctx.user.is_admin
-    )
+    changes = body.model_dump(exclude_unset=True)
+    if not (set(changes) <= {"status"} and changes.get("status") in ("sold", "inactive")):
+        _ensure_verified(ctx)
+    listing = listings.update_listing(ctx.conn, ctx.user.id, listing_id, changes, is_admin=ctx.user.is_admin)
     return serializers.listing_detail(listing, ctx.base, owner_view=True)
 
 
@@ -290,6 +359,7 @@ def _add_listing_image(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]
     assert ctx.user is not None
     listing_id = _int(args, "listing_id", required=True)
     assert listing_id is not None
+    _ensure_verified(ctx)
     encoded = _str(args, "image_base64")
     if not encoded:
         raise ValidationProblem.field("image_base64", "mangler")
@@ -320,6 +390,7 @@ def _my_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def _send_message(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     assert ctx.user is not None
+    _ensure_verified(ctx)
     text = _str(args, "message") or ""
     listing_id = _int(args, "listing_id")
     conversation_id = _int(args, "conversation_id")
@@ -522,6 +593,26 @@ TOOLS: list[Tool] = [
         requires_auth=True,
     ),
     Tool(
+        "verify_phone",
+        "Verify mobile number",
+        "Confirm the user's Norwegian mobile number by SMS code. Required once per account before it can create "
+        "listings or send messages; each number can belong to one account only. Step 1: ask the user for their "
+        "number and call with `phone`. Step 2: ask for the 6-digit code they received and call with `code`.",
+        {
+            "phone": {
+                "type": "string",
+                "maxLength": 20,
+                "description": "Norwegian mobile number, e.g. '912 34 567' or '+47 912 34 567'.",
+            },
+            "code": {"type": "string", "maxLength": 12, "description": "The 6-digit code from the SMS."},
+        },
+        _verify_phone,
+        requires_auth=True,
+        read_only=False,
+        idempotent=False,
+        condition=lambda settings: settings.phone_verification_required,
+    ),
+    Tool(
         "create_listing",
         "Create listing",
         "Publish a listing for the user (free). Confirm the details with the user first. Listings created here are "
@@ -665,7 +756,7 @@ TOOLS: list[Tool] = [
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
 
 
-def instructions(base: str, user: users.User | None) -> str:
+def instructions(base: str, user: users.User | None, settings: Settings) -> str:
     lines = [
         f"Fritorg ({base}) is a free Norwegian classifieds marketplace, an open alternative to finn.no that "
         "welcomes AI agents.",
@@ -683,11 +774,29 @@ def instructions(base: str, user: users.User | None) -> str:
             f"You are connected as {user.name}. You can create and edit this user's listings and message sellers "
             "on their behalf. Always confirm with the user before publishing a listing or sending a message."
         )
-    else:
+        if phone.verification_needed(settings, user):
+            lines.append(
+                "This account has not confirmed a mobile number yet, so creating listings and sending messages "
+                "will fail. Ask the user for their Norwegian mobile number and use verify_phone (two steps: phone, "
+                "then the 6-digit code from the SMS)."
+            )
+    elif settings.bankid_required:
         lines.append(
             "This connection is anonymous and read-only. To create listings or contact sellers, the user logs in "
             f"with BankID at {base}/min-side (a free account is created on first login), creates an API token there "
             "and reconnects with the header 'Authorization: Bearer <token>' or the personal MCP URL shown there."
+        )
+    else:
+        lines.append(
+            "This connection is anonymous and read-only. To create listings or contact sellers, the user creates a "
+            f"free account at {base}/registrer, creates an API token at {base}/min-side and reconnects with the "
+            "header 'Authorization: Bearer <token>' or the personal MCP URL shown there."
+            + (
+                " Every account confirms a Norwegian mobile number by SMS code before posting (one account per "
+                "number)."
+                if settings.phone_verification_required
+                else ""
+            )
         )
     lines.append(
         f"For bulk data use {base}/api/v1/export/listings.ndjson instead of paging through searches."
@@ -722,10 +831,17 @@ class McpServer:
         self.settings = settings
         self.state = state  # app.state: gives access to the mailer
 
-    def visible_tools(self, user: users.User | None) -> list[Tool]:
-        return [tool for tool in TOOLS if user is not None or not tool.requires_auth]
+    def available(self, tool: Tool) -> bool:
+        return tool.condition is None or tool.condition(self.settings)
 
-    def handle(self, message: Any, user: users.User | None, base: str) -> dict[str, Any] | None:
+    def visible_tools(self, user: users.User | None) -> list[Tool]:
+        return [
+            tool for tool in TOOLS if (user is not None or not tool.requires_auth) and self.available(tool)
+        ]
+
+    def handle(
+        self, message: Any, user: users.User | None, base: str, ip: str = "unknown"
+    ) -> dict[str, Any] | None:
         if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
             msg_id = message.get("id") if isinstance(message, dict) else None
             return _error(msg_id, INVALID_REQUEST, "Invalid Request: expected a JSON-RPC 2.0 object")
@@ -751,7 +867,7 @@ class McpServer:
                         "version": __version__,
                         "websiteUrl": base,
                     },
-                    "instructions": instructions(base, user),
+                    "instructions": instructions(base, user, self.settings),
                 },
             )
         if method == "ping":
@@ -759,7 +875,7 @@ class McpServer:
         if method == "tools/list":
             return _result(msg_id, {"tools": [tool.describe() for tool in self.visible_tools(user)]})
         if method == "tools/call":
-            return self._call_tool(msg_id, params, user, base)
+            return self._call_tool(msg_id, params, user, base, ip)
         if method == "resources/list":
             return _result(msg_id, {"resources": []})
         if method == "resources/templates/list":
@@ -771,12 +887,12 @@ class McpServer:
         return _error(msg_id, METHOD_NOT_FOUND, f"Method not found: {method}")
 
     def _call_tool(
-        self, msg_id: Any, params: dict[str, Any], user: users.User | None, base: str
+        self, msg_id: Any, params: dict[str, Any], user: users.User | None, base: str, ip: str
     ) -> dict[str, Any]:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         tool = TOOLS_BY_NAME.get(name) if isinstance(name, str) else None
-        if tool is None:
+        if tool is None or not self.available(tool):
             return _error(msg_id, INVALID_PARAMS, f"Unknown tool: {name}")
         if not isinstance(arguments, dict):
             return _error(msg_id, INVALID_PARAMS, "arguments must be an object")
@@ -809,6 +925,10 @@ class McpServer:
                 base=base,
                 settings=self.settings,
                 mailer=getattr(self.state, "mailer", None),
+                sms=getattr(self.state, "sms", None),
+                limiter=getattr(self.state, "limiter", None),
+                secret_key=getattr(self.state, "secret_key", ""),
+                client_ip=ip,
             )
             try:
                 payload = tool.handler(ctx, arguments)
@@ -832,13 +952,13 @@ class McpServer:
             },
         )
 
-    def process(self, payload: Any, user: users.User | None, base: str) -> Any:
+    def process(self, payload: Any, user: users.User | None, base: str, ip: str = "unknown") -> Any:
         if isinstance(payload, list):  # JSON-RPC batch (allowed in protocol 2025-03-26)
             if not payload:
                 return _error(None, INVALID_REQUEST, "Empty batch")
-            replies = [reply for item in payload if (reply := self.handle(item, user, base)) is not None]
+            replies = [reply for item in payload if (reply := self.handle(item, user, base, ip)) is not None]
             return replies or None
-        return self.handle(payload, user, base)
+        return self.handle(payload, user, base, ip)
 
 
 # --- HTTP transport -------------------------------------------------------------------------------
@@ -883,7 +1003,7 @@ async def _handle_post(request: Request, path_token: str | None) -> Response:
         user = await run_in_threadpool(_user_for_token, server, token)
         if user is None:
             return _unauthorized()
-    reply = await run_in_threadpool(server.process, payload, user, base)
+    reply = await run_in_threadpool(server.process, payload, user, base, client_ip(request))
     if reply is None:
         return Response(status_code=202)
     return JSONResponse(reply)

@@ -231,7 +231,7 @@ def test_new_accounts_get_a_lower_quota(app, client, auth):
 
 
 def _moderator(app, client):
-    data = register(client, email="mod@example.no", name="Moderator")
+    data = register(client, email="mod@example.no", name="Mona Moe")
     with app.state.db.session() as conn:
         users.set_admin(conn, data["account"]["id"])
     web_login(client, "mod@example.no")

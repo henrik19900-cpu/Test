@@ -14,7 +14,8 @@
 </head>
 <body>
   <a class="skip-link" href="#innhold">Hopp til innhold</a>
-  {% if bankid_mode == "simulated" %}<div class="test-banner">Testmodus: BankID er simulert. Kontoer og innlogging her er ikke ekte.</div>{% endif %}
+  {% if bankid_mode == "simulated" %}<div class="test-banner">Testmodus: BankID er simulert. Kontoer og innlogging her er ikke ekte.</div>
+  {% elif sms_test_mode %}<div class="test-banner">Testmodus: SMS-koder sendes ikke, men vises på skjermen. Kontoer her er ikke bekreftet.</div>{% endif %}
   <header class="site-header">
     <div class="container header-row">
       <a class="logo" href="/" aria-label="{{ site_name }} – til forsiden">

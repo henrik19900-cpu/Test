@@ -7,7 +7,7 @@
 - **Uten nøkkel:** søke i og lese alle offentlige annonser, hente kategorier og rapportere mistenkelige annonser.
 - **Med personlig nøkkel:** legge ut, endre og slette annonser, laste opp bilder og sende og lese meldinger – på vegne av deg.
 
-Alle kontoer tilhører en ekte person som har logget inn med BankID. En agent handler alltid på vegne av en slik person og kan aldri lage kontoer selv. Det du lager via en AI-agent, merkes med «via AI-agent», slik at kjøpere og selgere vet hvem de snakker med.
+{% if settings.bankid_required %}Alle kontoer tilhører en ekte person som har logget inn med BankID. En agent handler alltid på vegne av en slik person og kan aldri lage kontoer selv.{% elif settings.phone_verification_required %}Før en konto kan legge ut annonser eller sende meldinger, bekrefter eieren et norsk mobilnummer med en kode på SMS, og hvert nummer kan bare brukes på én konto. En agent handler alltid på vegne av en slik person – og kan hjelpe til med bekreftelsen (se under).{% else %}En agent handler alltid på vegne av en person med konto.{% endif %} Det du lager via en AI-agent, merkes med «via AI-agent», slik at kjøpere og selgere vet hvem de snakker med.
 
 ## Koble til med MCP (anbefalt)
 
@@ -25,7 +25,7 @@ Med nøkkel, slik at assistenten også kan legge ut annonser og sende meldinger:
 
 ### Claude.ai, Claude Desktop og ChatGPT
 
-Legg til en egendefinert connector («custom connector») med adressen over. For full tilgang logger du inn med BankID på [Min side]({{ base }}/min-side), lager en nøkkel og bruker den personlige adressen du får der: `{{ base }}/mcp/DIN_NØKKEL`. Adressen fungerer som et passord, så ikke del den.
+Legg til en egendefinert connector («custom connector») med adressen over. For full tilgang logger du inn{% if settings.bankid_required %} med BankID{% endif %} på [Min side]({{ base }}/min-side), lager en nøkkel og bruker den personlige adressen du får der: `{{ base }}/mcp/DIN_NØKKEL`. Adressen fungerer som et passord, så ikke del den.
 
 ### Cursor, VS Code og andre MCP-klienter
 
@@ -71,7 +71,7 @@ Elbiler fra 2019 eller nyere:
 
     curl "{{ base }}/api/v1/listings?category=bil&attr=fuel:electric&attr=year:2019.."
 
-Be brukeren om tilgang («koble til»). Agenten får en lenke som brukeren åpner, logger inn med BankID og godkjenner:
+Be brukeren om tilgang («koble til»). Agenten får en lenke som brukeren åpner, logger inn{% if settings.bankid_required %} med BankID{% endif %} og godkjenner:
 
     curl -X POST {{ base }}/api/v1/auth/device \
       -H "Content-Type: application/json" \
@@ -83,7 +83,19 @@ Gi brukeren `verification_uri_complete` fra svaret. Spør deretter hvert femte s
       -H "Content-Type: application/json" \
       -d '{"device_code": "KODEN_FRA_SVARET"}'
 
-Legg ut en annonse:
+{% if settings.phone_verification_required %}Har ikke kontoen bekreftet et mobilnummer ennå (`verification_required` i `GET /api/v1/me`), spør du brukeren om nummeret og deretter om koden fra SMS-en. Med MCP bruker du verktøyet `verify_phone`. Med API-et:
+
+    curl -X POST {{ base }}/api/v1/me/phone \
+      -H "Authorization: Bearer DIN_NØKKEL" \
+      -H "Content-Type: application/json" \
+      -d '{"phone": "912 34 567"}'
+
+    curl -X POST {{ base }}/api/v1/me/phone/verify \
+      -H "Authorization: Bearer DIN_NØKKEL" \
+      -H "Content-Type: application/json" \
+      -d '{"code": "123456"}'
+
+{% endif %}Legg ut en annonse:
 
     curl -X POST {{ base }}/api/v1/listings \
       -H "Authorization: Bearer DIN_NØKKEL" \

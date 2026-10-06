@@ -108,7 +108,7 @@ def test_moderation_decisions_are_mailed(app, client, outbox):
     )
     assert listing["status"] == "review"
 
-    register(client, email="mod@example.no", name="Moderator")
+    register(client, email="mod@example.no", name="Mona Moe")
     with app.state.db.session() as conn:
         users.set_admin(conn, users.get_user_by_email(conn, "mod@example.no").id)
     web_login(client, "mod@example.no")

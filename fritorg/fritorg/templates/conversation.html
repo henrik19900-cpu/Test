@@ -29,12 +29,16 @@
   {% endfor %}
 </ol>
 
+{% if needs_verification %}
+<p class="notice">Bekreft mobilnummeret ditt for å svare. <a href="/verifiser-telefon?neste=/meldinger/{{ conversation.id }}">Bekreft nå</a> – det tar under ett minutt.</p>
+{% else %}
 <form method="post" action="/meldinger/{{ conversation.id }}" class="reply-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="reply">Svar</label>
   <textarea id="reply" name="message" rows="4" required maxlength="5000"></textarea>
   <button type="submit" class="button button-primary">Send</button>
 </form>
+{% endif %}
 <p class="small muted">Tips: Avtal gjerne henting og betaling ansikt til ansikt. Send aldri penger til ukjente før du har sett varen, og oppgi aldri kortnummer eller BankID for å motta penger. <a href="/trygg-handel">Les mer om trygg handel</a>.</p>
 
 <details class="report">

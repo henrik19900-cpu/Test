@@ -14,8 +14,9 @@ De fleste handler trygt på {{ site_name }}. Svindlere bruker likevel de samme t
 
 ## Slik beskytter {{ site_name }} deg
 
-- **BankID.** Alle kontoer er knyttet til en person som har logget inn med BankID, og hver person kan bare ha én konto. Visningsnavnet kommer fra BankID.
-- **Automatisk kontroll.** Annonser med kjente svindelmønstre blir sjekket av en moderator før de blir synlige.
+{% if settings.bankid_required %}- **BankID.** Alle kontoer er knyttet til en person som har logget inn med BankID, og hver person kan bare ha én konto. Visningsnavnet kommer fra BankID.
+{% elif settings.phone_verification_required %}- **Bekreftet mobilnummer.** Alle som legger ut annonser eller sender meldinger, har bekreftet et norsk mobilnummer med en kode på SMS. Norske mobilabonnement er registrert på en person, og hvert nummer kan bare brukes på én konto. Selgere har merket «Mobilnummer bekreftet». {{ site_name }} ringer deg aldri og spør aldri om koden.
+{% endif %}- **Automatisk kontroll.** Annonser med kjente svindelmønstre blir sjekket av en moderator før de blir synlige.
 - **Varsler i meldinger.** Meldinger med betalingslenker, forespørsler om koder og lignende får en tydelig advarsel.
 - **Stjålne bilder og kopiert tekst** fra andre selgere oppdages automatisk.
 - **Nye kontoer** kan legge ut færre annonser og sende færre meldinger det første døgnet.

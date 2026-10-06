@@ -48,6 +48,7 @@ def test_security_headers(tmp_path):
         Settings(
             data_dir=tmp_path,
             bankid_mode="off",
+            verification="none",
             base_url="https://fritorg.example",
             contact_email="sikkerhet@fritorg.example",
         )

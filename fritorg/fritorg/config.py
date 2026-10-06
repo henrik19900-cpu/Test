@@ -48,9 +48,27 @@ class Settings:
     new_account_max_listings_per_day: int = 5
     new_account_max_messages_per_day: int = 20
 
-    # Identity: "simulated" (development: a fake BankID page), "oidc" (real BankID through an
-    # OpenID Connect provider such as BankID, Signicat or Idura/Criipto) or "off" (email + password).
-    bankid_mode: str = "simulated"
+    # How people are verified before they can post listings or send messages:
+    # "sms" (default): email + password, plus a Norwegian mobile number confirmed by SMS code.
+    #   Needs no special agreement, only an account with an SMS provider.
+    # "none": no verification (local experiments and tests).
+    verification: str = "sms"
+    sms_provider: str = "console"  # "console" (development: the code is shown on screen), "twilio" or "http"
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_from: str | None = None
+    # Template for "http": e.g. https://provider.example/send?to={to}&text={message}
+    sms_url: str | None = None
+    sms_method: str = "GET"
+    allow_console_sms: bool = False
+    # Caps on SMS costs (and on abuse such as SMS pumping): codes per IP address per hour and per day in total.
+    sms_per_ip_per_hour: int = 10
+    sms_daily_limit: int = 2000
+
+    # BankID (optional, needs an agreement with BankID or a broker): "oidc" (real BankID through an
+    # OpenID Connect provider such as BankID, Signicat or Idura/Criipto), "simulated" (development)
+    # or "off". When on, accounts are created and logged into with BankID instead.
+    bankid_mode: str = "off"
     bankid_issuer: str | None = None
     bankid_client_id: str | None = None
     bankid_client_secret: str | None = None
@@ -87,6 +105,10 @@ class Settings:
         return self.bankid_mode != "off"
 
     @property
+    def phone_verification_required(self) -> bool:
+        return not self.bankid_required and self.verification == "sms"
+
+    @property
     def cookies_secure(self) -> bool:
         if self.secure_cookies is not None:
             return self.secure_cookies
@@ -118,7 +140,17 @@ class Settings:
             new_account_max_messages_per_day=_env_int(
                 "NEW_ACCOUNT_MAX_MESSAGES_PER_DAY", defaults.new_account_max_messages_per_day
             ),
-            bankid_mode=(_env("BANKID", defaults.bankid_mode) or "simulated").lower(),
+            verification=(_env("VERIFICATION", defaults.verification) or "sms").lower(),
+            sms_provider=(_env("SMS_PROVIDER", defaults.sms_provider) or "console").lower(),
+            twilio_account_sid=_env("TWILIO_ACCOUNT_SID"),
+            twilio_auth_token=_env("TWILIO_AUTH_TOKEN"),
+            twilio_from=_env("TWILIO_FROM"),
+            sms_url=_env("SMS_URL"),
+            sms_method=(_env("SMS_METHOD", defaults.sms_method) or "GET").upper(),
+            allow_console_sms=_env_bool("ALLOW_CONSOLE_SMS", False),
+            sms_per_ip_per_hour=_env_int("SMS_PER_IP_PER_HOUR", defaults.sms_per_ip_per_hour),
+            sms_daily_limit=_env_int("SMS_DAILY_LIMIT", defaults.sms_daily_limit),
+            bankid_mode=(_env("BANKID", defaults.bankid_mode) or "off").lower(),
             bankid_issuer=(_env("BANKID_ISSUER") or "").rstrip("/") or None,
             bankid_client_id=_env("BANKID_CLIENT_ID"),
             bankid_client_secret=_env("BANKID_CLIENT_SECRET"),

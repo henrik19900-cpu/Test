@@ -27,7 +27,11 @@ CREATE TABLE users (
     verified_name TEXT,
     verified_at TEXT,
     verified_via TEXT,
-    email_verified_at TEXT
+    email_verified_at TEXT,
+    -- Verified Norwegian mobile number: only a keyed hash (one account per number) and a hint.
+    phone_hash TEXT UNIQUE,
+    phone_hint TEXT,
+    phone_verified_at TEXT
 );
 
 CREATE TABLE sessions (
@@ -166,6 +170,21 @@ CREATE TABLE pending_identities (
     return_to TEXT,
     created_at TEXT NOT NULL
 );
+
+-- SMS codes for verifying a mobile number. The number itself is never stored.
+CREATE TABLE phone_codes (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    phone_hash TEXT NOT NULL,
+    phone_hint TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+);
+CREATE INDEX idx_phone_codes_user ON phone_codes(user_id, created_at);
+CREATE INDEX idx_phone_codes_phone ON phone_codes(phone_hash, created_at);
 
 -- Device authorization for agents: the agent shows a code, a logged-in person approves it.
 CREATE TABLE device_grants (

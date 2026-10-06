@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-from . import fraud, taxonomy
+from . import fraud, taxonomy, users
 from .db import transaction
 from .errors import Forbidden, NotFound, RateLimited, ValidationProblem
 from .taxonomy import (
@@ -101,6 +101,7 @@ class Listing:
     moderation_note: str | None = None
     seller_banned: bool = False
     seller_verified: bool = False
+    seller_verified_via: str | None = None
     images: list[Image] = field(default_factory=list)
     rank: float | None = None
     # Seller statistics, only loaded for single-listing views (get_listing).
@@ -145,6 +146,18 @@ class Listing:
     @property
     def seller_is_new(self) -> bool:
         return self.seller_since > iso_ago(days=fraud.NEW_ACCOUNT_DAYS)
+
+    @property
+    def seller_verification(self) -> str | None:
+        return users.verification_kind(self.seller_verified_via) if self.seller_verified else None
+
+    @property
+    def seller_verification_label(self) -> str | None:
+        return users.verification_label(self.seller_verified_via) if self.seller_verified else None
+
+    @property
+    def seller_verification_title(self) -> str | None:
+        return users.verification_title(self.seller_verified_via) if self.seller_verified else None
 
     @property
     def safety_warnings(self) -> list[str]:
@@ -367,7 +380,7 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
 
 _SELLER_COLUMNS = (
     "u.name AS seller_name, u.created_at AS seller_since, u.banned_at AS seller_banned_at, "
-    "u.verified_at AS seller_verified_at"
+    "u.verified_at AS seller_verified_at, u.verified_via AS seller_verified_via"
 )
 _SELECT = f"SELECT l.*, {_SELLER_COLUMNS} FROM listings l JOIN users u ON u.id = l.user_id"
 
@@ -399,6 +412,7 @@ def _listing(row: sqlite3.Row) -> Listing:
         moderation_note=row["moderation_note"],
         seller_banned=bool(row["seller_banned_at"]),
         seller_verified=bool(row["seller_verified_at"]),
+        seller_verified_via=row["seller_verified_via"] if row["seller_verified_at"] else None,
         rank=row["rank"] if "rank" in keys else None,
     )
 

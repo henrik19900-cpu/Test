@@ -1026,6 +1026,10 @@ details summary {
   margin-inline: auto;
 }
 
+.narrow > .panel + .panel {
+  margin-top: 1rem;
+}
+
 .page-head {
   display: flex;
   justify-content: space-between;
@@ -1081,6 +1085,16 @@ details summary {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.verify-panel {
+  margin-bottom: 2rem;
+  border-color: var(--accent);
+  border-left-width: 4px;
+}
+
+.verify-panel h2 {
+  margin-top: 0;
 }
 
 .token-box {

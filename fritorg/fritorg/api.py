@@ -10,10 +10,10 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Up
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import identity, images, listings, messages, serializers, taxonomy, users
+from . import identity, images, listings, messages, phone, serializers, taxonomy, users
 from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
-from .errors import Forbidden, NotFound, RateLimited, Unauthorized
+from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized
 from .listings import SORTS, SearchParams
 from .mailer import notify_new_message, send_verification
 from .ratelimit import RateLimiter
@@ -33,6 +33,9 @@ from .schemas import (
     ListingUpdate,
     LoginIn,
     NewTokenOut,
+    PhoneCodeIn,
+    PhoneCodeOut,
+    PhoneIn,
     Problem,
     RegisterIn,
     ReplyIn,
@@ -60,8 +63,8 @@ Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 AUTH_HINT = (
-    "Send 'Authorization: Bearer <token>'. To get one, start POST /api/v1/auth/device and let your user approve "
-    "the link (they log in with BankID), or ask them to create a token at /min-side."
+    "Send 'Authorization: Bearer <token>'. To get one, start POST /api/v1/auth/device and give your user the link "
+    "to approve (they log in, or create a free account), or ask them to create a token at /min-side."
 )
 
 
@@ -99,7 +102,7 @@ OptionalUser = Annotated[users.User | None, Depends(optional_user)]
 CurrentUser = Annotated[users.User, Depends(require_user)]
 
 
-def _account(conn: sqlite3.Connection, user: users.User) -> dict:
+def _account(conn: sqlite3.Connection, user: users.User, settings: Settings) -> dict:
     counts = {status: 0 for status in taxonomy.STATUSES}
     for row in conn.execute(
         "SELECT status, COUNT(*) AS n FROM listings WHERE user_id = ? GROUP BY status", (user.id,)
@@ -110,6 +113,9 @@ def _account(conn: sqlite3.Connection, user: users.User) -> dict:
         "name": user.name,
         "email": user.email,
         "verified": user.is_verified,
+        "verification": user.verification,
+        "verification_required": phone.verification_needed(settings, user),
+        "phone_hint": user.phone_hint,
         "email_verified": user.email_verified_at is not None,
         "member_since": user.created_at,
         "unread_messages": messages.unread_count(conn, user.id),
@@ -289,8 +295,9 @@ def create_listing(
     """Create a listing (free). Add images afterwards with POST /api/v1/listings/{id}/images.
 
     Listings with strong fraud signals get status `review` and are published after a manual check;
-    `moderation.reasons` explains why.
+    `moderation.reasons` explains why. Needs a verified mobile number (403 `verification_required`).
     """
+    phone.ensure_verified(settings, user, base_url(request))
     listing_id = listings.create_listing(
         conn,
         user.id,
@@ -308,10 +315,17 @@ def create_listing(
     "/listings/{listing_id}", response_model=ListingOut, tags=["listings"], summary="Update a listing"
 )
 def update_listing(
-    listing_id: int, body: ListingUpdate, request: Request, conn: Conn, user: CurrentUser
+    listing_id: int,
+    body: ListingUpdate,
+    request: Request,
+    conn: Conn,
+    user: CurrentUser,
+    settings: SettingsDep,
 ) -> dict:
     """Change some fields. Use status 'sold' when the item is sold and 'inactive' to hide it."""
     changes = body.model_dump(exclude_unset=True)
+    if not _only_hides(changes):
+        phone.ensure_verified(settings, user, base_url(request))
     listing = listings.update_listing(conn, user.id, listing_id, changes, is_admin=user.is_admin)
     return serializers.listing_detail(listing, base_url(request), owner_view=True)
 
@@ -341,6 +355,7 @@ def upload_image(
         str | None, Form(description="Short description of the image (accessibility).")
     ] = None,
 ) -> dict:
+    phone.ensure_verified(settings, user, base_url(request))
     data = file.file.read(settings.max_image_bytes + 1)
     image = images.add_image(
         conn,
@@ -404,6 +419,7 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
         "id": user.id,
         "name": user.name,
         "verified": user.is_verified,
+        "verification": user.verification,
         "member_since": user.created_at,
         "active_listings": active,
         "url": f"{base_url(request)}/bruker/{user.id}",
@@ -437,7 +453,8 @@ def export_listings(request: Request) -> StreamingResponse:
 def register(body: RegisterIn, request: Request, conn: Conn, settings: SettingsDep) -> dict:
     """Create a free account with email and password and get an API token in one step.
 
-    Only available when BankID is turned off. With BankID (the default), use the device flow instead.
+    The account must then confirm a Norwegian mobile number (POST /api/v1/me/phone) before it can post or
+    send messages. Not available on servers that use BankID: use the device flow there.
     """
     _bankid_only(request)
     limiter = request.app.state.limiter
@@ -455,14 +472,14 @@ def register(body: RegisterIn, request: Request, conn: Conn, settings: SettingsD
     send_verification(
         request.app.state.mailer, request.app.state.secret_key, base, user.id, user.name, user.email
     )
-    return {"account": _account(conn, user), "token": _new_token(token, record, base)}
+    return {"account": _account(conn, user, settings), "token": _new_token(token, record, base)}
 
 
 @router.post(
     "/auth/token", status_code=201, response_model=AuthOut, tags=["account"], summary="Log in, get a token"
 )
 def login(body: LoginIn, request: Request, conn: Conn, settings: SettingsDep) -> dict:
-    """Get a token with email and password. Only available when BankID is turned off; use the device flow."""
+    """Get a token with email and password. Not available on servers that use BankID: use the device flow."""
     _bankid_only(request)
     _limit(
         request.app.state.limiter,
@@ -474,7 +491,10 @@ def login(body: LoginIn, request: Request, conn: Conn, settings: SettingsDep) ->
     )
     user = users.authenticate(conn, body.email, body.password)
     token, record = users.create_api_token(conn, user.id, body.token_name)
-    return {"account": _account(conn, user), "token": _new_token(token, record, base_url(request))}
+    return {
+        "account": _account(conn, user, request.app.state.settings),
+        "token": _new_token(token, record, base_url(request)),
+    }
 
 
 @router.post(
@@ -488,7 +508,7 @@ def device_start(body: DeviceStartIn, request: Request, conn: Conn) -> dict:
     """The easiest way for an agent to get a token (OAuth 2.0 device flow, RFC 8628).
 
     1. Call this endpoint. 2. Give your user `verification_uri_complete` (or the URL and `user_code`).
-    They log in with BankID (a free account is created if needed) and approve.
+    They log in (or create a free account) and approve.
     3. Poll POST /api/v1/auth/device/token with the `device_code` every `interval` seconds.
     """
     _limit(
@@ -526,12 +546,75 @@ def device_token(body: DeviceTokenIn, request: Request, conn: Conn) -> dict:
     if user is None or user.banned_at:
         raise Unauthorized("Kontoen finnes ikke lenger.")
     token, record = users.create_api_token(conn, user.id, identity.grant_client_name(conn, body.device_code))
-    return {"account": _account(conn, user), "token": _new_token(token, record, base_url(request))}
+    return {
+        "account": _account(conn, user, request.app.state.settings),
+        "token": _new_token(token, record, base_url(request)),
+    }
 
 
 @router.get("/me", response_model=AccountOut, tags=["account"], summary="Your account")
-def me(conn: Conn, user: CurrentUser) -> dict:
-    return _account(conn, user)
+def me(conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
+    """Your account. If `verification_required` is true, verify a mobile number before posting or messaging."""
+    return _account(conn, user, settings)
+
+
+def _sms_sender(request: Request) -> phone.SmsSender:
+    sender = request.app.state.sms
+    if sender is None:
+        raise NotFound(
+            "Bekreftelse med mobilnummer er ikke slått på her.",
+            hint="This server does not verify phone numbers; no verification is needed.",
+        )
+    return sender
+
+
+@router.post(
+    "/me/phone",
+    status_code=202,
+    response_model=PhoneCodeOut,
+    tags=["account"],
+    summary="Verify your mobile number (1/2)",
+)
+def start_phone_verification(
+    body: PhoneIn, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
+) -> dict:
+    """Send a 6-digit code by SMS to the user's Norwegian mobile number.
+
+    Every account must confirm a number before it can create listings or send messages, and each number can
+    belong to one account only. Ask your user for their number, then for the code they receive.
+    """
+    sent = phone.start(
+        conn,
+        _sms_sender(request),
+        request.app.state.secret_key,
+        settings,
+        user.id,
+        body.phone,
+        limiter=request.app.state.limiter,
+        client_ip=client_ip(request),
+    )
+    return {
+        "status": "code_sent",
+        "phone_hint": sent.phone_hint,
+        "expires_in": sent.expires_in,
+        "next": f'Ask the user for the code and POST {base_url(request)}/api/v1/me/phone/verify with {{"code": "..."}}.',
+        "test_code": sent.test_code,
+    }
+
+
+@router.post(
+    "/me/phone/verify", response_model=AccountOut, tags=["account"], summary="Verify your mobile number (2/2)"
+)
+def confirm_phone_verification(
+    body: PhoneCodeIn, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
+) -> dict:
+    """Confirm the code from the SMS. Five wrong attempts invalidate the code."""
+    _sms_sender(request)
+    phone.confirm(conn, request.app.state.secret_key, user.id, body.code)
+    verified = users.get_user(conn, user.id)
+    if verified is None:
+        raise Conflict("Kontoen finnes ikke lenger.")
+    return _account(conn, verified, settings)
 
 
 @router.get("/me/listings", response_model=SearchOut, tags=["account"], summary="Your listings")
@@ -605,6 +688,7 @@ def contact_seller(
     body: ContactIn, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
 ) -> dict:
     """Send a message about a listing. Reuses your existing conversation with the seller if there is one."""
+    phone.ensure_verified(settings, user, base_url(request))
     conversation_id = messages.contact_seller(
         conn,
         body.listing_id,
@@ -646,6 +730,7 @@ def reply(
     user: CurrentUser,
     settings: SettingsDep,
 ) -> dict:
+    phone.ensure_verified(settings, user, base_url(request))
     messages.reply(
         conn,
         conversation_id,
@@ -687,3 +772,8 @@ def report_conversation(
 
 def _channel(request: Request) -> str:
     return getattr(request.state, "channel", "api")
+
+
+def _only_hides(changes: dict) -> bool:
+    """Marking a listing as sold or hiding it is always allowed, even before verification."""
+    return set(changes) <= {"status"} and changes.get("status") in ("sold", "inactive")

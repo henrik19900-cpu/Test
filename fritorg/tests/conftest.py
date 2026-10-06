@@ -44,8 +44,9 @@ PHOTO = make_image(1)
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    # Most tests use simple password accounts; test_bankid.py covers the BankID flows.
-    return Settings(data_dir=tmp_path / "data", bankid_mode="off")
+    # Most tests use simple password accounts without verification; test_phone.py covers SMS
+    # verification and test_bankid.py the BankID flows.
+    return Settings(data_dir=tmp_path / "data", bankid_mode="off", verification="none")
 
 
 @pytest.fixture

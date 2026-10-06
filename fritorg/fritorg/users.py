@@ -19,6 +19,26 @@ MAX_TOKENS_PER_USER = 25
 UNUSABLE_PASSWORD = "!"  # BankID accounts log in with BankID only
 
 
+def verification_kind(via: str | None) -> str | None:
+    """How an account was verified, for the API: 'bankid', 'phone' or None."""
+    if not via:
+        return None
+    return "bankid" if via.startswith("bankid") else "phone"
+
+
+def verification_label(via: str | None) -> str | None:
+    kind = verification_kind(via)
+    return {"bankid": "BankID-verifisert", "phone": "Mobilnummer bekreftet"}.get(kind or "")
+
+
+def verification_title(via: str | None) -> str | None:
+    kind = verification_kind(via)
+    return {
+        "bankid": "Har logget inn med BankID",
+        "phone": "Har bekreftet et norsk mobilnummer med SMS-kode",
+    }.get(kind or "")
+
+
 @dataclass
 class User:
     id: int
@@ -32,6 +52,7 @@ class User:
     verified_via: str | None = None
     has_password: bool = True
     email_verified_at: str | None = None
+    phone_hint: str | None = None
 
     @property
     def is_new(self) -> bool:
@@ -41,6 +62,18 @@ class User:
     @property
     def is_verified(self) -> bool:
         return self.verified_at is not None
+
+    @property
+    def verification(self) -> str | None:
+        return verification_kind(self.verified_via) if self.is_verified else None
+
+    @property
+    def verification_label(self) -> str | None:
+        return verification_label(self.verified_via) if self.is_verified else None
+
+    @property
+    def verification_title(self) -> str | None:
+        return verification_title(self.verified_via) if self.is_verified else None
 
 
 @dataclass
@@ -65,11 +98,20 @@ def _user(row: sqlite3.Row) -> User:
         verified_via=row["verified_via"],
         has_password=row["password_hash"] != UNUSABLE_PASSWORD,
         email_verified_at=row["email_verified_at"],
+        phone_hint=row["phone_hint"],
     )
 
 
 def normalize_name(name: str) -> str:
     return " ".join(name.split())
+
+
+# Names that could be used to pose as the site itself or as companies scammers like to imitate.
+RESERVED_NAME = re.compile(
+    r"fritorg|moderator|admin|kundeservice|kundesenter|support|sikkerhet|finn\.?no|vipps|posten|bring|"
+    r"postnord|bankid|politi|skatteetaten|nav\b",
+    re.IGNORECASE,
+)
 
 
 def validate_registration(email: str, name: str, password: str | None) -> list[dict[str, str]]:
@@ -78,6 +120,10 @@ def validate_registration(email: str, name: str, password: str | None) -> list[d
         errors.append({"field": "email", "message": "Ugyldig e-postadresse."})
     if not 2 <= len(normalize_name(name)) <= 60:
         errors.append({"field": "name", "message": "Visningsnavnet må være mellom 2 og 60 tegn."})
+    elif password is not None and RESERVED_NAME.search(name):
+        errors.append(
+            {"field": "name", "message": "Velg et annet visningsnavn (det kan forveksles med en tjeneste)."}
+        )
     if password is None:
         return errors
     if len(password) < 8:

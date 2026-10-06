@@ -11,7 +11,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import __version__, messages, taxonomy, users
+from . import __version__, messages, phone, taxonomy, users
 from .listings import REPORT_REASONS, SORTS
 from .util import format_date_no, format_datetime_no, format_number, truncate
 
@@ -59,6 +59,10 @@ def base_context(request: Request, conn: sqlite3.Connection | None) -> dict[str,
         "flash": unquote(flash) if flash else None,
         "site_name": settings.site_name,
         "bankid_mode": settings.bankid_mode,
+        # "bankid", "sms" or "none": how people are verified on this site
+        "verification_mode": "bankid" if settings.bankid_required else settings.verification,
+        "sms_test_mode": settings.phone_verification_required and settings.sms_provider == "console",
+        "needs_verification": bool(user and phone.verification_needed(settings, user)),
         "contact_email": settings.contact_email,
         "operator": settings.operator,
         "base": settings.base_url or str(request.base_url).rstrip("/"),

@@ -12,6 +12,11 @@ from .listings import MAX_PRICE, REPORT_REASONS
 ListingTypeSlug = Literal["sell", "give", "wanted", "rent", "job", "service"]
 PriceUnit = Literal["total", "month", "week", "day", "hour"]
 ReportReason = Literal[tuple(REPORT_REASONS)]  # type: ignore[valid-type]
+Verification = Literal["phone", "bankid"]
+_VERIFICATION_DOC = (
+    "How the person was verified: 'phone' = confirmed a Norwegian mobile number by SMS code "
+    "(one account per number), 'bankid' = logged in with BankID. null = not verified."
+)
 
 _CATEGORY_DOC = "Leaf category slug, e.g. 'bil', 'mobler', 'bolig'. Full list with attribute schemas: GET /api/v1/categories."
 _COUNTY_DOC = (
@@ -105,7 +110,8 @@ class SellerOut(BaseModel):
     name: str
     url: str
     member_since: str
-    verified: bool = Field(description="The seller has verified their identity with BankID.")
+    verified: bool = Field(description="The seller is a verified person (see `verification`).")
+    verification: Verification | None = Field(None, description=_VERIFICATION_DOC)
     new_account: bool = Field(description="The account is less than a week old.")
     active_listings: int | None = None
     sold_listings: int | None = None
@@ -238,7 +244,8 @@ class CountyOut(BaseModel):
 class UserPublicOut(BaseModel):
     id: int
     name: str
-    verified: bool = Field(description="Identity verified with BankID.")
+    verified: bool = Field(description="A verified person (see `verification`).")
+    verification: Verification | None = Field(None, description=_VERIFICATION_DOC)
     member_since: str
     active_listings: int
     url: str
@@ -249,6 +256,12 @@ class AccountOut(BaseModel):
     name: str
     email: str
     verified: bool
+    verification: Verification | None = Field(None, description=_VERIFICATION_DOC)
+    verification_required: bool = Field(
+        description="True until the account has confirmed a mobile number: creating listings and sending "
+        "messages is refused until then. Verify with POST /api/v1/me/phone and POST /api/v1/me/phone/verify."
+    )
+    phone_hint: str | None = Field(None, description="The confirmed number, masked, e.g. '+47 •••••567'.")
     email_verified: bool = Field(description="Notifications are only sent to a verified address.")
     member_since: str
     unread_messages: int
@@ -317,6 +330,31 @@ class DeviceTokenIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     device_code: str
+
+
+class PhoneIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [{"phone": "912 34 567"}]})
+
+    phone: str = Field(
+        max_length=20,
+        description="Norwegian mobile number (8 digits starting with 4 or 9, with or without +47).",
+    )
+
+
+class PhoneCodeOut(BaseModel):
+    status: Literal["code_sent"] = "code_sent"
+    phone_hint: str = Field(description="Where the code was sent, masked, e.g. '+47 •••••567'.")
+    expires_in: int = Field(description="Seconds until the code expires.")
+    next: str = Field(description="What to do next.")
+    test_code: str | None = Field(
+        None, description="Only on development servers that do not send real SMS: the code itself."
+    )
+
+
+class PhoneCodeIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"examples": [{"code": "123456"}]})
+
+    code: str = Field(max_length=12, description="The 6-digit code from the SMS.")
 
 
 class TokenCreateIn(BaseModel):

@@ -20,6 +20,9 @@
     </div>
     <p>Har du konto? <a href="/logg-inn">Logg inn</a>.</p>
   {% else %}
+  {% if verification_mode == "sms" %}
+  <p class="notice">Etterpå bekrefter du et norsk mobilnummer med en kode på SMS. Hvert nummer kan bare brukes på én konto, og alle selgere er bekreftet. Det gjør det mye vanskeligere å svindle.</p>
+  {% endif %}
   <form method="post" action="/registrer" class="panel">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     {% if next %}<input type="hidden" name="neste" value="{{ next }}">{% endif %}

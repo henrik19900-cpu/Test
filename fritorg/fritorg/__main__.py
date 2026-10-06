@@ -1,4 +1,4 @@
-"""Command line: `python -m fritorg serve | seed | make-admin`."""
+"""Command line: `python -m fritorg serve | seed | make-admin | backup | doctor`."""
 
 from __future__ import annotations
 
@@ -34,6 +34,9 @@ def main(argv: list[str] | None = None) -> int:
 
     doctor = commands.add_parser("doctor", help="check that everything is ready for launch")
     doctor.add_argument("--send-test-mail", metavar="ADDRESS", help="also send a test e-mail")
+    doctor.add_argument(
+        "--send-test-sms", metavar="NUMBER", help="also send a test SMS to a Norwegian mobile"
+    )
 
     args = parser.parse_args(argv)
     settings = Settings.from_env()
@@ -77,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         from .ops import doctor as run_doctor
 
-        checks = run_doctor(settings, test_mail_to=args.send_test_mail)
+        checks = run_doctor(settings, test_mail_to=args.send_test_mail, test_sms_to=args.send_test_sms)
         for check in checks:
             print(check)
         failed = [c for c in checks if c.ok is False]

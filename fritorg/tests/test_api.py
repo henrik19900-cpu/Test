@@ -325,6 +325,7 @@ def test_public_profile(client, auth):
         "id": listing["seller_id"],
         "name": "Kari Nordmann",
         "verified": False,
+        "verification": None,
         "member_since": profile["member_since"],
         "active_listings": 1,
         "url": f"http://testserver/bruker/{listing['seller_id']}",

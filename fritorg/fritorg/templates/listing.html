@@ -118,7 +118,7 @@
       <p class="muted small">Selger</p>
       <p class="seller-name"><a href="/bruker/{{ listing.user_id }}">{{ listing.seller_name }}</a></p>
       <p class="trust">
-        {% if listing.seller_verified %}<span class="tag tag-verified" title="Selgeren har logget inn med BankID">{{ icon("shield", 14) }} BankID-verifisert</span>{% endif %}
+        {% if listing.seller_verified %}<span class="tag tag-verified" title="{{ listing.seller_verification_title }}">{{ icon("shield", 14) }} {{ listing.seller_verification_label }}</span>{% endif %}
         {% if listing.seller_is_new %}<span class="tag tag-new" title="Kontoen er mindre enn en uke gammel">Ny bruker</span>{% endif %}
       </p>
       <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} aktive annonser{% endif %}</p>
@@ -149,7 +149,10 @@
     {% elif listing.status == "active" %}
       <div class="panel" id="kontakt">
         <h2 class="panel-title">{{ icon("chat", 20) }} Kontakt selger</h2>
-        {% if user %}
+        {% if user and needs_verification %}
+          <p>Bekreft mobilnummeret ditt for å sende meldinger. Det tar under ett minutt.</p>
+          <p><a class="button button-primary button-block" href="/verifiser-telefon?neste=/annonse/{{ listing.id }}%23kontakt">Bekreft mobilnummer</a></p>
+        {% elif user %}
           {% if conversation_id %}<p class="small">Du har allerede en <a href="/meldinger/{{ conversation_id }}">samtale om denne annonsen</a>.</p>{% endif %}
           <form method="post" action="/annonse/{{ listing.id }}/melding">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

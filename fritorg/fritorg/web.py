@@ -12,9 +12,9 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.datastructures import FormData, UploadFile
 
-from . import discovery, images, listings, messages, moderation, serializers, taxonomy, users
+from . import discovery, images, listings, messages, moderation, phone, serializers, taxonomy, users
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
-from .errors import AppError, NotFound, RateLimited, ValidationProblem
+from .errors import AppError, Conflict, NotFound, RateLimited, ValidationProblem
 from .listings import SORTS, SearchParams
 from .mailer import notify_moderation, notify_new_message, send_verification, verify_email
 from .templating import (
@@ -87,6 +87,24 @@ def check_csrf(request: Request, form: FormData) -> None:
 def login_redirect(request: Request) -> Response:
     target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
     return redirect(url_with_query("", "/logg-inn", [("neste", target)]))
+
+
+def must_verify(request: Request, user: users.User) -> bool:
+    return phone.verification_needed(request.app.state.settings, user)
+
+
+def verification_redirect(target: str) -> Response:
+    return redirect(
+        url_with_query("", "/verifiser-telefon", [("neste", target)]),
+        flash="Bekreft mobilnummeret ditt først. Det tar under ett minutt.",
+    )
+
+
+def _problem_text(exc: AppError) -> str:
+    """The message without the field prefix, for showing next to a form field."""
+    if exc.errors and exc.errors[0].get("message"):
+        return str(exc.errors[0]["message"])
+    return exc.message
 
 
 def _int_param(value: str | None) -> int | None:
@@ -343,6 +361,8 @@ def contact_seller(listing_id: int, request: Request, conn: Conn, form: Form) ->
     user = current_user(request, conn)
     if user is None:
         return redirect(f"/logg-inn?neste=/annonse/{listing_id}")
+    if must_verify(request, user):
+        return verification_redirect(f"/annonse/{listing_id}#kontakt")
     settings = request.app.state.settings
     try:
         conversation_id = messages.contact_seller(
@@ -386,6 +406,8 @@ def change_status(listing_id: int, request: Request, conn: Conn, form: Form) -> 
     if user is None:
         return login_redirect(request)
     status = str(form.get("status") or "")
+    if status == "active" and must_verify(request, user):
+        return verification_redirect(f"/annonse/{listing_id}")
     listings.set_status(conn, user.id, listing_id, status, is_admin=user.is_admin)
     labels = {
         "sold": "Annonsen er merket som solgt.",
@@ -495,6 +517,10 @@ def new_listing(request: Request, conn: Conn) -> Response:
     user = current_user(request, conn)
     if user is None:
         return login_redirect(request)
+    if must_verify(request, user):
+        return verification_redirect(
+            request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        )
     category = taxonomy.get_category(request.query_params.get("category"))
     if category is None or not category.is_leaf:
         return render(request, conn, "choose_category.html", {"selected_group": category})
@@ -512,6 +538,8 @@ def create_listing(request: Request, conn: Conn, form: Form) -> Response:
     user = current_user(request, conn)
     if user is None:
         return login_redirect(request)
+    if must_verify(request, user):
+        return verification_redirect("/ny-annonse")
     category = taxonomy.get_category(str(form.get("category") or ""))
     if category is None or not category.is_leaf:
         return redirect("/ny-annonse", flash="Velg en kategori først.")
@@ -551,8 +579,11 @@ def _own_listing(
 
 @router.get("/annonse/{listing_id:int}/rediger")
 def edit_listing(listing_id: int, request: Request, conn: Conn) -> Response:
-    if current_user(request, conn) is None:
+    user = current_user(request, conn)
+    if user is None:
         return login_redirect(request)
+    if must_verify(request, user):
+        return verification_redirect(f"/annonse/{listing_id}/rediger")
     _, listing = _own_listing(request, conn, listing_id)
     values = {name: getattr(listing, name) for name in listings.EDITABLE_FIELDS}
     return _listing_form(request, conn, listing.category_obj, values, listing=listing)
@@ -561,8 +592,11 @@ def edit_listing(listing_id: int, request: Request, conn: Conn) -> Response:
 @router.post("/annonse/{listing_id:int}/rediger")
 def update_listing(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)
-    if current_user(request, conn) is None:
+    viewer = current_user(request, conn)
+    if viewer is None:
         return login_redirect(request)
+    if must_verify(request, viewer):
+        return verification_redirect(f"/annonse/{listing_id}/rediger")
     user, listing = _own_listing(request, conn, listing_id)
     category = taxonomy.get_category(str(form.get("category") or "")) or listing.category_obj
     if not category.is_leaf:
@@ -585,8 +619,11 @@ def update_listing(listing_id: int, request: Request, conn: Conn, form: Form) ->
 @router.post("/annonse/{listing_id:int}/bilder")
 def upload_images(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)
-    if current_user(request, conn) is None:
+    viewer = current_user(request, conn)
+    if viewer is None:
         return login_redirect(request)
+    if must_verify(request, viewer):
+        return verification_redirect(f"/annonse/{listing_id}/rediger")
     user, listing = _own_listing(request, conn, listing_id)
     alt = str(form.get("alt_text") or "") or listing.title
     problems = _upload_images(request, conn, user, listing_id, form.getlist("images"), alt)
@@ -636,6 +673,8 @@ def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Res
     user = current_user(request, conn)
     if user is None:
         return login_redirect(request)
+    if must_verify(request, user):
+        return verification_redirect(f"/meldinger/{conversation_id}")
     settings = request.app.state.settings
     try:
         messages.reply(
@@ -874,7 +913,97 @@ def register(request: Request, conn: Conn, form: Form) -> Response:
         )
     state = request.app.state
     send_verification(state.mailer, state.secret_key, base_url(request), user.id, user.name, user.email)
-    return _start_session(request, conn, user, target, f"Velkommen til {settings.site_name}, {user.name}!")
+    welcome = f"Velkommen til {settings.site_name}, {user.name}!"
+    if must_verify(request, user):
+        verify = url_with_query("", "/verifiser-telefon", [("neste", target)])
+        return _start_session(
+            request, conn, user, verify, welcome + " Bekreft mobilnummeret ditt for å komme i gang."
+        )
+    return _start_session(request, conn, user, target, welcome)
+
+
+# --- Mobile number verification ------------------------------------------------------------------
+
+
+def _verify_page(
+    request: Request,
+    conn: sqlite3.Connection,
+    user: users.User,
+    target: str,
+    errors: dict[str, str] | None = None,
+    values: dict[str, str] | None = None,
+    status: int = 200,
+) -> Response:
+    context = {
+        "next": target,
+        "pending_hint": phone.pending_hint(conn, user.id),
+        "errors": errors or {},
+        "values": values or {},
+    }
+    response = render(request, conn, "verify_phone.html", context, status=status)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/verifiser-telefon")
+def verify_phone_page(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    target = safe_next(request.query_params.get("neste"), "/min-side")
+    if request.app.state.sms is None:
+        return redirect(target)
+    return _verify_page(request, conn, user, target)
+
+
+@router.post("/verifiser-telefon")
+def send_phone_code(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    target = safe_next(str(form.get("neste") or ""), "/min-side")
+    state = request.app.state
+    if state.sms is None:
+        return redirect(target)
+    number = str(form.get("phone") or "")
+    try:
+        sent = phone.start(
+            conn,
+            state.sms,
+            state.secret_key,
+            state.settings,
+            user.id,
+            number,
+            limiter=state.limiter,
+            client_ip=client_ip(request),
+        )
+    except (ValidationProblem, Conflict, RateLimited, phone.SmsError) as exc:
+        errors = {"phone": _problem_text(exc)}
+        return _verify_page(request, conn, user, target, errors, {"phone": number}, status=exc.status)
+    flash = f"Vi har sendt en kode til {sent.phone_hint}."
+    if sent.test_code:
+        flash += f" Testmodus, ingen SMS er sendt: koden er {sent.test_code}."
+    return redirect(url_with_query("", "/verifiser-telefon", [("neste", target)]) + "#kode", flash=flash)
+
+
+@router.post("/verifiser-telefon/kode")
+def confirm_phone_code(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    target = safe_next(str(form.get("neste") or ""), "/min-side")
+    state = request.app.state
+    if state.sms is None:
+        return redirect(target)
+    try:
+        phone.confirm(conn, state.secret_key, user.id, str(form.get("code") or ""))
+    except (ValidationProblem, Conflict) as exc:
+        return _verify_page(request, conn, user, target, {"code": _problem_text(exc)}, status=exc.status)
+    return redirect(
+        target, flash="Takk! Mobilnummeret er bekreftet. Nå kan du legge ut annonser og sende meldinger."
+    )
 
 
 @router.post("/logg-ut")

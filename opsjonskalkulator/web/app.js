@@ -163,7 +163,11 @@ function renderSheet(calc) {
     el('h1', { class: 'title' }, calc.name),
     el('p', { class: 'authors' }, calc.authors),
     el('p', { class: 'desc' }, rich(calc.description)));
-  if (calc.payoff) head.append(el('p', { class: 'payoff' }, el('span', {}, 'Utbetaling'), el('em', {}, rich(calc.payoff))));
+  if (calc.payoff) {
+    // Utbetalinger skrevet som setninger vises i brødtekst; rene formler i formelkursiv.
+    const prose = /[.;:]\s|\.$/.test(calc.payoff);
+    head.append(el('p', { class: `payoff${prose ? ' prose' : ''}` }, el('span', {}, 'Utbetaling'), el(prose ? 'span' : 'em', { class: prose ? 'payoff-text' : undefined }, rich(calc.payoff))));
+  }
   art.append(head);
 
   const form = el('form', { class: 'inputs', novalidate: true, 'aria-label': 'Inndata' });
@@ -223,8 +227,10 @@ function renderField(calc, inp) {
     });
     return el('div', { class: 'field wide' }, el('label', { for: id }, inp.label), sel);
   }
-  const input = el('input', {
-    type: 'text',
+  const isList = inp.type === 'list';
+  const input = el(isList ? 'textarea' : 'input', {
+    type: isList ? undefined : 'text',
+    rows: isList ? Math.min(4, Math.max(1, Math.ceil(String(raw[inp.key]).length / 42))) : undefined,
     id,
     inputmode: inp.type === 'list' ? 'text' : inp.type === 'int' ? 'numeric' : 'decimal',
     autocomplete: 'off',
@@ -299,7 +305,7 @@ function run() {
   for (const inp of calc.inputs) {
     const errs = validate({ inputs: [inp] }, p);
     const field = document.getElementById(`in-${calc.id}-${inp.key}`);
-    if (field && field.tagName === 'INPUT') field.setAttribute('aria-invalid', errs.length ? 'true' : 'false');
+    if (field && (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA')) field.setAttribute('aria-invalid', errs.length ? 'true' : 'false');
     errors.push(...errs);
   }
   if (errors.length) {
@@ -314,12 +320,14 @@ function run() {
     showErrors([e && e.message ? e.message : String(e)]);
     return;
   }
-  const elapsed = performance.now() - t0;
+  const elapsed = Math.max(performance.now() - t0, 0.01);
   const entries = resultEntries(res);
   showResults(calc, p, entries);
-  const heavy = elapsed > 40;
-  if (calc.greeks !== false) renderSens(calc, p, entries, heavy);
-  if (calc.chart !== false && chartKey(calc)) renderChart(calc, p, entries, heavy);
+  // Følsomheter krever 2 beregninger per numerisk input, grafen 61. Blir det tregt,
+  // regnes de ut først når brukeren ber om det.
+  const numeric = calc.inputs.filter((i) => i.type === 'number').length;
+  if (calc.greeks !== false) renderSens(calc, p, entries, elapsed * 2 * numeric > 300);
+  if (calc.chart !== false && chartKey(calc)) renderChart(calc, p, entries, elapsed * 61 > 300);
 }
 
 function showErrors(errors) {

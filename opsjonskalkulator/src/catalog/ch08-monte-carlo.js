@@ -103,7 +103,7 @@ export default [
     chapter: 8,
     group: 'To aktiva',
     name: 'Spread, maks og min på to korrelerte aktiva',
-    authors: 'Referanser: Stulz (1982), Margrabe (1978), Kirk (1995)',
+    authors: 'Stulz (1982), Margrabe (1978), Kirk (1995)',
     description: 'Simulerer to korrelerte lognormale aktiva ved forfall med antitetiske trekk. Sammenlignes med Stulz for maks/min, Margrabe for spread med X = 0 og Kirks tilnærming ellers.',
     payoff: 'spread: max(S1 − S2 − X, 0) · maks: max(max(S1, S2) − X, 0) · min: max(min(S1, S2) − X, 0)',
     inputs: [

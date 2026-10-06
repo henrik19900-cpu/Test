@@ -2,6 +2,27 @@
 
 Kalkulatorer for formlene i Espen Gaarder Haug: *The Complete Guide to Option Pricing Formulas*, 2. utgave (McGraw-Hill, 2007). Hver formel i boka har sitt eget skjema, gruppert etter bokas kapitler, med pris, Greeks, numeriske følsomheter og en graf over pris mot spot.
 
+Appen har 157 kalkulatorer fordelt på alle bokas 14 kapitler:
+
+| Kap. | Innhold | Antall |
+|---:|---|---:|
+| 1 | Black-Scholes-Merton og modellene før BSM | 11 |
+| 2 | Greeks, innløsningskurs fra delta, implisitt volatilitet | 4 |
+| 3 | Amerikanske opsjoner: BAW, Bjerksund-Stensland 1993/2002, evigvarende | 6 |
+| 4 | Eksotiske opsjoner på ett underliggende, inkl. barrierer, binære, lookback og asiatiske | 43 |
+| 5 | Eksotiske opsjoner på to underliggende og valutaoversatte opsjoner | 18 |
+| 6 | Hopp-diffusjon, Leland, Hull-White, SABR, CEV, Heston | 10 |
+| 7 | Binomial-, trinomial- og tredimensjonale trær, Derman-Kani, finite difference | 8 |
+| 8 | Monte Carlo, kvasi-MC, kontrollvariat, Longstaff-Schwartz | 5 |
+| 9 | Diskrete utbytter: escrowed, volatilitetsjusteringer, HHL, Roll-Geske-Whaley | 11 |
+| 10 | Råvarer og energi: swapper, swapsjoner, Miltersen-Schwartz, Schwartz | 5 |
+| 11 | Renter: FRA, obligasjoner, caps, swapsjoner, Vasicek, Hull-White, BDT | 18 |
+| 12 | Historisk og implisitt volatilitet og korrelasjon, variansswap | 12 |
+| 13 | Normalfordeling, bivariat normal, lognormal pris | 4 |
+| 14 | Rentekonvertering og forwardpris | 2 |
+
+34 av kalkulatorene har bokas talleksempel som standardverdier, og testene krever at resultatet stemmer med fire desimaler.
+
 ## Bruk
 
 Åpne `dist/opsjonskalkulator.html` i en nettleser. Hele appen ligger i den ene filen og virker uten nettilgang (bare skrifttypene hentes fra Google Fonts).
@@ -43,6 +64,25 @@ npm run build    # bygger dist/opsjonskalkulator.html
 ### Legge til en kalkulator
 
 En kalkulator er et objekt i en katalogfil i `src/catalog/`. Formatet er beskrevet øverst i `src/catalog/common.js`. UI-et lager skjema, resultatvisning, følsomheter og graf automatisk, og `test/catalog.test.js` sjekker den nye oppføringen.
+
+## Merknader om boka og tolkninger
+
+Boka var ikke tilgjengelig under arbeidet. Talleksempler er bare tatt med der formelen gjenskaper dem med fire desimaler. Ellers bygger kontrollen på Monte Carlo, trær, numerisk integrasjon og identiteter.
+
+**Mulige trykkfeil.** I disse tilfellene stemmer kalkulatoren med formelen, inn + ut-paritet og Monte Carlo, men ikke med tallet slik det ble husket fra boka:
+
+- Binære barriereopsjoner, tabellen med 28 typer (X = 102): type 14 gir 5,8926 og type 20 gir 33,1723.
+- Fade-in-put skal ha +ρ i den bivariate normalfordelingen, og capped power-put skal ha (X − C).
+
+**Tolkninger.**
+
+- *Eksempelet 21,1965* er put på call. Formelen gir 21,19635.
+- *BAW-tabellen* ser ut til å være regnet med en Newton-iterasjon som stopper tidlig. Kalkulatoren løser likningen helt, og verdiene stemmer innen 5e-4, bortsett fra to celler like under kritisk pris.
+- *CEV* følger Schroder: dS = bS dt + σS^{β/2} dW, der β = 2 gir Black-Scholes.
+- *Hull-White (1988)* bruker en andreordens rekke med korrelasjon som er utledet og kontrollert mot betinget Monte Carlo, ikke mot bokas trykte ledd.
+- *To-aktiva-barrierer:* S1 er aktivet utbetalingen beregnes på, S2 er aktivet barrieren gjelder.
+
+**Ikke med:** volatilitetsswap, volatilitetskjegler, implisitte trinomialtrær, konvertible obligasjoner i trær, swingopsjoner og andre spread-tilnærminger enn Kirk. For spread vises i stedet eksakt pris ved numerisk integrasjon.
 
 ## Forbehold
 

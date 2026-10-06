@@ -209,7 +209,7 @@ export default [
     chapter: 4,
     group: G_FWD,
     name: 'Ratchet-opsjon (cliquet)',
-    authors: 'Sum av forward start-opsjoner (Rubinstein 1990)',
+    authors: 'Rubinstein (1990)',
     description: 'En rekke forward start-opsjoner. Ved hvert tidspunkt låses gevinsten inn, og ny innløsningskurs settes til α ganger kursen da.',
     payoff: 'Σ max(S_{t_i} − α·S_{t_{i−1}}, 0), utbetalt ved t_i (t_0 = 0)',
     inputs: [

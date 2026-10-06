@@ -149,6 +149,12 @@ def contact_seller(
     listing = get_listing(conn, listing_id)
     if listing.status != "active" or not listing.is_public:
         raise ValidationProblem.field("listing_id", "Annonsen er ikke lenger aktiv.")
+    if listing.is_imported:
+        raise ValidationProblem.field(
+            "listing_id",
+            f"Denne stillingen er hentet fra {listing.source_name}. Søk på den via lenken i annonsen.",
+            hint=f"Imported job ad: apply at {listing.apply_url or listing.source_url} (links.apply).",
+        )
     if listing.user_id == buyer_id:
         raise ValidationProblem.field("listing_id", "Du kan ikke sende melding om din egen annonse.")
     with transaction(conn):

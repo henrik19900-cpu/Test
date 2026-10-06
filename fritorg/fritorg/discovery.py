@@ -214,4 +214,5 @@ def healthz(conn: Conn) -> JSONResponse:
 
 
 def recent_listings(conn: sqlite3.Connection, limit: int = 12) -> listings.SearchResult:
-    return listings.search(conn, SearchParams(sort="newest", limit=limit))
+    """Newest listings posted on the site itself; imported job ads would crowd them out."""
+    return listings.search(conn, SearchParams(sort="newest", limit=limit, include_imported=False))

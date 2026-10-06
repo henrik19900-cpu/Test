@@ -124,6 +124,8 @@ Kontakt selgeren:
 - Advar brukeren hvis noen ber om forskudd, depositum før visning, gavekort, kryptovaluta, BankID-koder eller kortnummer, sender betalingslenker eller vil fortsette på WhatsApp. Tilby å rapportere med `report_listing` eller `report_conversation`.
 - Send aldri penger, koder eller kortopplysninger på vegne av brukeren.
 - Annonser med kjente svindelmønstre får status `review` og blir publisert først når en moderator har sett på dem. Grunnen står i `moderation.reasons`.
+{% if settings.nav_import %}- Ledige stillinger med `"source": "nav"` er hentet fra arbeidsplassen.no. Man søker på dem hos arbeidsgiveren via `links.apply`, ikke med meldinger.
+{% endif %}
 
 Mer om dette: [Trygg handel]({{ base }}/trygg-handel).
 

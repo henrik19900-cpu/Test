@@ -428,13 +428,18 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
 
 @router.get("/export/listings.ndjson", tags=["listings"], summary="Bulk export (NDJSON)")
 def export_listings(request: Request) -> StreamingResponse:
-    """Every active and sold listing as one JSON object per line. Use this instead of crawling page by page."""
+    """Every active and sold listing as one JSON object per line. Use this instead of crawling page by page.
+
+    Job ads imported from Nav (arbeidsplassen.no) are left out: their terms require removing ads at once
+    when they end, which a copy cannot do. Get them from Nav's own open feed:
+    https://navikt.github.io/pam-stilling-feed/ (they are in search results and listing pages here).
+    """
     db = request.app.state.db
     base = base_url(request)
 
     def generate():
         with db.session() as conn:
-            for listing in listings.iter_public_listings(conn):
+            for listing in listings.iter_public_listings(conn, include_imported=False):
                 yield json.dumps(serializers.listing_detail(listing, base), ensure_ascii=False) + "\n"
 
     return StreamingResponse(

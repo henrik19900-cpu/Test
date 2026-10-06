@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -15,7 +16,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, api, bankid_web, discovery, identity, mailer, mcp_server, phone, web
+from . import __version__, api, bankid_web, discovery, identity, mailer, mcp_server, navjobs, phone, web
 from .config import Settings
 from .db import Database
 from .deps import client_ip
@@ -111,7 +112,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         seed_if_empty(db, settings)
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        importer = navjobs.Importer(db, settings) if settings.nav_import else None
+        if importer is not None:
+            importer.start()
+        app.state.nav_importer = importer
+        yield
+        if importer is not None:
+            importer.stop()
+
     app = FastAPI(
+        lifespan=lifespan,
         title=f"{settings.site_name} API",
         version=__version__,
         description=API_DESCRIPTION,

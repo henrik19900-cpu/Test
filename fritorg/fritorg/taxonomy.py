@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from .util import MONTHS_NO
+
 THIS_YEAR = date.today().year
 
 
@@ -48,6 +50,12 @@ class Attribute:
         if self.type == "integer" and isinstance(value, int):
             text = f"{value:,}".replace(",", " ") if self.key not in NO_GROUPING else str(value)
             return f"{text} {self.unit}" if self.unit else text
+        if self.type == "date":
+            try:
+                day = date.fromisoformat(str(value))
+            except ValueError:
+                return str(value)
+            return f"{day.day}. {MONTHS_NO[day.month - 1]} {day.year}"
         return str(value)
 
     def json_schema(self) -> dict[str, Any]:
@@ -544,6 +552,18 @@ _TREE: list[tuple[Category, list[Category]]] = [
                 attributes=JOB_ATTRIBUTES,
             ),
             Category("jobb-utdanning", "Undervisning", "Education", attributes=JOB_ATTRIBUTES),
+            Category(
+                "jobb-industri",
+                "Industri og produksjon",
+                "Industry and production",
+                attributes=JOB_ATTRIBUTES,
+            ),
+            Category(
+                "jobb-kontor",
+                "Kontor, økonomi og ledelse",
+                "Office, finance and management",
+                attributes=JOB_ATTRIBUTES,
+            ),
             Category("jobb-annet", "Andre stillinger", "Other jobs", attributes=JOB_ATTRIBUTES),
         ],
     ),

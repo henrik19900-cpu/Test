@@ -12,6 +12,7 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - [Bekreftelse av brukere](#bekreftelse-av-brukere)
 - [Beskyttelse mot svindel og falske annonser](#beskyttelse-mot-svindel-og-falske-annonser)
 - [For AI-agenter](#for-ai-agenter)
+- [Hente inn annonser fra andre kilder](#hente-inn-annonser-fra-andre-kilder)
 - [Sette i drift](#sette-i-drift)
 - [Sjekkliste før lansering](#sjekkliste-før-lansering)
 - [Drift](#drift)
@@ -20,13 +21,14 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 
 ## Funksjoner
 
-- **40 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
+- **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
 - **Bilder** som skaleres, lagres som WebP og får fjernet EXIF- og GPS-data.
 - **Bekreftede brukere:** norsk mobilnummer med SMS-kode som standard, BankID som valg.
 - **Beskyttelse mot svindel**, moderering og rapportering (se under).
 - **Åpent for agenter:** MCP-server, REST-API med OpenAPI 3.1, `llms.txt`, eksport av alle annonser som NDJSON, Atom-feeder og JSON/Markdown-versjon av hver side.
+- **Ledige stillinger fra Nav:** titusenvis av stillinger fra arbeidsplassen.no hentes inn automatisk og holdes oppdatert.
 - **Universell utforming og personvern:** fungerer uten JavaScript, ingen sporingskapsler og ingen reklame.
 
 ## Kom i gang lokalt
@@ -90,6 +92,21 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
 - Agenter kan be om tilgang selv med device flow (`POST /api/v1/auth/device`), og personen godkjenner på `/koble-til`.
 - Alle offentlige annonser: `/api/v1/export/listings.ndjson`.
 
+## Hente inn annonser fra andre kilder
+
+Å kopiere annonser fra finn.no eller andre markedsplasser er ikke lovlig. Det bryter FINNs vilkår, som forbyr kopiering og automatisk innhenting, og databasevernet i åndsverkloven § 24. Bildene er dessuten fotografenes, og annonsene inneholder personopplysninger om private selgere. Disse veiene er lovlige:
+
+1. **Ledige stillinger fra Nav (innebygd).** Navs åpne stillingsfeed kan brukes av alle, og [vilkårene](https://arbeidsplassen.nav.no/vilkar-api) gir uttrykkelig rett til å publisere annonsene videre. Til gjengjeld må annonser som endres eller avsluttes hos Nav, endres eller fjernes straks, og «Søk på stillingen» må lenke direkte til arbeidsgiverens søknadsside. Fritorg gjør alt dette automatisk:
+   - Slå det på med `FRITORG_NAV_IMPORT=1`. Importen kjører i bakgrunnen og sjekker feeden hvert annet minutt. Den første importen av alle aktive stillinger tar noen timer.
+   - Be om et eget token: send en e-post til nav.team.arbeidsplassen@nav.no der du bekrefter at du godtar vilkårene, med firmanavn, kontaktperson, e-post og telefon. Legg tokenet i `FRITORG_NAV_TOKEN`. Uten det brukes Navs offentlige testtoken, som byttes ut med jevne mellomrom.
+   - Kontaktpersonlistene fra Nav lagres ikke, og stillingene er ikke med i bulk-eksporten (de finnes i Navs egen feed).
+   - Manuelt: `fritorg import-nav --until-done`.
+2. **Bedrifter som deler sine egne annonser.** Bilforhandlere, meglere, butikker og arbeidsgivere eier annonsene sine og kan sende dem til flere markedsplasser, slik meglerne gjør med hjem.no. De kan legge dem inn via API-et (`POST /api/v1/listings` med en egen nøkkel), og avtalen bør si at de har rett til tekst og bilder.
+3. **Selgere som flytter sine egne annonser.** En selger kan legge ut samme vare her, med sin egen tekst og sine egne bilder fra mobilen eller PC-en. AI-assistenter kan hjelpe til via MCP. Ikke hent annonsen automatisk fra finn.no.
+4. **Lenker.** En vanlig lenke til et søk på en annen side er lovlig, men vis aldri andres søkeresultater inne på Fritorg.
+
+Dette bygger på en gjennomgang av vilkårene, loven og rettspraksis (blant annet Innoweb, C-202/12, og HR-2019-1725-A om Lovdata). Det er ikke juridisk rådgivning: la en advokat se på det før lansering.
+
 ## Sette i drift
 
 Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.com/), som henter og fornyer HTTPS-sertifikater automatisk.
@@ -124,6 +141,7 @@ Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.c
 - [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er testet.
 - [ ] Juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), databehandleravtaler med SMS- og e-postleverandøren og en oversikt over behandlingen av personopplysninger.
 - [ ] `FRITORG_SEED_DEMO` er av, så det ikke ligger demo-annonser på den ekte siden.
+- [ ] Eget token for Navs stillingsfeed, hvis stillingene fra arbeidsplassen.no skal vises (se over).
 
 ## Drift
 
@@ -131,6 +149,7 @@ Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.c
 fritorg doctor [--send-test-mail ADRESSE] [--send-test-sms NUMMER]   # klar for lansering?
 fritorg make-admin E-POST                                            # gi moderatorrettigheter
 fritorg backup MAPPE                                                 # database, bilder og nøkkel
+fritorg import-nav [--until-done]                                    # hent ledige stillinger fra Nav nå
 fritorg seed [--force]                                               # demo-data (ikke i produksjon)
 ```
 
@@ -165,6 +184,9 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_MAX_LISTINGS_PER_DAY`, `FRITORG_MAX_MESSAGES_PER_DAY` | `50`, `200` | Grenser per konto per døgn. |
 | `FRITORG_NEW_ACCOUNT_MAX_LISTINGS_PER_DAY`, `..._MESSAGES_PER_DAY` | `5`, `20` | Grenser det første døgnet. |
 | `FRITORG_MAX_IMAGE_BYTES`, `FRITORG_MAX_IMAGES_PER_LISTING` | 8 MB, `12` | Bildegrenser. |
+| `FRITORG_NAV_IMPORT` | av | Hent ledige stillinger fra arbeidsplassen.no (Nav). |
+| `FRITORG_NAV_TOKEN` | Navs testtoken | Eget token for Navs stillingsfeed. |
+| `FRITORG_NAV_IMPORT_INTERVAL` | `120` | Sekunder mellom hver sjekk av feeden. |
 | `FRITORG_SEED_DEMO` | av | Legg inn demo-data ved første oppstart. |
 
 ## Utvikling
@@ -175,6 +197,6 @@ ruff check . && ruff format --check .
 pytest
 ```
 
-Testene dekker API-et, MCP-serveren (også med den offisielle MCP-klienten), søk, svindelbeskyttelse, BankID, SMS-bekreftelse, bilder, e-post og drift. GitHub Actions kjører dem på Python 3.11 og 3.13, og bygger og prøvekjører Docker-imaget.
+Testene dekker API-et, MCP-serveren (også med den offisielle MCP-klienten), søk, svindelbeskyttelse, BankID, SMS-bekreftelse, importen fra Nav, bilder, e-post og drift. GitHub Actions kjører dem på Python 3.11 og 3.13, og bygger og prøvekjører Docker-imaget.
 
-Koden ligger i `fritorg/`: `app.py` setter alt sammen, `api.py` er REST-API-et, `mcp_server.py` MCP-serveren og `web.py` nettsidene. `listings.py`, `messages.py`, `users.py`, `fraud.py`, `phone.py` og `identity.py` inneholder logikken, og `templates/` sidene og dokumentasjonen.
+Koden ligger i `fritorg/`: `app.py` setter alt sammen, `api.py` er REST-API-et, `mcp_server.py` MCP-serveren og `web.py` nettsidene. `listings.py`, `messages.py`, `users.py`, `fraud.py`, `phone.py`, `identity.py` og `navjobs.py` (importen fra Nav) inneholder logikken, og `templates/` sidene og dokumentasjonen.

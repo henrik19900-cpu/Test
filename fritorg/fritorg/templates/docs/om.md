@@ -14,7 +14,11 @@
 6. **Trygg handel.** Annonser med kjente svindelmønstre kontrolleres av en moderator før de publiseres, og mistenkelige meldinger får advarsler. Se [Trygg handel]({{ base }}/trygg-handel).
 7. **Personvern.** {% if settings.bankid_required %}E-postadressen og fødselsnummeret ditt{% elif settings.phone_verification_required %}E-postadressen og mobilnummeret ditt{% else %}E-postadressen din{% endif %} vises aldri, og vi bruker ingen sporingskapsler eller reklame.
 
-{% if settings.operator or settings.contact_email %}## Kontakt
+{% if settings.nav_import %}## Ledige stillinger fra Nav
+
+Under Jobb finner du også ledige stillinger fra [arbeidsplassen.no](https://arbeidsplassen.nav.no), Navs åpne stillingsbase. De hentes automatisk, oppdateres når arbeidsgiveren endrer dem og forsvinner når de ikke lenger er aktive. Du søker direkte hos arbeidsgiveren via knappen «Søk på stillingen».
+
+{% endif %}{% if settings.operator or settings.contact_email %}## Kontakt
 
 {% if settings.operator %}{{ site_name }} drives av {{ settings.operator }}. {% endif %}{% if settings.contact_email %}Du når oss på {{ settings.contact_email }}.{% endif %}
 

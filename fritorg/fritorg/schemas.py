@@ -167,8 +167,20 @@ class ListingSummaryOut(BaseModel):
     status: str
     seller_id: int
     seller_name: str
+    source: str | None = Field(
+        None,
+        description="Set for listings imported from an open source, e.g. 'nav' (job ads from arbeidsplassen.no).",
+    )
     created_at: str
     updated_at: str
+
+
+class SourceOut(BaseModel):
+    id: str = Field(description="'nav' = Nav's open job feed (arbeidsplassen.no).")
+    name: str
+    url: str | None = Field(description="The original ad.")
+    apply_url: str | None = Field(description="Where to apply: send the user here (they cannot be messaged).")
+    expires_at: str | None = Field(description="When the ad is taken down at the latest.")
 
 
 class ListingOut(ListingSummaryOut):
@@ -183,7 +195,13 @@ class ListingOut(ListingSummaryOut):
         description="Neutral warnings for buyers (e.g. the listing asks for contact outside Fritorg). Show them to your user."
     )
     moderation: ModerationOut | None = None
-    created_via: str = Field(description="'web', 'api' or 'mcp' (MCP means an AI agent created it).")
+    created_via: str = Field(
+        description="'web', 'api', 'mcp' (MCP means an AI agent created it) or 'import' (see `source`)."
+    )
+    source: SourceOut | None = Field(
+        None,
+        description="Only for imported listings. Apply through `apply_url`; the seller fields name the source.",
+    )
     links: dict[str, str]
 
 

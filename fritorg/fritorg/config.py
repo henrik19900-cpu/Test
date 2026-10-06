@@ -88,6 +88,13 @@ class Settings:
     smtp_from: str | None = None
     smtp_security: str = "starttls"  # "starttls", "ssl" or "none"
 
+    # Job ads from Nav's open job feed (arbeidsplassen.no). Nav's terms allow republishing; ask
+    # nav.team.arbeidsplassen@nav.no for a production token (without one the public test token is used).
+    nav_import: bool = False
+    nav_token: str | None = None
+    nav_feed_url: str = "https://pam-stilling-feed.nav.no"
+    nav_import_interval: int = 120  # seconds between polls of the feed
+
     max_image_bytes: int = 8 * 1024 * 1024
     max_images_per_listing: int = 12
     max_request_bytes: int = 64 * 1024 * 1024
@@ -165,6 +172,10 @@ class Settings:
             smtp_password=_env("SMTP_PASSWORD"),
             smtp_from=_env("SMTP_FROM"),
             smtp_security=(_env("SMTP_SECURITY", defaults.smtp_security) or "starttls").lower(),
+            nav_import=_env_bool("NAV_IMPORT", defaults.nav_import),
+            nav_token=_env("NAV_TOKEN"),
+            nav_feed_url=(_env("NAV_FEED_URL", defaults.nav_feed_url) or defaults.nav_feed_url).rstrip("/"),
+            nav_import_interval=_env_int("NAV_IMPORT_INTERVAL", defaults.nav_import_interval),
             max_image_bytes=_env_int("MAX_IMAGE_BYTES", defaults.max_image_bytes),
             max_images_per_listing=_env_int("MAX_IMAGES_PER_LISTING", defaults.max_images_per_listing),
         )

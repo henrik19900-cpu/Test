@@ -1,4 +1,4 @@
-"""Command line: `python -m fritorg serve | seed | make-admin | backup | doctor`."""
+"""Command line: `python -m fritorg serve | seed | make-admin | backup | import-nav | doctor`."""
 
 from __future__ import annotations
 
@@ -31,6 +31,14 @@ def main(argv: list[str] | None = None) -> int:
         "backup", help="copy the database, uploaded images and secret key to a folder"
     )
     backup.add_argument("destination")
+
+    nav = commands.add_parser(
+        "import-nav", help="import job ads from Nav's open job feed (arbeidsplassen.no)"
+    )
+    nav.add_argument(
+        "--until-done", action="store_true", help="keep going until every current ad is imported"
+    )
+    nav.add_argument("--max-fetches", type=int, default=500, help="ads to fetch per run (default 500)")
 
     doctor = commands.add_parser("doctor", help="check that everything is ready for launch")
     doctor.add_argument("--send-test-mail", metavar="ADDRESS", help="also send a test e-mail")
@@ -76,6 +84,20 @@ def main(argv: list[str] | None = None) -> int:
         target = run_backup(settings, Path(args.destination))
         print(f"Sikkerhetskopi: {target} (+ bilder og hemmelig nøkkel i samme mappe)")
         return 0
+
+    if args.command == "import-nav":
+        from . import navjobs
+
+        db = Database(settings.db_path)
+        db.init()
+        while True:
+            report = navjobs.sync(db, settings, max_fetches=args.max_fetches, pause=0.1)
+            if report.skipped:
+                print("En annen import kjører allerede. Prøv igjen senere.")
+                return 1
+            print(report)
+            if report.done or not args.until_done:
+                return 0
 
     if args.command == "doctor":
         from .ops import doctor as run_doctor

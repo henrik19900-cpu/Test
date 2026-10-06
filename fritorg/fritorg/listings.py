@@ -29,7 +29,12 @@ from .taxonomy import (
 )
 from .util import format_number, iso_ago, now_iso, parse_iso, to_iso
 
-CHANNELS = ("web", "api", "mcp")
+CHANNELS = ("web", "api", "mcp", "import")
+
+# Open sources that listings may be imported from (listings.source), and how to credit them.
+SOURCES = {
+    "nav": "arbeidsplassen.no (Nav)",
+}
 EDITABLE_FIELDS = (
     "category",
     "type",
@@ -107,6 +112,12 @@ class Listing:
     # Seller statistics, only loaded for single-listing views (get_listing).
     seller_active: int | None = None
     seller_sold: int | None = None
+    # Imported listings (see SOURCES): where they come from and where to apply.
+    source: str | None = None
+    source_id: str | None = None
+    source_url: str | None = None
+    apply_url: str | None = None
+    expires_at: str | None = None
 
     @property
     def category_obj(self) -> Category:
@@ -145,7 +156,15 @@ class Listing:
 
     @property
     def seller_is_new(self) -> bool:
-        return self.seller_since > iso_ago(days=fraud.NEW_ACCOUNT_DAYS)
+        return not self.is_imported and self.seller_since > iso_ago(days=fraud.NEW_ACCOUNT_DAYS)
+
+    @property
+    def is_imported(self) -> bool:
+        return self.source is not None
+
+    @property
+    def source_name(self) -> str | None:
+        return SOURCES.get(self.source, self.source) if self.source else None
 
     @property
     def seller_verification(self) -> str | None:
@@ -414,6 +433,11 @@ def _listing(row: sqlite3.Row) -> Listing:
         seller_verified=bool(row["seller_verified_at"]),
         seller_verified_via=row["seller_verified_via"] if row["seller_verified_at"] else None,
         rank=row["rank"] if "rank" in keys else None,
+        source=row["source"],
+        source_id=row["source_id"],
+        source_url=row["source_url"],
+        apply_url=row["apply_url"],
+        expires_at=row["expires_at"],
     )
 
 
@@ -469,6 +493,9 @@ def _index(conn: sqlite3.Connection, listing_id: int, values: dict[str, Any]) ->
         "INSERT INTO listings_fts (rowid, title, body, meta) VALUES (?, ?, ?, ?)",
         (listing_id, values["title"], values["description"], _search_text(values)),
     )
+
+
+index_listing = _index  # for importers that write listings themselves
 
 
 def get_listing(conn: sqlite3.Connection, listing_id: int) -> Listing:
@@ -810,6 +837,7 @@ class SearchParams:
     limit: int = 20
     offset: int = 0
     include_hidden: bool = False  # allows status "inactive"/"all"; owner views only, never from public input
+    include_imported: bool = True  # False leaves out listings imported from open sources
 
     @property
     def effective_sort(self) -> str:
@@ -1011,6 +1039,8 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
         args.append(params.updated_since)
     if params.has_images:
         conditions.append("EXISTS (SELECT 1 FROM listing_images i WHERE i.listing_id = l.id)")
+    if not params.include_imported:
+        conditions.append("l.source IS NULL")
 
     for flt in params.attrs:
         attr = ATTRIBUTES[flt.key]  # keys were validated against the registry when parsed
@@ -1072,12 +1102,15 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
     return SearchResult(items=items, total=total, params=params)
 
 
-def iter_public_listings(conn: sqlite3.Connection, batch: int = 500) -> Iterable[Listing]:
+def iter_public_listings(
+    conn: sqlite3.Connection, batch: int = 500, *, include_imported: bool = True
+) -> Iterable[Listing]:
     """All active and sold listings, oldest first, in batches (for exports and sitemaps)."""
     last_id = 0
+    only_own = "" if include_imported else "AND l.source IS NULL "
     while True:
         rows = conn.execute(
-            f"{_SELECT} WHERE l.status IN ('active', 'sold') AND u.banned_at IS NULL AND l.id > ? "
+            f"{_SELECT} WHERE l.status IN ('active', 'sold') AND u.banned_at IS NULL AND l.id > ? {only_own}"
             "ORDER BY l.id LIMIT ?",
             (last_id, batch),
         ).fetchall()

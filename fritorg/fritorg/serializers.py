@@ -55,8 +55,21 @@ def listing_summary(listing: Listing, base: str) -> dict[str, Any]:
         "status": listing.status,
         "seller_id": listing.user_id,
         "seller_name": listing.seller_name,
+        "source": listing.source,
         "created_at": listing.created_at,
         "updated_at": listing.updated_at,
+    }
+
+
+def source_dict(listing: Listing) -> dict[str, Any] | None:
+    if not listing.is_imported:
+        return None
+    return {
+        "id": listing.source,
+        "name": listing.source_name,
+        "url": listing.source_url,
+        "apply_url": listing.apply_url,
+        "expires_at": listing.expires_at,
     }
 
 
@@ -98,15 +111,21 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
             if owner_view
             else None,
             "created_via": listing.created_via,
+            "source": source_dict(listing),
             "links": {
                 "html": url,
                 "json": f"{url}.json",
                 "markdown": f"{url}.md",
                 "api": f"{base}/api/v1/listings/{listing.id}",
-                "contact_seller": f"POST {base}/api/v1/conversations",
             },
         }
     )
+    if listing.is_imported:
+        data["links"]["apply"] = listing.apply_url or listing.source_url
+        if listing.source_url:
+            data["links"]["source"] = listing.source_url
+    else:
+        data["links"]["contact_seller"] = f"POST {base}/api/v1/conversations"
     return data
 
 
@@ -263,7 +282,11 @@ def listing_markdown(listing: Listing, base: str) -> str:
         ("Annonse-ID", str(listing.id)),
     ]
     lines += [f"- **{label}:** {value}" for label, value in facts if value]
-    if listing.seller_verified:
+    if listing.is_imported:
+        lines.append(f"- **Kilde:** [{listing.source_name}]({listing.source_url})")
+        if listing.apply_url:
+            lines.append(f"- **Søk på stillingen:** {listing.apply_url}")
+    elif listing.seller_verified:
         lines.append(f"- **Selger:** {listing.seller_verification_label}")
     if listing.seller_is_new:
         lines.append("- **Merk:** Selgeren er en ny bruker")
@@ -378,6 +401,10 @@ def listing_jsonld(listing: Listing, base: str) -> dict[str, Any]:
         }
         if "deadline" in listing.attributes:
             data["validThrough"] = listing.attributes["deadline"]
+        elif listing.expires_at:
+            data["validThrough"] = listing.expires_at
+        if listing.is_imported:
+            data["directApply"] = False
         if listing.attributes.get("employment_type") in _EMPLOYMENT:
             data["employmentType"] = _EMPLOYMENT[listing.attributes["employment_type"]]
         if listing.attributes.get("remote") == "remote":

@@ -22,6 +22,7 @@
       <h3 class="card-title">{{ item.title }}</h3>
       {% set price = item.price_text(NBSP) %}
       {% if price %}<p class="card-price">{{ price }}</p>{% elif item.type == "job" %}<p class="card-price card-price-muted">{{ item.attributes.get("employer") or "Ledig stilling" }}</p>{% endif %}
+      {% if item.is_imported %}<p class="card-source">Fra {{ item.source_name }}</p>{% endif %}
     </div>
   </a>
 </article>

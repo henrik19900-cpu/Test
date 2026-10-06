@@ -76,9 +76,18 @@ CREATE TABLE listings (
     risk_flags TEXT NOT NULL DEFAULT '[]',
     text_hash TEXT,
     reviewed_at TEXT,
-    moderation_note TEXT
+    moderation_note TEXT,
+    -- Listings imported from an open source (e.g. "nav": job ads from arbeidsplassen.no).
+    source TEXT,
+    source_id TEXT,
+    source_url TEXT,
+    apply_url TEXT,
+    source_updated_at TEXT,
+    expires_at TEXT
 );
 CREATE INDEX idx_listings_status_created ON listings(status, created_at);
+CREATE UNIQUE INDEX idx_listings_source ON listings(source, source_id) WHERE source IS NOT NULL;
+CREATE INDEX idx_listings_expires ON listings(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_listings_category ON listings(category);
 CREATE INDEX idx_listings_user ON listings(user_id);
 CREATE INDEX idx_listings_county ON listings(county);
@@ -197,6 +206,27 @@ CREATE TABLE device_grants (
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     polled_at TEXT
+);
+
+-- Imports from open sources: where the importer is in the source's feed, and changes waiting
+-- to be applied (the latest state per item; see navjobs.py).
+CREATE TABLE import_state (
+    source TEXT PRIMARY KEY,
+    page_id TEXT,
+    etag TEXT,
+    last_modified TEXT,
+    token TEXT,
+    lease_until TEXT,
+    last_run_at TEXT,
+    last_error TEXT
+);
+
+CREATE TABLE import_queue (
+    source TEXT NOT NULL,
+    item_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    PRIMARY KEY (source, item_id)
 );
 
 -- Every moderator decision, kept for accountability.

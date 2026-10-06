@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import identity, phone
+from . import identity, navjobs, phone
 from .config import Settings
 from .db import Database
 from .mailer import Mail, Mailer
@@ -96,6 +96,38 @@ def doctor(
         Check(moderators > 0, f"{moderators} moderator(er). Lag en med: python -m fritorg make-admin E-POST")
     )
     checks.append(Check(True, f"Databasen svarer ({listings} annonser) i {settings.db_path}"))
+    checks += _import_checks(settings, db)
+    return checks
+
+
+def _import_checks(settings: Settings, db: Database) -> list[Check]:
+    if not settings.nav_import:
+        return [
+            Check(
+                None,
+                "Ledige stillinger fra Nav (arbeidsplassen.no) hentes ikke inn. FRITORG_NAV_IMPORT=1 slår det på",
+            )
+        ]
+    with db.session() as conn:
+        state = navjobs.status(conn)
+    checks = [
+        Check(
+            True if settings.nav_token else None,
+            "Eget token for Navs stillingsfeed (FRITORG_NAV_TOKEN)"
+            if settings.nav_token
+            else "Bruker Navs offentlige testtoken. Be om et eget token fra nav.team.arbeidsplassen@nav.no (se README)",
+        )
+    ]
+    if state["last_error"]:
+        checks.append(Check(False, f"Siste import fra Nav feilet: {state['last_error']}"))
+    elif state["last_run_at"]:
+        checks.append(
+            Check(
+                True, f"{state['active_listings']} stillinger fra Nav, sist oppdatert {state['last_run_at']}"
+            )
+        )
+    else:
+        checks.append(Check(None, "Importen fra Nav har ikke kjørt ennå (den starter med appen)"))
     return checks
 
 

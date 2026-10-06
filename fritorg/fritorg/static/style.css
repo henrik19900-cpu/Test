@@ -1087,6 +1087,21 @@ details summary {
   gap: 0.5rem;
 }
 
+.tag-source {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.card-source {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.source-panel {
+  border-color: var(--brand);
+}
+
 .verify-panel {
   margin-bottom: 2rem;
   border-color: var(--accent);

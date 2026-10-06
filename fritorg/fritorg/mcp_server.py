@@ -147,6 +147,9 @@ def _compact(listing: listings.Listing, base: str) -> dict[str, Any]:
     }
     if listing.thumbnail:
         item["image_url"] = base + listing.thumbnail.thumb_path
+    if listing.is_imported:
+        item["source"] = listing.source_name
+        item["apply_url"] = listing.apply_url or listing.source_url
     return item
 
 

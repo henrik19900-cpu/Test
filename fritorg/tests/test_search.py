@@ -118,6 +118,9 @@ def test_fts_query_escaping():
     assert build_fts_query('sofa "OR" grå') == ('"sofa" AND "grå"', ["or"])
     assert build_fts_query("e-bike 26") == ('"e-bike"', ["26"])
     assert build_fts_query("   ") == (None, [])
+    # Short function words are ignored; short product terms are kept.
+    assert build_fts_query("vi søker sofa og bord") == ('"søker" AND "sofa" AND "bord"', [])
+    assert build_fts_query("bmw x5 i oslo") == ('"bmw" AND "oslo"', ["x5"])
 
 
 def test_queries_with_fts_syntax_do_not_crash(conn, seller):

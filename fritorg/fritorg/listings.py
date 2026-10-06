@@ -737,9 +737,10 @@ def delete_listing(
 
 
 def category_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    # Counted from the (status, category, user_id) index alone; banned sellers are few.
     rows = conn.execute(
-        "SELECT l.category, COUNT(*) AS n FROM listings l JOIN users u ON u.id = l.user_id "
-        "WHERE l.status = 'active' AND u.banned_at IS NULL GROUP BY l.category"
+        "SELECT category, COUNT(*) AS n FROM listings WHERE status = 'active' "
+        "AND user_id NOT IN (SELECT id FROM users WHERE banned_at IS NOT NULL) GROUP BY category"
     )
     counts = {r["category"]: r["n"] for r in rows}
     for group in taxonomy.GROUPS:
@@ -975,6 +976,25 @@ def validate_search(params: SearchParams) -> SearchParams:
 
 
 _TOKEN_RE = re.compile(r"[\w][\w\-./+]*", re.UNICODE)
+# Short function words filter nothing useful ("vi søker", "sofa og bord"), so they are ignored.
+_SHORT_STOPWORDS = {
+    "og",
+    "i",
+    "på",
+    "en",
+    "et",
+    "er",
+    "av",
+    "vi",
+    "du",
+    "de",
+    "om",
+    "så",
+    "å",
+    "at",
+    "ei",
+    "eg",
+}
 
 
 def build_fts_query(q: str) -> tuple[str | None, list[str]]:
@@ -990,7 +1010,7 @@ def build_fts_query(q: str) -> tuple[str | None, list[str]]:
             continue
         if len(token) >= 3:
             phrases.append('"' + token.replace('"', '""') + '"')
-        else:
+        elif token not in _SHORT_STOPWORDS:
             short.append(token)
     return (" AND ".join(phrases) or None), short
 
@@ -1062,11 +1082,17 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
 
     fts_query, short_terms = build_fts_query(params.q or "")
     for term in short_terms:
+        # Matched in titles, category fields and places, and in the descriptions of listings posted here
+        # (imported job ads are long). SQLite's LIKE already ignores ASCII case; casefold() is slower and
+        # only needed for æ, ø and å.
+        fold = (lambda column: column) if term.isascii() else (lambda column: f"casefold({column})")
         conditions.append(
-            "(casefold(l.title) LIKE ? ESCAPE '\\' OR casefold(l.description) LIKE ? ESCAPE '\\')"
+            f"({fold('l.title')} LIKE ? ESCAPE '\\' "
+            f"OR (l.source IS NULL AND {fold('l.description')} LIKE ? ESCAPE '\\') "
+            f"OR l.id IN (SELECT rowid FROM listings_fts WHERE {fold('meta')} LIKE ? ESCAPE '\\'))"
         )
         pattern = f"%{_escape_like(term)}%"
-        args.extend([pattern, pattern])
+        args.extend([pattern, pattern, pattern])
 
     if fts_query:
         # Run the full-text match once, up front. Joined directly, SQLite may instead probe the

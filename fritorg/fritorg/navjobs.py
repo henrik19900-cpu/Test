@@ -45,6 +45,7 @@ SOURCE_EMAIL = "stillinger@arbeidsplassen.import.invalid"  # owner of imported a
 SOURCE_NAME = "arbeidsplassen.no (Nav)"
 BACKFILL_DAYS = 183  # Nav: an ad is never active for more than six months
 LEASE_SECONDS = 1800  # one import at a time, also with several app processes
+INDEXED_CHARS = 2500  # how much of an ad's text is full-text indexed
 
 
 class FeedError(Exception):
@@ -450,7 +451,7 @@ def upsert(conn: sqlite3.Connection, owner_id: int, entry: dict[str, Any]) -> st
             "source_updated_at = ?, expires_at = ? WHERE id = ?",
             (*common, status, updated, source_url, apply_url, changed, expires, existing["id"]),
         )
-        listings.index_listing(conn, existing["id"], values)
+        listings.index_listing(conn, existing["id"], _searchable(values))
         return "updated"
     cursor = conn.execute(
         "INSERT INTO listings (category, title, description, county, location, postal_code, attributes, "
@@ -460,8 +461,14 @@ def upsert(conn: sqlite3.Connection, owner_id: int, entry: dict[str, Any]) -> st
         (*common, owner_id, published, updated, SOURCE, uuid, source_url, apply_url, changed, expires),
     )
     assert cursor.lastrowid is not None
-    listings.index_listing(conn, cursor.lastrowid, values)
+    listings.index_listing(conn, cursor.lastrowid, _searchable(values))
     return "created"
+
+
+def _searchable(values: dict[str, Any]) -> dict[str, Any]:
+    # Job ads are long; the start says what the job is. Indexing all of it would make the search
+    # index several times larger and common words slower to look up.
+    return {**values, "description": values["description"][:INDEXED_CHARS]}
 
 
 # --- Sync ---------------------------------------------------------------------------------------

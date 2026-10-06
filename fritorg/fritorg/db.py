@@ -89,6 +89,7 @@ CREATE INDEX idx_listings_status_created ON listings(status, created_at);
 CREATE UNIQUE INDEX idx_listings_source ON listings(source, source_id) WHERE source IS NOT NULL;
 CREATE INDEX idx_listings_expires ON listings(expires_at) WHERE expires_at IS NOT NULL;
 CREATE INDEX idx_listings_category ON listings(category);
+CREATE INDEX idx_listings_status_category ON listings(status, category, user_id);
 CREATE INDEX idx_listings_user ON listings(user_id);
 CREATE INDEX idx_listings_county ON listings(county);
 CREATE INDEX idx_listings_updated ON listings(updated_at);

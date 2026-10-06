@@ -59,6 +59,8 @@ def base_context(request: Request, conn: sqlite3.Connection | None) -> dict[str,
         "flash": unquote(flash) if flash else None,
         "site_name": settings.site_name,
         "bankid_mode": settings.bankid_mode,
+        "contact_email": settings.contact_email,
+        "operator": settings.operator,
         "base": settings.base_url or str(request.base_url).rstrip("/"),
         "path": request.url.path,
     }

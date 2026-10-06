@@ -30,6 +30,9 @@ class Settings:
     # Public base URL, e.g. "https://fritorg.no". When unset it is derived from each request.
     base_url: str | None = None
     site_name: str = "Fritorg"
+    # Shown in the footer, terms and security.txt: who runs the site and how to reach them.
+    contact_email: str | None = None
+    operator: str | None = None
     # None = secure cookies only when base_url is https.
     secure_cookies: bool | None = None
     seed_demo: bool = False
@@ -97,6 +100,8 @@ class Settings:
             data_dir=Path(_env("DATA_DIR", str(defaults.data_dir))),
             base_url=(_env("BASE_URL") or "").rstrip("/") or None,
             site_name=_env("SITE_NAME", defaults.site_name),
+            contact_email=_env("CONTACT_EMAIL"),
+            operator=_env("OPERATOR"),
             secure_cookies=None if secure is None else _env_bool("SECURE_COOKIES", False),
             seed_demo=_env_bool("SEED_DEMO", defaults.seed_demo),
             rate_limit_read_per_minute=_env_int("RATE_LIMIT_READ", defaults.rate_limit_read_per_minute),

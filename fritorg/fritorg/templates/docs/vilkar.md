@@ -2,6 +2,8 @@
 
 *Utkast. Teksten må kvalitetssikres juridisk før tjenesten lanseres.*
 
+{% if settings.operator %}{{ site_name }} drives av {{ settings.operator }}, som er behandlingsansvarlig for personopplysningene.{% endif %}{% if settings.contact_email %} Spørsmål om personvern, innsyn eller sletting kan sendes til {{ settings.contact_email }}.{% endif %}
+
 ## Bruk av tjenesten
 
 - Det er gratis å bruke {{ site_name }}.

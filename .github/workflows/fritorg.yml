@@ -1,0 +1,48 @@
+name: fritorg
+
+on:
+  push:
+    branches: [main]
+    paths: ["fritorg/**", ".github/workflows/fritorg.yml"]
+  pull_request:
+    paths: ["fritorg/**", ".github/workflows/fritorg.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: fritorg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t fritorg fritorg
+      - name: Start with demo data and check that it answers
+        run: |
+          docker run -d --name fritorg -p 8000:8000 -e FRITORG_SEED_DEMO=1 fritorg
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/llms.txt | head -n 3
+          curl -fsS "http://127.0.0.1:8000/api/v1/listings?q=sykkel" | python3 -c "import json, sys; assert json.load(sys.stdin)['total'] > 0"
+          curl -fsS -X POST http://127.0.0.1:8000/mcp -H 'Content-Type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | grep -q search_listings
+      - name: Logs
+        if: always()
+        run: docker logs fritorg

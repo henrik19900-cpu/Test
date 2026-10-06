@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import xml.etree.ElementTree as ET
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
@@ -11,10 +12,11 @@ from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from . import listings, taxonomy
 from .deps import base_url, get_conn
+from .errors import NotFound
 from .listings import SearchParams
 from .serializers import listing_url
 from .templating import templates
-from .util import now_iso, truncate
+from .util import now_iso, to_iso, truncate, utcnow
 
 router = APIRouter(include_in_schema=False)
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
@@ -103,6 +105,10 @@ def robots_txt(request: Request) -> PlainTextResponse:
         "Disallow: /logg-inn",
         "Disallow: /registrer",
         "Disallow: /ny-annonse",
+        "Disallow: /bankid/",
+        "Disallow: /koble-til",
+        "Disallow: /moderering",
+        "Disallow: /bekreft-epost",
         "Content-Signal: search=yes, ai-input=yes, ai-train=yes",
         "",
     ]
@@ -184,6 +190,20 @@ def feed(request: Request, conn: Conn) -> Response:
         title,
         f"{base}/feed.atom" + (f"?{query}" if query else ""),
         f"{base}/sok" + (f"?{query}" if query else ""),
+    )
+
+
+@router.get("/.well-known/security.txt")
+def security_txt(request: Request) -> PlainTextResponse:
+    """RFC 9116. Only published when FRITORG_CONTACT_EMAIL is set."""
+    contact = request.app.state.settings.contact_email
+    if not contact:
+        raise NotFound("Ingen sikkerhetskontakt er satt opp.")
+    base = base_url(request)
+    expires = to_iso(utcnow() + timedelta(days=365))
+    return PlainTextResponse(
+        f"Contact: mailto:{contact}\nExpires: {expires}\nPreferred-Languages: no, en\n"
+        f"Canonical: {base}/.well-known/security.txt\n"
     )
 
 

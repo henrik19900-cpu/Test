@@ -1025,11 +1025,17 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
         args.extend([pattern, pattern])
 
     if fts_query:
-        source = "listings_fts JOIN listings l ON l.id = listings_fts.rowid JOIN users u ON u.id = l.user_id"
-        columns = f"l.*, {_SELLER_COLUMNS}, bm25(listings_fts, 10.0, 1.0, 3.0) AS rank"
-        conditions.insert(0, "listings_fts MATCH ?")
+        # Run the full-text match once, up front. Joined directly, SQLite may instead probe the
+        # index once per listing, which gets slow for common words.
+        prefix = (
+            "WITH f AS MATERIALIZED (SELECT rowid AS id, bm25(listings_fts, 10.0, 1.0, 3.0) AS rank "
+            "FROM listings_fts WHERE listings_fts MATCH ?) "
+        )
+        source = "f JOIN listings l ON l.id = f.id JOIN users u ON u.id = l.user_id"
+        columns = f"l.*, {_SELLER_COLUMNS}, f.rank AS rank"
         args.insert(0, fts_query)
     else:
+        prefix = ""
         source = "listings l JOIN users u ON u.id = l.user_id"
         columns = f"l.*, {_SELLER_COLUMNS}"
 
@@ -1042,9 +1048,9 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
         "relevance": "rank, l.created_at DESC, l.id DESC" if fts_query else "l.created_at DESC, l.id DESC",
     }[params.effective_sort]
 
-    total = conn.execute(f"SELECT COUNT(*) FROM {source} WHERE {where}", args).fetchone()[0]
+    total = conn.execute(f"{prefix}SELECT COUNT(*) FROM {source} WHERE {where}", args).fetchone()[0]
     rows = conn.execute(
-        f"SELECT {columns} FROM {source} WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
+        f"{prefix}SELECT {columns} FROM {source} WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
         [*args, params.limit, params.offset],
     ).fetchall()
     items = [_listing(row) for row in rows]

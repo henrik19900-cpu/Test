@@ -27,6 +27,14 @@ def main(argv: list[str] | None = None) -> int:
     admin = commands.add_parser("make-admin", help="give an existing user moderator rights")
     admin.add_argument("email")
 
+    backup = commands.add_parser(
+        "backup", help="copy the database, uploaded images and secret key to a folder"
+    )
+    backup.add_argument("destination")
+
+    doctor = commands.add_parser("doctor", help="check that everything is ready for launch")
+    doctor.add_argument("--send-test-mail", metavar="ADDRESS", help="also send a test e-mail")
+
     args = parser.parse_args(argv)
     settings = Settings.from_env()
 
@@ -56,6 +64,25 @@ def main(argv: list[str] | None = None) -> int:
             users.set_admin(conn, user.id)
         print(f"{user.name} er nå moderator.")
         return 0
+
+    if args.command == "backup":
+        from pathlib import Path
+
+        from .ops import backup as run_backup
+
+        target = run_backup(settings, Path(args.destination))
+        print(f"Sikkerhetskopi: {target} (+ bilder og hemmelig nøkkel i samme mappe)")
+        return 0
+
+    if args.command == "doctor":
+        from .ops import doctor as run_doctor
+
+        checks = run_doctor(settings, test_mail_to=args.send_test_mail)
+        for check in checks:
+            print(check)
+        failed = [c for c in checks if c.ok is False]
+        print("Klar for lansering." if not failed else f"{len(failed)} ting må fikses før lansering.")
+        return 1 if failed else 0
 
     import uvicorn
 

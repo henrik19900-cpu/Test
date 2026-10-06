@@ -52,6 +52,8 @@
       <div>
         <p class="footer-brand">{{ site_name }}</p>
         <p>Gratis markedsplass for hele Norge. Ingen annonsekostnader, ingen reklame og ingen sporingskapsler.</p>
+        {% if operator %}<p>Drives av {{ operator }}.</p>{% endif %}
+        {% if contact_email %}<p>Kontakt: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>{% endif %}
       </div>
       <div>
         <p class="footer-heading">Tjenesten</p>

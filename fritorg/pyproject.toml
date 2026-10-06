@@ -11,6 +11,7 @@ dependencies = [
     "python-multipart>=0.0.9",
     "markdown>=3.5",
     "pillow>=10",
+    "tzdata",  # Norwegian local time on systems without a time zone database (e.g. slim containers)
 ]
 
 [project.optional-dependencies]

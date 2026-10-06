@@ -179,6 +179,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response.headers["RateLimit-Remaining"] = str(decision.remaining)
             response.headers["RateLimit-Reset"] = str(decision.reset_in)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        if settings.base_url and settings.base_url.startswith("https://"):
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+        if path.startswith("/uploads/") and response.status_code == 200:
+            # Upload names are random and never reused, so they can be cached forever.
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif path.startswith("/static/") and response.status_code == 200:
+            response.headers["Cache-Control"] = "public, max-age=86400"
         if is_api:
             links = [
                 response.headers.get("Link"),

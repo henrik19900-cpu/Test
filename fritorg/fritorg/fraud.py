@@ -143,6 +143,12 @@ SIGNALS: dict[str, SignalInfo] = {
             "Inneholder en lenke om betaling eller frakt.",
             message_warning="Dette ligner en falsk betalingslenke. Fritorg sender aldri betalingslenker, og du skal aldri oppgi kortnummer eller BankID for å motta penger.",
         ),
+        SignalInfo(
+            "prohibited_item",
+            50,
+            "Ser ut til å gjelde noe som ikke er lov å selge her (narkotika, reseptbelagte legemidler, falske "
+            "dokumenter eller kopivarer).",
+        ),
         SignalInfo("pressure", 10, "Bruker pressende formuleringer («haster», «må selges i dag»)."),
         SignalInfo("price_far_below", 50, "Prisen er under 10 % av vanlig pris for lignende annonser."),
         SignalInfo("price_below", 30, "Prisen er langt under vanlig pris for lignende annonser."),
@@ -223,6 +229,14 @@ _TEXT_RULES: list[tuple[str, re.Pattern[str]]] = [
         ),
     ),
     ("external_link", re.compile(_URL)),
+    (
+        "prohibited_item",
+        re.compile(
+            r"\b(narkotika|kokain|amfetamin|heroin|hasj|marihuana|cannabis|mdma|ecstasy|ghb|anabole steroider"
+            r"|reseptbelagt\w*|xanax|oxycodon\w*|vival|rivotril|falske? (?:sedler|pass|førerkort|id-kort|vitnemål)"
+            r"|kopivare\w*|1:1[- ]kopi|fake (?:rolex|gucci|louis vuitton|nike))\b"
+        ),
+    ),
     ("pressure", re.compile(r"\b(haster|må selges (?:i dag|nå|raskt|fort)|urgent|asap)\b")),
 ]
 _PAYMENT_CONTEXT = re.compile(

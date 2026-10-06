@@ -12,7 +12,11 @@
 6. **Trygg handel.** Annonser med kjente svindelmønstre kontrolleres av en moderator før de publiseres, og mistenkelige meldinger får advarsler. Se [Trygg handel]({{ base }}/trygg-handel).
 7. **Personvern.** E-postadressen og fødselsnummeret ditt vises aldri, og vi bruker ingen sporingskapsler eller reklame.
 
-## Trygg handel
+{% if settings.operator or settings.contact_email %}## Kontakt
+
+{% if settings.operator %}{{ site_name }} drives av {{ settings.operator }}. {% endif %}{% if settings.contact_email %}Du når oss på {{ settings.contact_email }}.{% endif %}
+
+{% endif %}## Trygg handel
 
 - Møt gjerne selgeren og se varen før du betaler.
 - Send aldri penger eller BankID-koder til noen du ikke kjenner.

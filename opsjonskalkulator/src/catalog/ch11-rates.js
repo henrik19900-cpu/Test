@@ -139,7 +139,7 @@ export default [
     group: 'Obligasjonsmatematikk',
     name: 'Obligasjonspris, durasjon og konveksitet',
     authors: 'Macaulay (1938), Haug (2007), kap. 11',
-    description: 'Pris på en kupongobligasjon fra yielden (m forrentninger per år), med påløpte renter, Macaulay- og modifisert durasjon, konveksitet og prisendringen ved et renteskift Δy.',
+    description: 'Kurs på en kupongobligasjon fra yielden (m forrentninger per år), med påløpte renter, Macaulay- og modifisert durasjon, konveksitet og prisendringen ved et renteskift Δy.',
     inputs: [
       rate('y', 'Yield y', 0.08),
       rate('c', 'Kupongrente c', 0.08, { min: 0 }),
@@ -152,9 +152,9 @@ export default [
       const b = bondFromYield(p);
       const shifted = bondFromYield({ ...p, y: p.y + p.dy });
       return {
-        'Pris inkl. påløpte renter': b.dirty,
-        'Påløpte renter': b.accrued,
         'Ren kurs': b.clean,
+        'Kurs inkl. påløpte renter': b.dirty,
+        'Påløpte renter': b.accrued,
         'Macaulay-durasjon (år)': b.macaulay,
         'Modifisert durasjon': b.modified,
         'Konveksitet': b.convexity,
@@ -392,7 +392,7 @@ export default [
     payoff: 'max(B_T − X, 0) / max(X − B_T, 0), B_T = verdien ved T av kontantstrømmene etter T',
     inputs: [
       callPut('call'), L(100), rate('c', 'Kupongrente c', 0.06, { min: 0 }), int('m', 'Kuponger per år m', 2, { min: 1 }),
-      sBond(5), X(100, 'Innløsningskurs X (inkl. påløpte renter)'), Topt(1),
+      sBond(5), X(100, 'Innløsningskurs X (inkl. påløpte renter)'), Topt(1.25),
       rate('r', 'Kortrente i dag r', 0.05), kappa(0.2), rate('theta', 'Langsiktig rentenivå θ', 0.06), sigmaAbs(0.02),
     ],
     compute: (p) => {

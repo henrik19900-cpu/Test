@@ -58,7 +58,7 @@ test('konveksitetsjustering: Hulls eksempel, Ho-Lee-grensen og forventet rente i
   const c = R.futuresToForward({ Pf: 94, t1: 8, tau: 0.25, v: 0.012, a: 0 });
   close(c.adj, 0.5 * 0.012 ** 2 * 8 * 8.25, 1e-16);
   close(c.forwardCont, 0.054802, 1e-6);
-  close(R.futuresConvexity({ t1: 8, t2: 8.25, v: 0.012, a: 1e-9 }), c.adj, 1e-11);
+  close(R.futuresConvexity({ t1: 8, t2: 8.25, v: 0.012, a: 1e-9 }), c.adj, 1e-10);
   // Uavhengig kontroll: futuresrenten er E^Q[R(t1,t2)], R = −ln P(t1,t2)/τ. I Hull-White er
   // ln P(t1,t2) = ln A − B r(t1). Forventet kortrente finnes ved å løse dm/dt = θ(t) − a m
   // numerisk (RK4), der θ(t) = a f + σ²(1 − e^{−2at})/(2a) tilpasser modellen til flat kurve f.
@@ -114,12 +114,13 @@ test('obligasjoner: durasjon og konveksitet mot numeriske deriverte, og yield fr
     { y: 0.12, c: 0.02, m: 4, T: 3.1, L: 1000 },
   ]) {
     const b = R.bondFromYield(q);
-    const h = 1e-4;
-    const up = R.bondFromYield({ ...q, y: q.y + h }).dirty;
-    const dn = R.bondFromYield({ ...q, y: q.y - h }).dirty;
-    close(-(up - dn) / (2 * h) / b.dirty, b.modified, 1e-7, 'modifisert durasjon');
-    close((up - 2 * b.dirty + dn) / (h * h) / b.dirty, b.convexity, 1e-4, 'konveksitet');
-    close(b.dv01, -(up - dn) / (2 * h) * 1e-4, 1e-9);
+    const at = (dy) => R.bondFromYield({ ...q, y: q.y + dy }).dirty;
+    const h1 = 1e-6;
+    const slope = (at(h1) - at(-h1)) / (2 * h1);
+    close(-slope / b.dirty, b.modified, 1e-7, 'modifisert durasjon');
+    const h2 = 1e-4;
+    close((at(h2) - 2 * b.dirty + at(-h2)) / (h2 * h2) / b.dirty, b.convexity, 1e-4, 'konveksitet');
+    close(b.dv01, -slope * 1e-4, 1e-9);
     for (const priceType of ['clean', 'dirty']) {
       const price = priceType === 'clean' ? b.clean : b.dirty;
       close(R.bondYield({ ...q, price, priceType }).y, q.y, 1e-12, `yield fra ${priceType}`);

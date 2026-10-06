@@ -211,6 +211,9 @@ test('Dobbel-barriere binær: Huis egenfunksjonsrekke = bilderekken = 1 − P(ø
     const image = Math.exp(-r * T) * ikedaKunitomoProb({ S, lo: L, hi: U, L, U, T, b, v, share: false });
     const tag = `S=${S} L=${L} U=${U} T=${T}`;
     close(hui, image, 1e-12, `${tag} Hui mot bilderekke`);
+    for (const upper of [true, false]) {
+      close(firstHitValue({ ...p, upper, rate: r, method: 'numeric' }), firstHitValue({ ...p, upper, rate: r }), 1e-11, `${tag} numerisk integrasjon`);
+    }
     for (const method of ['image', 'eigen']) {
       const pu = firstHitValue({ ...p, upper: true, rate: 0, method });
       const pl = firstHitValue({ ...p, upper: false, rate: 0, method });
@@ -328,6 +331,10 @@ test('Dobbel-barriere binær: grensetilfeller mot enkel barriere, uendelig horis
   close(val('ki'), val('upper-exp') + val('lower-exp'), 1e-11, 'knock-in = øvre + nedre ved forfall');
   close(val('touch'), val('upper-hit') + val('lower-hit'), 1e-12, 'one-touch');
   assert.ok(val('upper-hit') > val('upper-exp') && val('lower-hit') > val('lower-exp'), 'betaling ved treff er verdt mer enn ved forfall når r > 0');
+  // Svært negativ rente (γ² < 0) løses med numerisk integrasjon; prisen er glatt over terskelen.
+  const neg = { S: 100, L: 90, U: 110, K: 10, T: 1, b: 0, v: 0.1, kind: 'touch' };
+  const f = (r) => doubleBarrierBinary({ ...neg, r });
+  close(f(-0.00125), 0.5 * (f(-0.00125 - 2e-4) + f(-0.00125 + 2e-4)), 1e-7, 'glatt over terskelen');
   // Spot utenfor korridoren og T → 0.
   const out = { ...s, S: 130 };
   const expect = { ko: 0, ki: 10 * Math.exp(-0.045), touch: 10, 'upper-hit': 10, 'lower-hit': 0, 'upper-exp': 10 * Math.exp(-0.045), 'lower-exp': 0 };

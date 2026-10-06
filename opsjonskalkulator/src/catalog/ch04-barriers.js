@@ -35,7 +35,7 @@ export default [
     group: BAR,
     name: 'Standard barriereopsjon',
     authors: 'Merton (1973), Reiner og Rubinstein (1991)',
-    description: 'Europeisk opsjon som slås inn eller ut når spot treffer barrieren H (kontinuerlig overvåking). Alle åtte typene, med rabatt K.',
+    description: 'Europeisk opsjon som slås inn eller ut når spot treffer barrieren H, med kontinuerlig overvåking. Dekker alle åtte typene, med rabatt K.',
     payoff: 'Ut: max(S_T − X, 0) hvis H aldri treffes, ellers K ved treff. Inn: max(S_T − X, 0) hvis H treffes, ellers K ved forfall.',
     inputs: [callPut('call'), barrierType, S(100), X(90), H(95), rebate(3), T(0.5), r(0.08), b(0.04), v(0.25)],
     compute: (p) => ({

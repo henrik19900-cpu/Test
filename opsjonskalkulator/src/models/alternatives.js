@@ -419,55 +419,57 @@ export function displacedDiffusion({ type = 'call', S, X, T, r, b, v, a }) {
 // Lewis (2001): c = S e^{(b−r)T} − (√(FX) e^{−rT}/π) ∫₀^∞ Re[e^{iuk} ψ(u − i/2)] / (u² + ¼) du,
 // k = ln(F/X), ψ karakteristisk funksjon til ln(S_T/F) («little Heston trap»-formen).
 
-// ψ(u − i/2) som [re, im].
+// Små komplekse hjelpere, tall som [re, im].
+const cmul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+const cdiv = (a, b) => {
+  const m = b[0] * b[0] + b[1] * b[1];
+  return [(a[0] * b[0] + a[1] * b[1]) / m, (a[1] * b[0] - a[0] * b[1]) / m];
+};
+const csqrt = (a) => {
+  const mod = Math.hypot(a[0], a[1]);
+  const re = Math.sqrt(0.5 * (mod + a[0]));
+  const im = Math.sqrt(Math.max(0.5 * (mod - a[0]), 0));
+  return [re, a[1] < 0 ? -im : im];
+};
+const cexp = (a) => {
+  const m = Math.exp(a[0]);
+  return [m * Math.cos(a[1]), m * Math.sin(a[1])];
+};
+// ln(1 + w), nøyaktig også når |w| er liten.
+const clog1p = (w) => [0.5 * Math.log1p(2 * w[0] + w[0] * w[0] + w[1] * w[1]), Math.atan2(w[1], 1 + w[0])];
+
+// ψ(u − i/2) som [re, im]. Skrevet slik at ingen ledd kansellerer når σ_v → 0:
+//   ξ = κ − ρσ/2 − iρσu,  d = √(ξ² + σ²(u² + ¼)),  ξ − d = −σ²(u² + ¼)/(ξ + d),  g = (ξ − d)/(ξ + d)
+//   D = −(u² + ¼)/(ξ + d) · (1 − e^{−dT})/(1 − g e^{−dT})
+//   C = κθ [−(u² + ¼)T/(ξ + d) − 2 ln(1 + w)/σ²],  w = g(1 − e^{−dT})/(1 − g)
 function hestonPsiShifted(u, T, v0, kappa, theta, sig, rho) {
-  const xr = kappa - 0.5 * rho * sig;
-  const xi = -rho * sig * u;
-  // d = √(ξ² + σ²(u² + ¼))
-  const ar = xr * xr - xi * xi + sig * sig * (u * u + 0.25);
-  const ai = 2 * xr * xi;
-  const mod = Math.hypot(ar, ai);
-  let dr = Math.sqrt(0.5 * (mod + ar));
-  let di = Math.sqrt(Math.max(0.5 * (mod - ar), 0));
-  if (ai < 0) di = -di;
-  // g = (ξ − d)/(ξ + d)
-  const nr = xr - dr;
-  const ni = xi - di;
-  const pr = xr + dr;
-  const pi = xi + di;
-  const pp = pr * pr + pi * pi;
-  const gr = (nr * pr + ni * pi) / pp;
-  const gi = (ni * pr - nr * pi) / pp;
-  // e = e^{−dT}
-  const em = Math.exp(-dr * T);
-  const er = em * Math.cos(-di * T);
-  const ei = em * Math.sin(-di * T);
-  // 1 − g e  og  1 − g
-  const qr = 1 - (gr * er - gi * ei);
-  const qi = -(gr * ei + gi * er);
-  const mr = 1 - gr;
-  const mi = -gi;
-  const mm = mr * mr + mi * mi;
-  const lr0 = (qr * mr + qi * mi) / mm;
-  const li0 = (qi * mr - qr * mi) / mm;
-  const lr = 0.5 * Math.log(lr0 * lr0 + li0 * li0);
-  const li = Math.atan2(li0, lr0);
+  const q = u * u + 0.25;
   const s2 = sig * sig;
-  const kt = kappa * theta / s2;
-  const Cr = kt * (nr * T - 2 * lr);
-  const Ci = kt * (ni * T - 2 * li);
-  // D = (ξ − d)/σ² · (1 − e)/(1 − g e)
-  const fr0 = 1 - er;
-  const fi0 = -ei;
-  const qq = qr * qr + qi * qi;
-  const fr = (fr0 * qr + fi0 * qi) / qq;
-  const fi = (fi0 * qr - fr0 * qi) / qq;
-  const Dr = (nr * fr - ni * fi) / s2;
-  const Di = (nr * fi + ni * fr) / s2;
-  const re = Cr + Dr * v0;
-  const im = Ci + Di * v0;
-  const m = Math.exp(re);
-  return [m * Math.cos(im), m * Math.sin(im)];
+  const xi = [kappa - 0.5 * rho * sig, -rho * sig * u];
+  const xi2 = cmul(xi, xi);
+  const d = csqrt([xi2[0] + s2 * q, xi2[1]]);
+  const sum = [xi[0] + d[0], xi[1] + d[1]];
+  const fac = cdiv([-q, 0], sum); // (ξ − d)/σ²
+  const g = cdiv([s2 * fac[0], s2 * fac[1]], sum);
+  const e = cexp([-d[0] * T, -d[1] * T]);
+  const ome = [1 - e[0], -e[1]];
+  const ge = cmul(g, e);
+  const D = cmul(fac, cdiv(ome, [1 - ge[0], -ge[1]]));
+  // w/σ² = fac/(ξ + d) · (1 − e)/(1 − g)
+  const wOverS2 = cmul(cdiv(fac, sum), cdiv(ome, [1 - g[0], -g[1]]));
+  const w = [s2 * wOverS2[0], s2 * wOverS2[1]];
+  let LoverS2;
+  if (Math.hypot(w[0], w[1]) < 1e-6) {
+    // ln(1 + w)/w ≈ 1 − w/2 + w²/3
+    const w2 = cmul(w, w);
+    LoverS2 = cmul(wOverS2, [1 - 0.5 * w[0] + w2[0] / 3, -0.5 * w[1] + w2[1] / 3]);
+  } else {
+    const L = clog1p(w);
+    LoverS2 = [L[0] / s2, L[1] / s2];
+  }
+  const kt = kappa * theta;
+  const C = [kt * (fac[0] * T - 2 * LoverS2[0]), kt * (fac[1] * T - 2 * LoverS2[1])];
+  return cexp([C[0] + D[0] * v0, C[1] + D[1] * v0]);
 }
 
 export function hestonExpectedVariance({ T, v0, kappa, theta }) {
@@ -482,7 +484,7 @@ export function heston({ type = 'call', S, X, T, r, b, v0, kappa, theta, sigma, 
   if (!(rho >= -1 && rho <= 1)) throw new Error('Korrelasjonen må ligge mellom −1 og 1.');
   if (!(T > 0)) return Math.max(call ? S - X : X - S, 0);
   const vbar = hestonExpectedVariance({ T, v0, kappa, theta });
-  if (sigma < 1e-6) return gbsm({ type, S, X, T, r, b, v: Math.sqrt(vbar) });
+  if (sigma === 0 || (kappa === 0 && sigma < 1e-10)) return gbsm({ type, S, X, T, r, b, v: Math.sqrt(vbar) });
   const F = S * Math.exp(b * T);
   const k = Math.log(F / X);
   const f = (u) => {

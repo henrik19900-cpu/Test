@@ -387,7 +387,7 @@ export function vasicekCouponOption({ type = 'call', L, c, m, s, X, T, r, kappa,
   checkBondOption(T, s);
   const { times, amounts } = bondCashflows({ c, m, T: s, L });
   const flows = [];
-  for (let i = 0; i < times.length; i++) if (times[i] > T + 1e-10) flows.push([times[i], amounts[i]]);
+  for (let i = 0; i < times.length; i++) if (times[i] > T + 1e-10 && amounts[i] > 0) flows.push([times[i], amounts[i]]);
   if (flows.length === 0) throw new Error('Obligasjonen har ingen kontantstrømmer etter opsjonens forfall.');
   const bondAt = (rr) => flows.reduce((acc, [t, a]) => acc + a * vasicekBond({ r: rr, kappa, theta, v, T: t - T }).P, 0);
   const rStar = rootDecreasing((rr) => bondAt(rr) - X, -0.5, 0.5);
@@ -438,15 +438,28 @@ export function rendlemanBartter({ type = 'call', exercise = 'european', L, X, T
   const k0 = Math.min(Math.floor(kT + 1e-9), n);
   const w = Math.max(0, kT - k0);
   const k1 = w > 1e-12 ? Math.min(k0 + 1, n) : k0;
-  const disc = (i, j) => Math.exp(-r * u ** (2 * j - i) * dt);
-  // Obligasjonsverdier bakover fra forfall. Lagrer alle steg fra 0 til k1 (trengs for amerikansk).
+  // Diskonteringsfaktorene e^{−r_{i,j} Δt} i steg i, der r_{i,j} = r u^{2j − i}.
+  const u2 = u * u;
+  const discRow = (i) => {
+    const row = new Float64Array(i + 1);
+    let rate = r * u ** -i;
+    for (let j = 0; j <= i; j++) {
+      row[j] = Math.exp(-rate * dt);
+      rate *= u2;
+    }
+    return row;
+  };
+  // Obligasjonsverdier bakover fra forfall. Lagrer steg 0..k1 (trengs for amerikansk innløsning).
   const bondSteps = new Array(k1 + 1);
+  const discSteps = new Array(k1 + 1);
   let bond = new Float64Array(n + 1).fill(L);
   for (let i = n; i >= 0; i--) {
     if (i < n) {
+      const dr = discRow(i);
       const next = new Float64Array(i + 1);
-      for (let j = 0; j <= i; j++) next[j] = disc(i, j) * (p * bond[j + 1] + (1 - p) * bond[j]);
+      for (let j = 0; j <= i; j++) next[j] = dr[j] * (p * bond[j + 1] + (1 - p) * bond[j]);
       bond = next;
+      if (i <= k1) discSteps[i] = dr;
     }
     if (i <= k1) bondSteps[i] = bond;
   }
@@ -454,9 +467,10 @@ export function rendlemanBartter({ type = 'call', exercise = 'european', L, X, T
     const pay = (B) => Math.max(call ? B - X : X - B, 0);
     let V = Float64Array.from(bondSteps[k], pay);
     for (let i = k - 1; i >= 0; i--) {
+      const dr = discSteps[i];
       const next = new Float64Array(i + 1);
       for (let j = 0; j <= i; j++) {
-        const cont = disc(i, j) * (p * V[j + 1] + (1 - p) * V[j]);
+        const cont = dr[j] * (p * V[j + 1] + (1 - p) * V[j]);
         next[j] = american ? Math.max(cont, pay(bondSteps[i][j])) : cont;
       }
       V = next;

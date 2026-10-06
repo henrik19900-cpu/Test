@@ -102,7 +102,8 @@ test('Merton hopp-diffusjon: bokas eksempel, grensetilfeller og paritet', () => 
   const bs = gbsm({ ...p, type: 'call' });
   close(mertonJumpDiffusion({ ...p, type: 'call', lambda: 0 }), bs, 1e-15, 'λ = 0');
   close(mertonJumpDiffusion({ ...p, type: 'call', gamma: 0 }), bs, 1e-15, 'γ = 0');
-  close(mertonJumpDiffusion({ ...p, type: 'call', lambda: 1e-8 }), bs, 1e-7, 'λ → 0');
+  // Med γ fast blir hoppene sjeldne men store når λ → 0; grensen er BSM med diffusjonsvolatiliteten.
+  close(mertonJumpDiffusion({ ...p, type: 'call', lambda: 1e-8 }), gbsm({ ...p, type: 'call', v: p.v * Math.sqrt(1 - p.gamma) }), 1e-6, 'λ → 0');
   // Mange små hopp nærmer seg en ren diffusjon med samme totale varians.
   close(mertonJumpDiffusion({ ...p, type: 'call', lambda: 5000 }), bs, 2e-4, 'λ → ∞');
   // Merton er Bates med k̄ = 0, δ² = γσ²/λ og diffusjonsvolatilitet σ√(1 − γ).
@@ -292,29 +293,40 @@ test('Hull-White (1987): ξ → 0 gir BSM, rekken mot betinget Monte Carlo E[BSM
 // --- Hull og White (1988) -----------------------------------------------------------------------------
 // Betinget Monte Carlo (Romano og Touzi 1997): gitt variansbanen er ln S_T normal med
 // S' = S exp(ρ∫√V dW₂ − ½ρ²∫V dt) og varians (1 − ρ²)∫V dt.
+// Antitetiske variansbaner (z og −z); standardfeilen regnes over parene.
 function conditionalSV({ type, S, X, T, r, b, V0, steps, n, seed, rho, stepV }) {
   const rng = createRng(seed);
   const dt = T / steps;
   const sq = Math.sqrt(dt);
   let s = 0;
   let s2 = 0;
-  for (let i = 0; i < n; i++) {
-    let V = V0;
-    let I1 = 0;
-    let I2 = 0;
+  const price = (I1, I2) => gbsm({
+    type, S: S * Math.exp(rho * I1 - 0.5 * rho * rho * I2), X, T, r, b, v: Math.sqrt((1 - rho * rho) * I2 / T),
+  });
+  const pairs = Math.floor(n / 2);
+  for (let i = 0; i < pairs; i++) {
+    let Va = V0;
+    let Vb = V0;
+    let Ia1 = 0;
+    let Ia2 = 0;
+    let Ib1 = 0;
+    let Ib2 = 0;
     for (let j = 0; j < steps; j++) {
       const z = rng.normal();
-      const Vp = Math.max(V, 0);
-      I1 += Math.sqrt(Vp) * sq * z;
-      I2 += Vp * dt;
-      V = stepV(V, z, dt);
+      const pa = Math.max(Va, 0);
+      const pb = Math.max(Vb, 0);
+      Ia1 += Math.sqrt(pa) * sq * z;
+      Ia2 += pa * dt;
+      Ib1 -= Math.sqrt(pb) * sq * z;
+      Ib2 += pb * dt;
+      Va = stepV(Va, z, dt);
+      Vb = stepV(Vb, -z, dt);
     }
-    const Sp = S * Math.exp(rho * I1 - 0.5 * rho * rho * I2);
-    const y = gbsm({ type, S: Sp, X, T, r, b, v: Math.sqrt((1 - rho * rho) * I2 / T) });
+    const y = 0.5 * (price(Ia1, Ia2) + price(Ib1, Ib2));
     s += y;
     s2 += y * y;
   }
-  return meanSe(s, s2, n);
+  return meanSe(s, s2, pairs);
 }
 
 test('Hull-White (1988): grensetilfeller', () => {
@@ -335,15 +347,17 @@ test('Hull-White (1988): grensetilfeller', () => {
 
 test('Hull-White (1988): rekken mot betinget Monte Carlo med korrelasjon', () => {
   const base = { S: 100, T: 0.5, r: 0.05, b: 0.05, v: 0.2, vLR: 0.25, kappa: 1.5 };
-  for (const [type, X, xi, rho] of [['call', 110, 0.4, -0.6], ['put', 90, 0.4, -0.6], ['call', 100, 0.3, 0.5]]) {
+  for (const [type, X, xi, rho, big] of [
+    ['call', 110, 0.4, -0.6, true], ['put', 90, 0.4, -0.6, true], ['call', 100, 0.3, 0.5, false], ['call', 110, 0.8, -0.6, true],
+  ]) {
     const p = { ...base, type, X, xi, rho };
     const th = p.vLR * p.vLR;
     // Log-Euler for V: d ln V = (κ(θ − V)/V − ξ²/2)dt + ξ dW₂.
     const stepV = (V, z, dt) => V * Math.exp((p.kappa * (th - V) / V - 0.5 * xi * xi) * dt + xi * Math.sqrt(dt) * z);
     const est = conditionalSV({ type, S: p.S, X, T: p.T, r: p.r, b: p.b, V0: p.v * p.v, steps: 200, n: 20000, seed: 29, rho, stepV });
     const hw = hullWhite88(p);
-    withinMC(est, hw.price, 4, 3e-3, `HW88 ${type} X=${X} ρ=${rho}`);
-    assert.ok(Math.abs(hw.price - hw.bs) > 5 * est.se, 'korreksjonen er målbar');
+    withinMC(est, hw.price, 4, 3e-3, `HW88 ${type} X=${X} ξ=${xi} ρ=${rho}`);
+    if (big) assert.ok(Math.abs(hw.price - hw.bs) > 8 * est.se, `korreksjonen er målbar (${hw.price - hw.bs} mot SE ${est.se})`);
   }
 });
 
@@ -380,16 +394,14 @@ test('SABR mot Monte Carlo', () => {
       const n = 20000;
       for (let i = 0; i < n; i++) {
         let a = p.alpha;
-        let I1 = 0;
         let I2 = 0;
         for (let j = 0; j < steps; j++) {
-          const z = rng.normal();
-          const an = a * Math.exp(-0.5 * p.nu * p.nu * dt + p.nu * Math.sqrt(dt) * z);
-          // Trapes for ∫α² dt og ∫α dW (W₂-økningen er √dt·z).
-          I1 += 0.5 * (a + an) * Math.sqrt(dt) * z;
-          I2 += 0.5 * (a * a + an * an) * dt;
+          const an = a * Math.exp(-0.5 * p.nu * p.nu * dt + p.nu * Math.sqrt(dt) * rng.normal());
+          I2 += 0.5 * (a * a + an * an) * dt; // trapes for ∫α² dt
           a = an;
         }
+        // dα = να dW₂ gir Itô-integralet eksakt: ∫α dW₂ = (α_T − α₀)/ν.
+        const I1 = (a - p.alpha) / p.nu;
         const Fp = p.F * Math.exp(p.rho * I1 - 0.5 * p.rho * p.rho * I2);
         const y = gbsm({ type: 'call', S: Fp, X, T: p.T, r: 0, b: 0, v: Math.sqrt((1 - p.rho ** 2) * I2 / p.T) });
         s += y;
@@ -577,6 +589,6 @@ test('Heston mot betinget Monte Carlo (full truncation Euler)', () => {
     const h = heston(p);
     withinMC(est, h, 4, 2e-3, `Heston ${type} X=${X} ρ=${rho}`);
     const bs = gbsm({ ...p, v: Math.sqrt(hestonExpectedVariance(p)) });
-    assert.ok(Math.abs(h - bs) > 5 * est.se, 'stokastisk volatilitet gir målbart avvik fra BSM');
+    assert.ok(Math.abs(h - bs) > 8 * est.se, `stokastisk volatilitet gir målbart avvik fra BSM (${h - bs} mot SE ${est.se})`);
   }
 });

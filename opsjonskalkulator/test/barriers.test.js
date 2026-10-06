@@ -8,7 +8,7 @@ import { gaussLegendre, gaussLegendreComposite } from '../src/math/integrate.js'
 import { gbsm } from '../src/models/bsm.js';
 import {
   standardBarrier, barrierHitProbability, discreteBarrier, bgkAdjustedBarrier, doubleBarrier,
-  partialTimeBarrier, PARTIAL_TIME_KINDS, lookBarrier, partialFixedLookback, softBarrier,
+  partialTimeBarrier, PARTIAL_TIME_KINDS, lookBarrier, partialFixedLookback, softBarrier, hitDiscountValue,
 } from '../src/models/barriers.js';
 import { close, withinMC, bridgeHitProb } from './helpers.js';
 
@@ -155,6 +155,44 @@ test('Standard barriere: rabattleddene mot integral av førstepasseringstetthete
       close(standardBarrier({ ...p, barrier: inn, K }) - standardBarrier({ ...p, barrier: inn, K: 0 }), K * Math.exp(-r * T) * (1 - pHit), 1e-9, `${type} ${inn} rabatt ved forfall`);
     }
   }
+});
+
+test('Rabatt ved treff: numerisk integrasjon = lukket form, og negativ rente under terskelen', () => {
+  for (const [a, nu, v, rate, T] of [[-0.05, 0.02, 0.25, 0.08, 0.5], [0.1, -0.03, 0.4, 0.03, 2], [-1e-6, 0.01, 0.2, 0.05, 1], [0.3, 0.05, 0.1, 0.1, 0.25]]) {
+    close(hitDiscountValue({ a, nu, v, rate, T, numeric: true }), hitDiscountValue({ a, nu, v, rate, T }), 1e-12, `a=${a}`);
+  }
+  // Med b = 0 og σ = 0,1 er terskelen r = −μ²σ²/2 = −0,000125; prisen skal være glatt over den.
+  const p = { type: 'call', barrier: 'do', S: 100, X: 100, H: 95, K: 3, T: 1, b: 0, v: 0.1 };
+  const f = (r) => standardBarrier({ ...p, r });
+  const h = 5e-5;
+  const r0 = -0.000125;
+  close(f(r0), 0.5 * (f(r0 - h) + f(r0 + h)), 1e-8, 'glatt over terskelen');
+  // Og mot MC: rabatten ved treff med r = −0,02 (betydelig under terskelen).
+  const q = { ...p, r: -0.02, X: 100 };
+  const steps = 200;
+  const dt = q.T / steps;
+  const rng = createRng(91);
+  const lnH = Math.log(q.H);
+  const acc = accumulator();
+  for (let i = 0; i < 10000; i++) {
+    const zs = Array.from({ length: steps }, () => rng.normal());
+    let y = 0;
+    for (const sg of [1, -1]) {
+      let x = Math.log(q.S);
+      let surv = 1;
+      let reb = 0;
+      for (let j = 0; j < steps; j++) {
+        const nx = x + (q.b - q.v * q.v / 2) * dt + q.v * Math.sqrt(dt) * sg * zs[j];
+        const ph = bridgeHitProb(x, nx, lnH, q.v, dt);
+        reb += surv * ph * q.K * Math.exp(-q.r * (j + 0.5) * dt);
+        surv *= 1 - ph;
+        x = nx;
+      }
+      y += 0.5 * reb;
+    }
+    acc.add(y);
+  }
+  withinMC(acc.result(), standardBarrier(q) - standardBarrier({ ...q, K: 0 }), 4, 1e-3, 'rabatt ved r = −0,02');
 });
 
 test('Standard barriere med rabatt ved treff mot MC med mange steg', () => {

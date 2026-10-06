@@ -262,7 +262,6 @@ export function firstHitValue({ upper, S, L, U, T, b, v, rate, method = 'auto' }
     // Bilderekke: summen av førstepasseringsverdier for speilede startpunkter.
     const psi = (a) => expCnd(lnGirsanov - gamma * a, (-a + gamma * v2 * T) / sdT)
       + expCnd(lnGirsanov + gamma * a, (-a - gamma * v2 * T) / sdT);
-    const dist = (n) => (upper ? (2 * n + 1) * Z - x : x + 2 * n * Z);
     const term = (n) => {
       const a = dist(n);
       return a === 0 ? 0 : Math.sign(a) * psi(Math.abs(a));

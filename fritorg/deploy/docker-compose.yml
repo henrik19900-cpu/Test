@@ -1,5 +1,5 @@
 # Production: Fritorg behind Caddy (automatic HTTPS). Usage:
-#   cp .env.example .env   # fill in domain, BankID, e-mail, secret key
+#   cp .env.example .env   # fill in domain, SMS provider, e-mail and secret key
 #   docker compose up -d --build
 services:
   app:

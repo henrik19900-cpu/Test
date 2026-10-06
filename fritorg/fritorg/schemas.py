@@ -198,6 +198,10 @@ class ListingOut(ListingSummaryOut):
     created_via: str = Field(
         description="'web', 'api', 'mcp' (MCP means an AI agent created it) or 'import' (see `source`)."
     )
+    expires_at: str | None = Field(
+        None,
+        description="When the listing is hidden at the latest. The owner renews it with PATCH status 'active'.",
+    )
     source: SourceOut | None = Field(
         None,
         description="Only for imported listings. Apply through `apply_url`; the seller fields name the source.",

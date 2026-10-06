@@ -27,7 +27,7 @@ from .taxonomy import (
     Attribute,
     Category,
 )
-from .util import format_number, iso_ago, now_iso, parse_iso, to_iso
+from .util import format_number, iso_ago, iso_in, now_iso, parse_iso, to_iso
 
 CHANNELS = ("web", "api", "mcp", "import")
 
@@ -161,6 +161,11 @@ class Listing:
     @property
     def is_imported(self) -> bool:
         return self.source is not None
+
+    @property
+    def expires_soon(self) -> bool:
+        """Within a week of being hidden: the owner is offered to renew it."""
+        return bool(self.expires_at) and not self.is_imported and self.expires_at < iso_in(days=7)
 
     @property
     def source_name(self) -> str | None:
@@ -575,8 +580,12 @@ def create_listing(
     via: str = "web",
     max_per_day: int = 50,
     new_account_max_per_day: int | None = None,
+    active_days: int = 60,
 ) -> int:
-    """Create a listing. Listings with strong fraud signals start in status "review"."""
+    """Create a listing. Listings with strong fraud signals start in status "review".
+
+    It is active for `active_days` (0 = no end); then it is hidden until the owner renews it.
+    """
     values = validate_listing(data)
     status = data.get("status") or "active"
     if status not in OWNER_STATUSES:
@@ -592,7 +601,7 @@ def create_listing(
         cursor = conn.execute(
             "INSERT INTO listings (user_id, category, type, title, description, price, price_unit, county, "
             "location, postal_code, attributes, status, created_via, created_at, updated_at, risk_score, "
-            "risk_flags, text_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "risk_flags, text_hash, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 user_id,
                 values["category"],
@@ -612,6 +621,7 @@ def create_listing(
                 assessment.score,
                 json.dumps(assessment.codes),
                 fingerprint,
+                iso_in(days=active_days) if active_days else None,
             ),
         )
         listing_id = cursor.lastrowid
@@ -628,6 +638,7 @@ def update_listing(
     *,
     merge_attributes: bool = True,
     is_admin: bool = False,
+    active_days: int = 60,
 ) -> Listing:
     """Apply a partial update. Attributes are merged (null removes a key) unless merge_attributes=False.
 
@@ -693,20 +704,58 @@ def update_listing(
             ),
         )
         _index(conn, listing_id, clean)
+        if status == "active":
+            _renew(conn, listing, active_days)
     return get_listing(conn, listing_id)
 
 
+def _renew(conn: sqlite3.Connection, listing: Listing, active_days: int) -> None:
+    """Setting a listing active again starts a new period (imported listings follow their source)."""
+    if not listing.is_imported:
+        conn.execute(
+            "UPDATE listings SET expires_at = ? WHERE id = ?",
+            (iso_in(days=active_days) if active_days else None, listing.id),
+        )
+
+
 def set_status(
-    conn: sqlite3.Connection, user_id: int, listing_id: int, status: str, is_admin: bool = False
+    conn: sqlite3.Connection,
+    user_id: int,
+    listing_id: int,
+    status: str,
+    is_admin: bool = False,
+    active_days: int = 60,
 ) -> None:
+    """Change the status. Setting "active" on an active listing renews it for another period."""
     listing = get_listing(conn, listing_id)
     check_owner(listing, user_id, is_admin)
     _check_owner_status(listing, status, is_admin)
     if listing.status == "review" and not is_admin:
         return  # hiding a listing that is not public yet changes nothing
-    conn.execute(
-        "UPDATE listings SET status = ?, updated_at = ? WHERE id = ?", (status, now_iso(), listing_id)
-    )
+    with transaction(conn):
+        conn.execute(
+            "UPDATE listings SET status = ?, updated_at = ? WHERE id = ?", (status, now_iso(), listing_id)
+        )
+        if status == "active":
+            _renew(conn, listing, active_days)
+
+
+def expire_listings(conn: sqlite3.Connection) -> list[Listing]:
+    """Hide listings whose period is over. Returns them, so their owners can be told."""
+    rows = conn.execute(
+        f"{_SELECT} WHERE l.source IS NULL AND l.status = 'active' AND l.expires_at IS NOT NULL "
+        "AND l.expires_at < ?",
+        (now_iso(),),
+    ).fetchall()
+    expired = [_listing(row) for row in rows]
+    if expired:
+        with transaction(conn):
+            for listing in expired:
+                conn.execute(
+                    "UPDATE listings SET status = 'inactive', updated_at = ? WHERE id = ?",
+                    (now_iso(), listing.id),
+                )
+    return expired
 
 
 def add_risk_flag(conn: sqlite3.Connection, listing_id: int, code: str) -> bool:

@@ -44,6 +44,8 @@ class Settings:
     max_registrations_per_hour: int = 20
     max_listings_per_day: int = 50
     max_messages_per_day: int = 200
+    # Listings are active this many days; then they are hidden until the owner renews them (0 = never).
+    listing_days: int = 60
     # Stricter quotas during an account's first day make throwaway scam accounts less useful.
     new_account_max_listings_per_day: int = 5
     new_account_max_messages_per_day: int = 20
@@ -140,6 +142,7 @@ class Settings:
                 "MAX_REGISTRATIONS_PER_HOUR", defaults.max_registrations_per_hour
             ),
             max_listings_per_day=_env_int("MAX_LISTINGS_PER_DAY", defaults.max_listings_per_day),
+            listing_days=_env_int("LISTING_DAYS", defaults.listing_days),
             max_messages_per_day=_env_int("MAX_MESSAGES_PER_DAY", defaults.max_messages_per_day),
             new_account_max_listings_per_day=_env_int(
                 "NEW_ACCOUNT_MAX_LISTINGS_PER_DAY", defaults.new_account_max_listings_per_day

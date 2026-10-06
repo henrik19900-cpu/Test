@@ -408,11 +408,12 @@ def change_status(listing_id: int, request: Request, conn: Conn, form: Form) -> 
     status = str(form.get("status") or "")
     if status == "active" and must_verify(request, user):
         return verification_redirect(f"/annonse/{listing_id}")
-    listings.set_status(conn, user.id, listing_id, status, is_admin=user.is_admin)
+    days = request.app.state.settings.listing_days
+    listings.set_status(conn, user.id, listing_id, status, is_admin=user.is_admin, active_days=days)
     labels = {
         "sold": "Annonsen er merket som solgt.",
         "inactive": "Annonsen er skjult.",
-        "active": "Annonsen er aktiv.",
+        "active": f"Annonsen er aktiv de neste {days} dagene." if days else "Annonsen er aktiv.",
     }
     return redirect(
         safe_next(str(form.get("neste") or ""), f"/annonse/{listing_id}"), flash=labels.get(status)
@@ -552,6 +553,7 @@ def create_listing(request: Request, conn: Conn, form: Form) -> Response:
             values,
             max_per_day=settings.max_listings_per_day,
             new_account_max_per_day=settings.new_account_max_listings_per_day,
+            active_days=settings.listing_days,
         )
     except ValidationProblem as exc:
         return _listing_form(request, conn, category, values, _errors_by_field(exc), status=422)
@@ -604,7 +606,13 @@ def update_listing(listing_id: int, request: Request, conn: Conn, form: Form) ->
     values = _form_values(form, category)
     try:
         updated = listings.update_listing(
-            conn, user.id, listing_id, values, merge_attributes=False, is_admin=user.is_admin
+            conn,
+            user.id,
+            listing_id,
+            values,
+            merge_attributes=False,
+            is_admin=user.is_admin,
+            active_days=request.app.state.settings.listing_days,
         )
     except ValidationProblem as exc:
         return _listing_form(

@@ -16,7 +16,19 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from . import __version__, api, bankid_web, discovery, identity, mailer, mcp_server, navjobs, phone, web
+from . import (
+    __version__,
+    api,
+    bankid_web,
+    discovery,
+    identity,
+    mailer,
+    maintenance,
+    mcp_server,
+    navjobs,
+    phone,
+    web,
+)
 from .config import Settings
 from .db import Database
 from .deps import client_ip
@@ -114,6 +126,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        worker = maintenance.Worker(db, settings, app.state)
+        worker.start()
         importer = navjobs.Importer(db, settings) if settings.nav_import else None
         if importer is not None:
             importer.start()
@@ -121,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         if importer is not None:
             importer.stop()
+        worker.stop()
 
     app = FastAPI(
         lifespan=lifespan,

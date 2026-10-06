@@ -23,6 +23,7 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 
 - **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
+- **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk, så gamle annonser ikke hoper seg opp. Selgeren får e-post når en annonse går ut.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
 - **Glemt passord** løses med en lenke på e-post eller en kode på SMS til det bekreftede nummeret.
 - **Bilder** som skaleres, lagres som WebP og får fjernet EXIF- og GPS-data.
@@ -182,6 +183,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_BANKID_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`, `_SCOPE`, `_ACR_VALUES`, `_ID_CLAIM` | – | BankID-leverandøren (OpenID Connect). |
 | `FRITORG_SMTP_HOST`, `_PORT`, `_USERNAME`, `_PASSWORD`, `_FROM`, `_SECURITY` | –, `587`, …, `starttls` | Utgående e-post. Uten `FRITORG_SMTP_HOST` sendes ingen e-post. |
 | `FRITORG_RATE_LIMIT_READ`, `_WRITE`, `_AUTH` | `600`, `60`, `30` | Fartsgrenser per IP-adresse (lesing og skriving per minutt, innlogging per 10 minutter). |
+| `FRITORG_LISTING_DAYS` | `60` | Hvor lenge en annonse ligger ute før den skjules og kan fornyes (0 = for alltid). |
 | `FRITORG_MAX_LISTINGS_PER_DAY`, `FRITORG_MAX_MESSAGES_PER_DAY` | `50`, `200` | Grenser per konto per døgn. |
 | `FRITORG_NEW_ACCOUNT_MAX_LISTINGS_PER_DAY`, `..._MESSAGES_PER_DAY` | `5`, `20` | Grenser det første døgnet. |
 | `FRITORG_MAX_IMAGE_BYTES`, `FRITORG_MAX_IMAGES_PER_LISTING` | 8 MB, `12` | Bildegrenser. |

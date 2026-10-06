@@ -11,6 +11,8 @@
 {% elif settings.phone_verification_required %}- Du lager kontoen med e-post og passord. Før du legger ut annonser eller sender meldinger, bekrefter du et norsk mobilnummer som du selv disponerer, med en kode på SMS. Hvert nummer kan bare brukes på én konto.
 {% else %}- Du lager kontoen med e-post og passord.
 {% endif %}- Du er ansvarlig for annonsene og meldingene du publiserer – også når en AI-agent publiserer dem på dine vegne.
+{% if settings.listing_days %}- Annonser ligger ute i {{ settings.listing_days }} dager. Deretter skjules de, og du kan gjøre dem aktive igjen på Min side.
+{% endif %}
 - Ulovlige varer og tjenester, svindel, spam og støtende innhold er ikke tillatt og blir fjernet.
 - Kontoer som misbruker tjenesten, kan bli begrenset eller stengt.
 

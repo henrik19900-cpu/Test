@@ -141,10 +141,12 @@
     {% elif is_owner or is_admin %}
       <div class="panel owner-tools">
         <h2 class="panel-title">Din annonse</h2>
+        {% if listing.status == "active" and listing.expires_at %}<p class="small">Aktiv til {{ listing.expires_at|date_no }}. Etter det skjules den, og du kan gjøre den aktiv igjen.</p>{% endif %}
         <a class="button button-block" href="/annonse/{{ listing.id }}/rediger">Rediger annonsen</a>
         <form method="post" action="/annonse/{{ listing.id }}/status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           {% if listing.status == "active" %}
+            {% if listing.expires_soon %}<button class="button button-block button-primary" name="status" value="active">Forny annonsen</button>{% endif %}
             <button class="button button-block" name="status" value="sold">Merk som solgt</button>
             <button class="button button-block" name="status" value="inactive">Skjul annonsen</button>
           {% else %}

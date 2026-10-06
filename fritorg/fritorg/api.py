@@ -305,6 +305,7 @@ def create_listing(
         via=_channel(request),
         max_per_day=settings.max_listings_per_day,
         new_account_max_per_day=settings.new_account_max_listings_per_day,
+        active_days=settings.listing_days,
     )
     base = base_url(request)
     response.headers["Location"] = f"{base}/api/v1/listings/{listing_id}"
@@ -326,7 +327,9 @@ def update_listing(
     changes = body.model_dump(exclude_unset=True)
     if not _only_hides(changes):
         phone.ensure_verified(settings, user, base_url(request))
-    listing = listings.update_listing(conn, user.id, listing_id, changes, is_admin=user.is_admin)
+    listing = listings.update_listing(
+        conn, user.id, listing_id, changes, is_admin=user.is_admin, active_days=settings.listing_days
+    )
     return serializers.listing_detail(listing, base_url(request), owner_view=True)
 
 

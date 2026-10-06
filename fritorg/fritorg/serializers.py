@@ -111,6 +111,7 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
             if owner_view
             else None,
             "created_via": listing.created_via,
+            "expires_at": listing.expires_at,
             "source": source_dict(listing),
             "links": {
                 "html": url,

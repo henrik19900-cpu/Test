@@ -317,6 +317,7 @@ def _create_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         via="mcp",
         max_per_day=ctx.settings.max_listings_per_day,
         new_account_max_per_day=ctx.settings.new_account_max_listings_per_day,
+        active_days=ctx.settings.listing_days,
     )
     listing = listings.get_listing(ctx.conn, listing_id)
     detail = serializers.listing_detail(listing, ctx.base, owner_view=True)
@@ -345,7 +346,14 @@ def _update_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     changes = body.model_dump(exclude_unset=True)
     if not (set(changes) <= {"status"} and changes.get("status") in ("sold", "inactive")):
         _ensure_verified(ctx)
-    listing = listings.update_listing(ctx.conn, ctx.user.id, listing_id, changes, is_admin=ctx.user.is_admin)
+    listing = listings.update_listing(
+        ctx.conn,
+        ctx.user.id,
+        listing_id,
+        changes,
+        is_admin=ctx.user.is_admin,
+        active_days=ctx.settings.listing_days,
+    )
     return serializers.listing_detail(listing, ctx.base, owner_view=True)
 
 

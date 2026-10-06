@@ -192,14 +192,17 @@ def home(request: Request, conn: Conn) -> Response:
             "query-input": "required name=search_term_string",
         },
     }
+    jobs = listings.search(conn, SearchParams(category="jobb", sort="newest", limit=8))
     return render(
         request,
         conn,
         "index.html",
         {
             "recent": recent.items,
+            "jobs": jobs.items,
+            "jobs_total": jobs.total,
             "counts": counts,
-            "total": recent.total,
+            "total": sum(counts.get(group, 0) for group in taxonomy.GROUPS),
             "website_jsonld": serializers.jsonld_script(website),
         },
     )

@@ -29,7 +29,6 @@ from . import (
     mcp_server,
     navjobs,
     phone,
-    venues,
     web,
 )
 from .config import Settings
@@ -135,7 +134,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             module.job(db, settings)
             for module, enabled in (
                 (navjobs, settings.nav_import),
-                (venues, settings.stavanger_import),
                 (jobtech, settings.jobtech_import),
             )
             if enabled

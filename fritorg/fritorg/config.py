@@ -98,8 +98,6 @@ class Settings:
     nav_token: str | None = None
     nav_feed_url: str = "https://pam-stilling-feed.nav.no"
     nav_import_interval: int = 120  # seconds between polls of the feed
-    # Venues and facilities Stavanger kommune rents out (open data, NLOD), updated daily.
-    stavanger_import: bool = False
     # Swedish job ads (Platsbanken, CC0) located in Norway or asking for Norwegian.
     jobtech_import: bool = False
 
@@ -186,7 +184,6 @@ class Settings:
             nav_token=_env("NAV_TOKEN"),
             nav_feed_url=(_env("NAV_FEED_URL", defaults.nav_feed_url) or defaults.nav_feed_url).rstrip("/"),
             nav_import_interval=_env_int("NAV_IMPORT_INTERVAL", defaults.nav_import_interval),
-            stavanger_import=_env_bool("STAVANGER_IMPORT", defaults.stavanger_import),
             jobtech_import=_env_bool("JOBTECH_IMPORT", defaults.jobtech_import),
             max_image_bytes=_env_int("MAX_IMAGE_BYTES", defaults.max_image_bytes),
             max_images_per_listing=_env_int("MAX_IMAGES_PER_LISTING", defaults.max_images_per_listing),

@@ -1,4 +1,4 @@
-"""Shared plumbing for listings imported from open sources (Nav, Stavanger kommune, Platsbanken).
+"""Shared plumbing for listings imported from open sources (Nav, Platsbanken).
 
 Each source has its own module that fetches and maps the data; this module stores it: one account
 per source owns the listings (it has no password, so nobody can log in to it), listings are keyed by

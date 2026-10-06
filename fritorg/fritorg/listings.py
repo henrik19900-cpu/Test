@@ -49,15 +49,6 @@ SOURCES = {
     "nav": Source(
         "nav", "arbeidsplassen.no (Nav)", "Arbeidsgiver", "Søk på stillingen", "https://arbeidsplassen.nav.no"
     ),
-    "stavanger": Source(
-        "stavanger",
-        "Stavanger kommune",
-        "Utleier",
-        "Se ledige tider og book",
-        "https://www.stavanger.kommune.no",
-        licence="Inneholder data under Norsk lisens for offentlige data (NLOD) tilgjengeliggjort av Stavanger kommune.",
-        licence_url="https://data.norge.no/nlod/no/2.0",
-    ),
     "jobtech": Source(
         "jobtech",
         "Platsbanken (Arbetsförmedlingen, Sverige)",

@@ -23,7 +23,7 @@
       </select>
       <button type="submit" class="button button-primary">Søk</button>
     </form>
-    <p class="hero-stats">{{ total }} aktive annonser · <a href="/sok?type=give">Se alt som gis bort</a></p>
+    <p class="hero-stats">{{ total|number }} aktive annonser · <a href="/sok?type=give">Se alt som gis bort</a></p>
   </div>
 </section>
 
@@ -57,6 +57,16 @@
     <p class="empty">Ingen annonser ennå. <a href="/ny-annonse">Bli den første!</a></p>
   {% endif %}
 </section>
+
+{% if jobs %}
+<section aria-labelledby="stillinger">
+  <div class="section-head">
+    <h2 id="stillinger" class="section-title">Ledige stillinger</h2>
+    <a href="/sok?category=jobb">Se alle {{ jobs_total|number }} →</a>
+  </div>
+  {{ listing_grid(jobs) }}
+</section>
+{% endif %}
 
 <section class="agent-banner" aria-labelledby="agenter">
   <div class="agent-banner-icon">{{ icon("robot", 40) }}</div>

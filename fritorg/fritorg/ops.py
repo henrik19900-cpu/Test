@@ -103,7 +103,6 @@ def doctor(
 def _import_checks(settings: Settings, db: Database) -> list[Check]:
     checks = _nav_checks(settings, db)
     for slug, enabled, name, variable in (
-        ("stavanger", settings.stavanger_import, "Lokaler fra Stavanger kommune", "FRITORG_STAVANGER_IMPORT"),
         (
             "jobtech",
             settings.jobtech_import,

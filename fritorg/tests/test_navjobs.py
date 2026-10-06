@@ -234,7 +234,10 @@ def test_imported_ads_stay_out_of_bulk_export_and_home(app, client, nav):
     run(app, nav)
     export = client.get("/api/v1/export/listings.ndjson").text
     assert "Sykepleier" not in export
-    assert "Sykepleier i turnus" not in client.get("/").text
+    home = client.get("/").text
+    newest, jobs = home.split('id="nyeste"')[1].split('id="stillinger"')
+    assert "Sykepleier i turnus" not in newest  # own listings only
+    assert "Sykepleier i turnus" in jobs and "Se alle 2" in jobs  # the jobs have their own section
     assert "Sykepleier i turnus" in client.get("/sok").text
 
 

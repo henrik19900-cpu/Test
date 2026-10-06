@@ -224,8 +224,8 @@ class ListingSummaryOut(BaseModel):
 
 class SourceOut(BaseModel):
     id: str = Field(
-        description="'nav' = Nav's job feed (arbeidsplassen.no), 'stavanger' = venues Stavanger kommune rents "
-        "out (NLOD), 'jobtech' = Swedish job ads relevant to Norway (Platsbanken, CC0)."
+        description="'nav' = Nav's job feed (arbeidsplassen.no), 'jobtech' = Swedish job ads relevant to Norway "
+        "(Platsbanken, CC0)."
     )
     name: str
     url: str | None = Field(description="The original ad.")

@@ -22,11 +22,14 @@ from . import (
     bankid_web,
     discovery,
     identity,
+    imports,
+    jobtech,
     mailer,
     maintenance,
     mcp_server,
     navjobs,
     phone,
+    venues,
     web,
 )
 from .config import Settings
@@ -128,10 +131,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         worker = maintenance.Worker(db, settings, app.state)
         worker.start()
-        importer = navjobs.Importer(db, settings) if settings.nav_import else None
+        jobs = [
+            module.job(db, settings)
+            for module, enabled in (
+                (navjobs, settings.nav_import),
+                (venues, settings.stavanger_import),
+                (jobtech, settings.jobtech_import),
+            )
+            if enabled
+        ]
+        importer = imports.Scheduler(jobs) if jobs else None
         if importer is not None:
             importer.start()
-        app.state.nav_importer = importer
+        app.state.importer = importer
         yield
         if importer is not None:
             importer.stop()

@@ -152,8 +152,8 @@ def contact_seller(
     if listing.is_imported:
         raise ValidationProblem.field(
             "listing_id",
-            f"Denne stillingen er hentet fra {listing.source_name}. Søk på den via lenken i annonsen.",
-            hint=f"Imported job ad: apply at {listing.apply_url or listing.source_url} (links.apply).",
+            f"Denne annonsen er hentet fra {listing.source_name}. Bruk lenken i annonsen.",
+            hint=f"Imported listing: send the user to {listing.apply_url or listing.source_url} (links.apply).",
         )
     if listing.user_id == buyer_id:
         raise ValidationProblem.field("listing_id", "Du kan ikke sende melding om din egen annonse.")

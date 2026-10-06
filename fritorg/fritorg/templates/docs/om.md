@@ -14,10 +14,14 @@
 6. **Trygg handel.** Annonser med kjente svindelmønstre kontrolleres av en moderator før de publiseres, og mistenkelige meldinger får advarsler. Se [Trygg handel]({{ base }}/trygg-handel).
 7. **Personvern.** {% if settings.bankid_required %}E-postadressen og fødselsnummeret ditt{% elif settings.phone_verification_required %}E-postadressen og mobilnummeret ditt{% else %}E-postadressen din{% endif %} vises aldri, og vi bruker ingen sporingskapsler eller reklame.
 
-{% if settings.nav_import %}## Ledige stillinger fra Nav
+{% if settings.nav_import or settings.stavanger_import or settings.jobtech_import %}## Annonser fra åpne kilder
 
-Under Jobb finner du også ledige stillinger fra [arbeidsplassen.no](https://arbeidsplassen.nav.no), Navs åpne stillingsbase. De hentes automatisk, oppdateres når arbeidsgiveren endrer dem og forsvinner når de ikke lenger er aktive. Du søker direkte hos arbeidsgiveren via knappen «Søk på stillingen».
+{{ site_name }} viser også annonser fra åpne, offentlige kilder som tillater det. De hentes automatisk, oppdateres når kilden endrer dem og forsvinner når de ikke lenger er aktuelle. Knappen i annonsen tar deg rett til kilden.
 
+{% if settings.nav_import %}- **Ledige stillinger** fra [arbeidsplassen.no](https://arbeidsplassen.nav.no), Navs åpne stillingsbase.
+{% endif %}{% if settings.jobtech_import %}- **Stillinger i Sverige for deg som kan norsk**, og svenske stillinger i Norge, fra [Platsbanken](https://arbetsformedlingen.se/platsbanken) (Arbetsförmedlingen, CC0).
+{% endif %}{% if settings.stavanger_import %}- **Lokaler og anlegg til leie** fra Stavanger kommune: idrettshaller, gymsaler, baner, basseng, møterom og mer. Inneholder data under Norsk lisens for offentlige data (NLOD) tilgjengeliggjort av Stavanger kommune.
+{% endif %}
 {% endif %}{% if settings.operator or settings.contact_email %}## Kontakt
 
 {% if settings.operator %}{{ site_name }} drives av {{ settings.operator }}. {% endif %}{% if settings.contact_email %}Du når oss på {{ settings.contact_email }}.{% endif %}

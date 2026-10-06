@@ -312,12 +312,11 @@ def test_background_importer_runs_with_the_app(tmp_path, nav, monkeypatch):
     settings = Settings(data_dir=tmp_path, verification="none", nav_feed_url=BASE, nav_import=True)
     app = create_app(settings)
     with TestClient(app):
-        importer = app.state.nav_importer
-        assert importer is not None
-        importer._thread.join(timeout=0.2)  # let the first run happen
+        scheduler = app.state.importer
+        assert scheduler is not None and [job.name for job in scheduler.jobs] == ["nav"]
         for _ in range(50):
             if len(imported(app)) == 2:
                 break
-            importer._stop.wait(0.1)
+            scheduler._stop.wait(0.1)
     assert set(imported(app)) == {"a", "b"}
-    assert not importer._thread.is_alive()
+    assert not scheduler._thread.is_alive()

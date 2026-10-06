@@ -31,9 +31,42 @@ from .util import format_number, iso_ago, iso_in, now_iso, parse_iso, to_iso
 
 CHANNELS = ("web", "api", "mcp", "import")
 
-# Open sources that listings may be imported from (listings.source), and how to credit them.
+
+@dataclass(frozen=True)
+class Source:
+    """An open source that listings are imported from (listings.source), and how to credit it."""
+
+    slug: str
+    name: str  # credit, e.g. "arbeidsplassen.no (Nav)"
+    owner_label: str  # who offers it, shown above the owner's name
+    action: str  # the button that takes people to the source
+    homepage: str
+    licence: str | None = None  # attribution the licence asks for
+    licence_url: str | None = None
+
+
 SOURCES = {
-    "nav": "arbeidsplassen.no (Nav)",
+    "nav": Source(
+        "nav", "arbeidsplassen.no (Nav)", "Arbeidsgiver", "Søk på stillingen", "https://arbeidsplassen.nav.no"
+    ),
+    "stavanger": Source(
+        "stavanger",
+        "Stavanger kommune",
+        "Utleier",
+        "Se ledige tider og book",
+        "https://www.stavanger.kommune.no",
+        licence="Inneholder data under Norsk lisens for offentlige data (NLOD) tilgjengeliggjort av Stavanger kommune.",
+        licence_url="https://data.norge.no/nlod/no/2.0",
+    ),
+    "jobtech": Source(
+        "jobtech",
+        "Platsbanken (Arbetsförmedlingen, Sverige)",
+        "Arbeidsgiver",
+        "Søk på stillingen",
+        "https://arbetsformedlingen.se/platsbanken",
+        licence="Annonsedata fra Arbetsförmedlingen (JobTech), fritt tilgjengelig under CC0.",
+        licence_url="https://creativecommons.org/publicdomain/zero/1.0/deed.no",
+    ),
 }
 EDITABLE_FIELDS = (
     "category",
@@ -168,8 +201,19 @@ class Listing:
         return bool(self.expires_at) and not self.is_imported and self.expires_at < iso_in(days=7)
 
     @property
+    def source_info(self) -> Source | None:
+        return SOURCES.get(self.source) if self.source else None
+
+    @property
     def source_name(self) -> str | None:
-        return SOURCES.get(self.source, self.source) if self.source else None
+        info = self.source_info
+        return info.name if info else self.source
+
+    @property
+    def offered_by(self) -> str:
+        """For imported listings: the employer, or else the source itself."""
+        info = self.source_info
+        return str(self.attributes.get("employer") or (info.name if info else self.seller_name))
 
     @property
     def seller_verification(self) -> str | None:

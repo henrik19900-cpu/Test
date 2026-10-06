@@ -223,10 +223,18 @@ class ListingSummaryOut(BaseModel):
 
 
 class SourceOut(BaseModel):
-    id: str = Field(description="'nav' = Nav's open job feed (arbeidsplassen.no).")
+    id: str = Field(
+        description="'nav' = Nav's job feed (arbeidsplassen.no), 'stavanger' = venues Stavanger kommune rents "
+        "out (NLOD), 'jobtech' = Swedish job ads relevant to Norway (Platsbanken, CC0)."
+    )
     name: str
     url: str | None = Field(description="The original ad.")
-    apply_url: str | None = Field(description="Where to apply: send the user here (they cannot be messaged).")
+    apply_url: str | None = Field(
+        description="Where to apply or book: send the user here (imported listings cannot be messaged)."
+    )
+    action: str | None = Field(None, description="What the link does, e.g. 'Søk på stillingen'.")
+    licence: str | None = Field(None, description="Attribution the source's licence asks for; show it.")
+    licence_url: str | None = None
     expires_at: str | None = Field(description="When the ad is taken down at the latest.")
 
 

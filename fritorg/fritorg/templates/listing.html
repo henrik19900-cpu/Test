@@ -116,13 +116,15 @@
 
   <aside class="listing-side">
     {% if listing.is_imported %}
+    {% set info = listing.source_info %}
     <div class="panel source-panel" id="sok">
-      <p class="muted small">Arbeidsgiver</p>
-      <p class="seller-name">{{ listing.attributes.get("employer") or listing.title }}</p>
+      <p class="muted small">{{ info.owner_label if info else "Annonsør" }}</p>
+      <p class="seller-name">{{ listing.offered_by }}</p>
       {% if listing.status == "active" %}
-      <p><a class="button button-primary button-block" href="{{ listing.apply_url or listing.source_url }}" rel="nofollow noopener">Søk på stillingen</a></p>
+      <p><a class="button button-primary button-block" href="{{ listing.apply_url or listing.source_url }}" rel="nofollow noopener">{{ info.action if info else "Gå til annonsen" }}</a></p>
       {% endif %}
-      <p class="small">Stillingsannonsen er hentet fra <a href="{{ listing.source_url }}" rel="nofollow noopener">{{ listing.source_name }}</a> og oppdateres automatisk derfra.{% if listing.expires_at %} Den tas ned senest {{ listing.expires_at|date_no }}.{% endif %}</p>
+      <p class="small">Annonsen er hentet fra <a href="{{ listing.source_url }}" rel="nofollow noopener">{{ listing.source_name }}</a> og oppdateres automatisk derfra.{% if listing.expires_at %} Den tas ned senest {{ listing.expires_at|date_no }}.{% endif %}</p>
+      {% if info and info.licence %}<p class="small muted">{{ info.licence }} <a href="{{ info.licence_url }}" rel="license noopener">Om lisensen</a>.</p>{% endif %}
     </div>
     {% else %}
     <div class="panel">
@@ -182,7 +184,7 @@
         {% endif %}
       </div>
     {% endif %}
-    {% if not is_owner %}
+    {% if not is_owner and (listing.type == "job" or not listing.is_imported) %}
     <div class="panel tips">
       <h2 class="panel-title">{{ icon("shield", 20) }} {% if listing.type == "job" %}Trygg jobbsøking{% else %}Trygg handel{% endif %}</h2>
       <ul class="small">

@@ -21,7 +21,7 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 
 ## Funksjoner
 
-- **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
+- **43 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
 - **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk, så gamle annonser ikke hoper seg opp. Selgeren får e-post når en annonse går ut.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
@@ -30,7 +30,7 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - **Bekreftede brukere:** norsk mobilnummer med SMS-kode som standard, BankID som valg.
 - **Beskyttelse mot svindel**, moderering og rapportering (se under).
 - **Åpent for agenter:** MCP-server, REST-API med OpenAPI 3.1, `llms.txt`, eksport av alle annonser som NDJSON, Atom-feeder og JSON/Markdown-versjon av hver side.
-- **Ledige stillinger fra Nav:** titusenvis av stillinger fra arbeidsplassen.no hentes inn automatisk og holdes oppdatert.
+- **Annonser fra åpne kilder:** titusenvis av ledige stillinger fra arbeidsplassen.no (Nav), lokaler og anlegg som Stavanger kommune leier ut, og svenske stillinger for folk som kan norsk. Alt hentes automatisk og holdes oppdatert.
 - **Universell utforming og personvern:** fungerer uten JavaScript, ingen sporingskapsler og ingen reklame.
 
 ## Kom i gang lokalt
@@ -105,7 +105,10 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
    - Manuelt: `fritorg import-nav --until-done`.
 2. **Bedrifter som deler sine egne annonser.** Bilforhandlere, meglere, butikker, auksjonshus og arbeidsgivere eier annonsene sine og kan sende dem til flere markedsplasser, slik meglerne gjør med hjem.no. Med `PUT /api/v1/me/feeds/{feed}` sender de hele lageret i ett kall, og Fritorg lager, endrer og fjerner annonser så det stemmer. Siden `/for-bedrifter` forklarer hvordan. Avtalen bør si at de har rett til tekst og bilder.
 3. **Selgere som flytter sine egne annonser.** En selger kan legge ut samme vare her, med sin egen tekst og sine egne bilder fra mobilen eller PC-en. AI-assistenter kan hjelpe til via MCP. Ikke hent annonsen automatisk fra finn.no.
-4. **Lenker.** En vanlig lenke til et søk på en annen side er lovlig, men vis aldri andres søkeresultater inne på Fritorg.
+4. **Andre åpne data (innebygd).** Lokaler og anlegg som Stavanger kommune leier ut (473 i datasettet, NLOD, med kreditering på hver annonse), slås på med `FRITORG_STAVANGER_IMPORT=1`. Svenske stillinger fra Platsbanken som ligger i Norge eller krever norsk (CC0, rundt 200), slås på med `FRITORG_JOBTECH_IMPORT=1`. Kontaktpersoner og e-postadresser tas ikke med.
+5. **Lenker.** En vanlig lenke til et søk på en annen side er lovlig, men vis aldri andres søkeresultater inne på Fritorg.
+
+Disse kildene krever en avtale, men er verdt å kontakte: Auksjonen.no (vilkårene åpner for å formidle auksjonsannonser eksternt), rekrutteringssystemer som Teamtailor og Jobylon (stillinger som ikke er hos Nav), utbyggere og boligbyggelag som OBOS og Selvaag Bolig, Loopfront (brukte møbler og utstyr fra kommuner), BUA (gratis utlån av utstyr), frivillig.no og affiliate-nettverk som Adtraction for nye varer fra nettbutikker (må merkes som reklame). Å kopiere fra finn.no, Blocket, Tise, eBay, Etsy eller Facebook er ikke lov.
 
 Dette bygger på en gjennomgang av vilkårene, loven og rettspraksis (blant annet Innoweb, C-202/12, og HR-2019-1725-A om Lovdata). Det er ikke juridisk rådgivning: la en advokat se på det før lansering.
 
@@ -190,6 +193,8 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_NAV_IMPORT` | av | Hent ledige stillinger fra arbeidsplassen.no (Nav). |
 | `FRITORG_NAV_TOKEN` | Navs testtoken | Eget token for Navs stillingsfeed. |
 | `FRITORG_NAV_IMPORT_INTERVAL` | `120` | Sekunder mellom hver sjekk av feeden. |
+| `FRITORG_STAVANGER_IMPORT` | av | Hent lokaler og anlegg som Stavanger kommune leier ut. |
+| `FRITORG_JOBTECH_IMPORT` | av | Hent svenske stillinger i Norge eller som krever norsk. |
 | `FRITORG_SEED_DEMO` | av | Legg inn demo-data ved første oppstart. |
 
 ## Utvikling

@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import identity, navjobs, phone
+from . import identity, imports, navjobs, phone
 from .config import Settings
 from .db import Database
 from .mailer import Mail, Mailer
@@ -101,6 +101,36 @@ def doctor(
 
 
 def _import_checks(settings: Settings, db: Database) -> list[Check]:
+    checks = _nav_checks(settings, db)
+    for slug, enabled, name, variable in (
+        ("stavanger", settings.stavanger_import, "Lokaler fra Stavanger kommune", "FRITORG_STAVANGER_IMPORT"),
+        (
+            "jobtech",
+            settings.jobtech_import,
+            "Svenske stillinger for Norge (Platsbanken)",
+            "FRITORG_JOBTECH_IMPORT",
+        ),
+    ):
+        if not enabled:
+            checks.append(Check(None, f"{name} hentes ikke inn. {variable}=1 slår det på"))
+            continue
+        with db.session() as conn:
+            state = imports.status(conn, slug)
+        if state["last_error"]:
+            checks.append(Check(False, f"{name}: siste import feilet: {state['last_error']}"))
+        elif state["last_run_at"]:
+            checks.append(
+                Check(
+                    True,
+                    f"{name}: {state['active_listings']} annonser, sist oppdatert {state['last_run_at']}",
+                )
+            )
+        else:
+            checks.append(Check(None, f"{name}: importen har ikke kjørt ennå (den starter med appen)"))
+    return checks
+
+
+def _nav_checks(settings: Settings, db: Database) -> list[Check]:
     if not settings.nav_import:
         return [
             Check(

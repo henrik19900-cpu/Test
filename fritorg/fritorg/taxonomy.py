@@ -511,6 +511,38 @@ _TREE: list[tuple[Category, list[Category]]] = [
             ),
             Category("tomt", "Tomter", "Plots of land", attributes=(PLOT_AREA,)),
             Category(
+                "lokaler",
+                "Lokaler og anlegg til leie",
+                "Venues and facilities for hire",
+                types=("rent", "wanted"),
+                attributes=(
+                    Attribute(
+                        "venue_type",
+                        "Type",
+                        "enum",
+                        "Kind of venue or facility",
+                        options=(
+                            Option("sports_hall", "Idrettshall eller gymsal"),
+                            Option("pool", "Svømmebasseng"),
+                            Option("field", "Bane eller utendørsanlegg"),
+                            Option("room", "Møterom, klasserom eller sal"),
+                            Option("party", "Selskapslokale"),
+                            Option("market", "Salgsplass"),
+                            Option("other", "Annet"),
+                        ),
+                    ),
+                    Attribute(
+                        "capacity",
+                        "Plass til",
+                        "integer",
+                        "How many people it holds",
+                        unit="personer",
+                        min=1,
+                        max=100000,
+                    ),
+                ),
+            ),
+            Category(
                 "naering",
                 "Næringseiendom",
                 "Commercial property",
@@ -623,7 +655,7 @@ def _build() -> tuple[dict[str, Category], list[str], dict[str, Attribute]]:
                 child.name_en,
                 parent=group.slug,
                 attributes=child.attributes,
-                types=group.types,
+                types=child.types or group.types,
             )
     # Attribute keys are global: a key means the same thing (and has the same type and
     # options) in every category. That keeps filters like attr=year:2018.. unambiguous.

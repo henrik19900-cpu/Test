@@ -21,31 +21,27 @@ import json
 import logging
 import re
 import sqlite3
-import threading
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, timedelta
+from datetime import date, timedelta
 from email.utils import format_datetime
 from html.parser import HTMLParser
 from typing import Any
 
-from . import __version__, listings
+from . import __version__, imports, listings
 from .config import Settings
 from .db import Database, transaction
 from .errors import ValidationProblem
-from .util import iso_in, now_iso, parse_iso, to_iso, utcnow
+from .util import iso_in, now_iso, utcnow
 
 logger = logging.getLogger(__name__)
 
 SOURCE = "nav"
-SOURCE_EMAIL = "stillinger@arbeidsplassen.import.invalid"  # owner of imported ads; can never log in
-SOURCE_NAME = "arbeidsplassen.no (Nav)"
 BACKFILL_DAYS = 183  # Nav: an ad is never active for more than six months
 LEASE_SECONDS = 1800  # one import at a time, also with several app processes
-INDEXED_CHARS = 2500  # how much of an ad's text is full-text indexed
 
 
 class FeedError(Exception):
@@ -267,11 +263,6 @@ def _deadline(value: Any) -> tuple[str | None, str | None]:
     return text or None, None
 
 
-def _web_url(value: Any) -> str | None:
-    url = _line(value)
-    return url if re.match(r"https?://[^\s/]+\.[^\s]+", url) else None
-
-
 def _location(ad: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
     """(county slug, place, postal code) from the first work location."""
     places = [w for w in ad.get("workLocations") or [] if isinstance(w, dict)]
@@ -353,125 +344,34 @@ def map_ad(ad: dict[str, Any]) -> dict[str, Any]:
 # --- Storage ------------------------------------------------------------------------------------
 
 
-def _iso_precise(value: Any) -> str | None:
-    """Nav's timestamps with offsets and fractions -> sortable UTC text with microseconds."""
-    try:
-        return parse_iso(str(value)).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-    except (TypeError, ValueError):
-        return None
-
-
-def _iso(value: Any) -> str | None:
-    try:
-        return to_iso(parse_iso(str(value)))
-    except (TypeError, ValueError):
-        return None
-
-
-def source_user(conn: sqlite3.Connection) -> int:
-    """The account that owns imported ads. It has no password, so nobody can log in to it."""
-    row = conn.execute("SELECT id FROM users WHERE email = ?", (SOURCE_EMAIL,)).fetchone()
-    if row:
-        return row["id"]
-    cursor = conn.execute(
-        "INSERT INTO users (email, name, password_hash, created_via, created_at) VALUES (?, ?, '!', 'import', ?)",
-        (SOURCE_EMAIL, SOURCE_NAME, now_iso()),
-    )
-    assert cursor.lastrowid is not None
-    return cursor.lastrowid
-
-
-def _delete(conn: sqlite3.Connection, listing_id: int) -> None:
-    conn.execute("DELETE FROM listings_fts WHERE rowid = ?", (listing_id,))
-    conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
-
-
-def remove(conn: sqlite3.Connection, uuid: str) -> int:
-    row = conn.execute(
-        "SELECT id FROM listings WHERE source = ? AND source_id = ?", (SOURCE, uuid)
-    ).fetchone()
-    if row is None:
-        return 0
-    _delete(conn, row["id"])
-    return 1
-
-
-def remove_expired(conn: sqlite3.Connection) -> int:
-    """Also hide ads whose time is up, in case the feed line that ends them was missed."""
-    rows = conn.execute(
-        "SELECT id FROM listings WHERE source = ? AND expires_at IS NOT NULL AND expires_at < ?",
-        (SOURCE, now_iso()),
-    ).fetchall()
-    if rows:
-        with transaction(conn):
-            for row in rows:
-                _delete(conn, row["id"])
-    return len(rows)
-
-
-def upsert(conn: sqlite3.Connection, owner_id: int, entry: dict[str, Any]) -> str | None:
-    """Create or update the listing for an active feed entry. Returns 'created', 'updated' or None."""
+def to_item(entry: dict[str, Any]) -> imports.Item | None:
+    """The listing for an active feed entry."""
     ad = entry.get("ad_content") or {}
     uuid = str(entry.get("uuid") or ad.get("uuid") or "")
     if not uuid:
         return None
-    try:
-        values = listings.validate_listing(map_ad(ad))
-    except ValidationProblem as exc:
-        logger.info("Skipping Nav ad %s: %s", uuid, exc.message)
-        remove(conn, uuid)
-        return None
-    source_url = _web_url(ad.get("link")) or f"https://arbeidsplassen.nav.no/stillinger/stilling/{uuid}"
-    apply_url = _web_url(ad.get("applicationUrl")) or _web_url(ad.get("sourceurl")) or source_url
-    changed = _iso_precise(entry.get("sistEndret")) or _iso_precise(ad.get("updated")) or now_iso()
-    published = _iso(ad.get("published")) or now_iso()
-    updated = _iso(ad.get("updated")) or published
-    expires = _iso(ad.get("expires"))
-    if expires and expires < now_iso():
-        remove(conn, uuid)
-        return None
-    common = (
-        values["category"],
-        values["title"],
-        values["description"],
-        values["county"],
-        values["location"],
-        values["postal_code"],
-        json.dumps(values["attributes"], ensure_ascii=False),
+    source_url = (
+        imports.web_url(ad.get("link")) or f"https://arbeidsplassen.nav.no/stillinger/stilling/{uuid}"
     )
-    existing = conn.execute(
-        "SELECT id, status FROM listings WHERE source = ? AND source_id = ?", (SOURCE, uuid)
-    ).fetchone()
-    if existing:
-        # An ad that a moderator removed, or that reports sent to review, stays hidden when Nav changes it.
-        status = existing["status"] if existing["status"] in ("removed", "review") else "active"
-        conn.execute(
-            "UPDATE listings SET category = ?, title = ?, description = ?, county = ?, location = ?, "
-            "postal_code = ?, attributes = ?, status = ?, updated_at = ?, source_url = ?, apply_url = ?, "
-            "source_updated_at = ?, expires_at = ? WHERE id = ?",
-            (*common, status, updated, source_url, apply_url, changed, expires, existing["id"]),
-        )
-        listings.index_listing(conn, existing["id"], _searchable(values))
-        return "updated"
-    cursor = conn.execute(
-        "INSERT INTO listings (category, title, description, county, location, postal_code, attributes, "
-        "user_id, type, price, status, created_via, created_at, updated_at, source, source_id, source_url, "
-        "apply_url, source_updated_at, expires_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'job', NULL, 'active', 'import', ?, ?, ?, ?, ?, ?, ?, ?)",
-        (*common, owner_id, published, updated, SOURCE, uuid, source_url, apply_url, changed, expires),
+    # "Søk på stillingen" goes straight to the employer's application page, as Nav's terms require.
+    apply_url = (
+        imports.web_url(ad.get("applicationUrl")) or imports.web_url(ad.get("sourceurl")) or source_url
     )
-    assert cursor.lastrowid is not None
-    listings.index_listing(conn, cursor.lastrowid, _searchable(values))
-    return "created"
+    return imports.Item(
+        source_id=uuid,
+        values=map_ad(ad),
+        source_url=source_url,
+        apply_url=apply_url,
+        changed=imports.iso_precise(entry.get("sistEndret")) or imports.iso_precise(ad.get("updated")),
+        published=imports.iso(ad.get("published")),
+        updated=imports.iso(ad.get("updated")),
+        expires=imports.iso(ad.get("expires")),
+    )
 
 
-def _searchable(values: dict[str, Any]) -> dict[str, Any]:
-    # Job ads are long; the start says what the job is. Indexing all of it would make the search
-    # index several times larger and common words slower to look up.
-    return {**values, "description": values["description"][:INDEXED_CHARS]}
-
-
-# --- Sync ---------------------------------------------------------------------------------------
+def upsert(conn: sqlite3.Connection, owner_id: int, entry: dict[str, Any]) -> str | None:
+    item = to_item(entry)
+    return imports.upsert(conn, SOURCE, owner_id, item) if item else None
 
 
 @dataclass
@@ -528,7 +428,7 @@ def _enqueue(conn: sqlite3.Connection, items: list[Any]) -> None:
             uuid = entry.get("uuid") or item.get("id")
             if not uuid:
                 continue
-            changed = _iso_precise(entry.get("sistEndret") or item.get("date_modified")) or now_iso()
+            changed = imports.iso_precise(entry.get("sistEndret") or item.get("date_modified")) or now_iso()
             # Lines are applied in feed order: the last line about an ad wins.
             conn.execute(
                 "INSERT INTO import_queue (source, item_id, status, changed_at) VALUES (?, ?, ?, ?) "
@@ -597,14 +497,14 @@ def _apply(
     pause: float,
     should_stop: Callable[[], bool],
 ) -> None:
-    owner_id = source_user(conn)
+    owner_id = imports.source_user(conn, SOURCE)
     # Removals first: they need no request, and Nav's terms want them at once.
     gone = conn.execute(
         "SELECT item_id, changed_at FROM import_queue WHERE source = ? AND status != 'ACTIVE'", (SOURCE,)
     ).fetchall()
     with transaction(conn):
         for row in gone:
-            report.removed += remove(conn, row["item_id"])
+            report.removed += imports.remove(conn, SOURCE, row["item_id"])
             _dequeue(conn, row["item_id"], row["changed_at"])
     # Then new and changed ads, newest first.
     rows = conn.execute(
@@ -631,7 +531,7 @@ def _apply(
                 elif outcome == "updated":
                     report.updated += 1
             else:
-                report.removed += remove(conn, uuid)
+                report.removed += imports.remove(conn, SOURCE, uuid)
             _dequeue(conn, uuid, changed_at)
         if pause:
             time.sleep(pause)
@@ -655,7 +555,7 @@ def sync(
             return report
         try:
             client = FeedClient(settings, conn, http)
-            report.removed += remove_expired(conn)
+            report.removed += imports.remove_expired(conn, SOURCE)
             _scan(conn, client, report, max_pages)
             _apply(conn, client, report, max_fetches, pause, should_stop)
             report.waiting = conn.execute(
@@ -690,37 +590,13 @@ def status(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
-class Importer:
-    """Keeps the job ads up to date from a background thread while the app runs."""
+def job(db: Database, settings: Settings) -> imports.Job:
+    """Poll the feed while the app runs; keep going quickly while catching up after the first start."""
 
-    def __init__(self, db: Database, settings: Settings, http: HttpFn | None = None):
-        self.db = db
-        self.settings = settings
-        self.http = http
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
+    def run(should_stop: Callable[[], bool]) -> bool:
+        report = sync(db, settings, pause=0.1, should_stop=should_stop)
+        if report.fetched or report.removed:
+            logger.info("Nav job import: %s", report)
+        return not (report.done or report.skipped)
 
-    def start(self) -> None:
-        self._thread = threading.Thread(target=self._run, name="nav-import", daemon=True)
-        self._thread.start()
-
-    def stop(self) -> None:
-        self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=10)
-
-    def _run(self) -> None:
-        interval = max(30, self.settings.nav_import_interval)
-        while not self._stop.is_set():
-            try:
-                report = sync(
-                    self.db, self.settings, http=self.http, pause=0.1, should_stop=self._stop.is_set
-                )
-                if report.fetched or report.removed:
-                    logger.info("Nav job import: %s", report)
-                # While catching up (first start), continue soon; then poll at the normal interval.
-                delay = interval if report.done or report.skipped else 5
-            except Exception:
-                logger.exception("Nav job import failed; trying again later")
-                delay = max(interval, 300)
-            self._stop.wait(delay)
+    return imports.Job("nav", max(30, settings.nav_import_interval), run)

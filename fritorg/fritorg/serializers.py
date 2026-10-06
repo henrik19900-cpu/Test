@@ -64,11 +64,15 @@ def listing_summary(listing: Listing, base: str) -> dict[str, Any]:
 def source_dict(listing: Listing) -> dict[str, Any] | None:
     if not listing.is_imported:
         return None
+    info = listing.source_info
     return {
         "id": listing.source,
         "name": listing.source_name,
         "url": listing.source_url,
         "apply_url": listing.apply_url,
+        "action": info.action if info else None,
+        "licence": info.licence if info else None,
+        "licence_url": info.licence_url if info else None,
         "expires_at": listing.expires_at,
     }
 
@@ -284,9 +288,12 @@ def listing_markdown(listing: Listing, base: str) -> str:
     ]
     lines += [f"- **{label}:** {value}" for label, value in facts if value]
     if listing.is_imported:
+        info = listing.source_info
         lines.append(f"- **Kilde:** [{listing.source_name}]({listing.source_url})")
         if listing.apply_url:
-            lines.append(f"- **Søk på stillingen:** {listing.apply_url}")
+            lines.append(f"- **{info.action if info else 'Lenke'}:** {listing.apply_url}")
+        if info and info.licence:
+            lines.append(f"- **Lisens:** {info.licence} ({info.licence_url})")
     elif listing.seller_verified:
         lines.append(f"- **Selger:** {listing.seller_verification_label}")
     if listing.seller_is_new:

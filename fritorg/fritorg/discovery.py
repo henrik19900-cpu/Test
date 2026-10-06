@@ -109,6 +109,9 @@ def robots_txt(request: Request) -> PlainTextResponse:
         "Disallow: /koble-til",
         "Disallow: /moderering",
         "Disallow: /bekreft-epost",
+        "Disallow: /glemt-passord",
+        "Disallow: /nytt-passord",
+        "Disallow: /verifiser-telefon",
         "Content-Signal: search=yes, ai-input=yes, ai-train=yes",
         "",
     ]

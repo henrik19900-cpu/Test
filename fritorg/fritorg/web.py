@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.datastructures import FormData, UploadFile
 
-from . import discovery, images, listings, messages, moderation, phone, serializers, taxonomy, users
+from . import discovery, images, listings, messages, moderation, phone, recovery, serializers, taxonomy, users
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
 from .errors import AppError, Conflict, NotFound, RateLimited, ValidationProblem
 from .listings import SORTS, SearchParams
@@ -1003,6 +1003,173 @@ def confirm_phone_code(request: Request, conn: Conn, form: Form) -> Response:
         return _verify_page(request, conn, user, target, {"code": _problem_text(exc)}, status=exc.status)
     return redirect(
         target, flash="Takk! Mobilnummeret er bekreftet. Nå kan du legge ut annonser og sende meldinger."
+    )
+
+
+# --- Forgotten and changed passwords ------------------------------------------------------------
+
+
+def _forgot_page(
+    request: Request,
+    conn: sqlite3.Connection,
+    values: dict[str, str] | None = None,
+    errors: dict[str, str] | None = None,
+    status: int = 200,
+) -> Response:
+    state = request.app.state
+    context = {
+        "values": values or {},
+        "errors": errors or {},
+        "mail_enabled": state.mailer.enabled,
+        "sms_enabled": state.sms is not None,
+    }
+    return render(request, conn, "forgot_password.html", context, status=status)
+
+
+@router.get("/glemt-passord")
+def forgot_password_page(request: Request, conn: Conn) -> Response:
+    if request.app.state.settings.bankid_required:
+        return redirect("/logg-inn")
+    return _forgot_page(request, conn)
+
+
+@router.post("/glemt-passord")
+def forgot_password(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    state = request.app.state
+    if state.settings.bankid_required:
+        return redirect("/logg-inn")
+    decision = state.limiter.hit("reset", client_ip(request), 10, 3600)
+    if not decision.allowed:
+        raise RateLimited("For mange forsøk. Prøv igjen om en time.", retry_after=decision.reset_in)
+    email = str(form.get("email") or "").strip()
+    number = str(form.get("phone") or "").strip()
+    values = {"email": email, "phone": number}
+    user = users.get_user_by_email(conn, email) if email else None
+    usable = user is not None and user.has_password and not user.banned_at
+    # The answer is the same whether or not the address has an account.
+    if number and state.sms is not None:
+        try:
+            sent = None
+            if usable:
+                sent = phone.start(
+                    conn,
+                    state.sms,
+                    state.secret_key,
+                    state.settings,
+                    user.id,
+                    number,
+                    limiter=state.limiter,
+                    client_ip=client_ip(request),
+                    purpose="reset",
+                )
+            else:
+                phone.normalize_mobile(number)
+        except (ValidationProblem, RateLimited, phone.SmsError) as exc:
+            return _forgot_page(request, conn, values, {"phone": _problem_text(exc)}, status=exc.status)
+        flash = "Hvis e-postadressen og mobilnummeret hører til samme konto, har vi sendt en kode på SMS."
+        if sent and sent.test_code:
+            flash += f" Testmodus, ingen SMS er sendt: koden er {sent.test_code}."
+        return redirect(url_with_query("", "/glemt-passord/kode", [("epost", email)]), flash=flash)
+    if not state.mailer.enabled:
+        error = "Vi kan ikke sende e-post her." + (" Bruk mobilnummeret ditt i stedet." if state.sms else "")
+        return _forgot_page(request, conn, values, {"email": error}, status=422)
+    if usable:
+        recovery.send_reset_link(state.mailer, conn, state.secret_key, base_url(request), user)
+    return redirect(
+        "/logg-inn",
+        flash="Hvis adressen hører til en konto, har vi sendt en lenke for å lage nytt passord. "
+        "Sjekk e-posten din, også søppelposten.",
+    )
+
+
+@router.get("/glemt-passord/kode")
+def reset_code_page(request: Request, conn: Conn) -> Response:
+    email = request.query_params.get("epost", "")
+    return render(request, conn, "reset_code.html", {"email": email, "errors": {}})
+
+
+@router.post("/glemt-passord/kode")
+def reset_with_code(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    state = request.app.state
+    decision = state.limiter.hit("reset-code", client_ip(request), 30, 3600)
+    if not decision.allowed:
+        raise RateLimited("For mange forsøk. Prøv igjen om en time.", retry_after=decision.reset_in)
+    email = str(form.get("email") or "").strip()
+    password = str(form.get("password") or "")
+    user = users.get_user_by_email(conn, email) if email else None
+    errors: dict[str, str] = {}
+    if user is None or not user.has_password or user.banned_at or state.sms is None:
+        errors["code"] = "Feil kode. Be om en ny kode."
+    elif users.validate_password(password):  # before the code is used up
+        errors["password"] = users.validate_password(password)[0]["message"]
+    else:
+        try:
+            phone.confirm_reset(conn, state.secret_key, user.id, str(form.get("code") or ""))
+        except ValidationProblem as exc:
+            errors["code"] = _problem_text(exc)
+    if errors:
+        return render(request, conn, "reset_code.html", {"email": email, "errors": errors}, status=422)
+    assert user is not None
+    users.set_password(conn, user.id, password)
+    return _start_session(request, conn, user, "/min-side", "Passordet er endret, og du er logget inn.")
+
+
+@router.get("/nytt-passord")
+def new_password_page(request: Request, conn: Conn) -> Response:
+    token = request.query_params.get("token", "")
+    account = recovery.user_for_reset_token(conn, request.app.state.secret_key, token)
+    if account is None:
+        return redirect(
+            "/glemt-passord", flash="Lenken er ugyldig, utløpt eller allerede brukt. Be om en ny."
+        )
+    response = render(request, conn, "new_password.html", {"token": token, "account": account, "errors": {}})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.post("/nytt-passord")
+def set_new_password(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    token = str(form.get("token") or "")
+    account = recovery.user_for_reset_token(conn, request.app.state.secret_key, token)
+    if account is None:
+        return redirect(
+            "/glemt-passord", flash="Lenken er ugyldig, utløpt eller allerede brukt. Be om en ny."
+        )
+    try:
+        users.set_password(conn, account.id, str(form.get("password") or ""))
+    except ValidationProblem as exc:
+        context = {"token": token, "account": account, "errors": {"password": _problem_text(exc)}}
+        return render(request, conn, "new_password.html", context, status=422)
+    return _start_session(request, conn, account, "/min-side", "Passordet er endret, og du er logget inn.")
+
+
+@router.post("/min-side/passord")
+def change_password(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    settings = request.app.state.settings
+    decision = request.app.state.limiter.hit(
+        "auth", client_ip(request), settings.rate_limit_auth_per_10min, 600
+    )
+    if not decision.allowed:
+        raise RateLimited("For mange forsøk. Vent litt og prøv igjen.", retry_after=decision.reset_in)
+    try:
+        users.authenticate(conn, user.email, str(form.get("current") or ""))
+    except AppError:
+        return redirect("/min-side#passord", flash="Feil nåværende passord. Passordet ble ikke endret.")
+    try:
+        users.set_password(
+            conn, user.id, str(form.get("password") or ""), keep_session=request.cookies.get(SESSION_COOKIE)
+        )
+    except ValidationProblem as exc:
+        return redirect("/min-side#passord", flash=_problem_text(exc))
+    return redirect(
+        "/min-side#passord", flash="Passordet er endret. Andre steder du var logget inn, er logget ut."
     )
 
 

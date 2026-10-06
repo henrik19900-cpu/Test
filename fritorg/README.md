@@ -24,6 +24,7 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
+- **Glemt passord** løses med en lenke på e-post eller en kode på SMS til det bekreftede nummeret.
 - **Bilder** som skaleres, lagres som WebP og får fjernet EXIF- og GPS-data.
 - **Bekreftede brukere:** norsk mobilnummer med SMS-kode som standard, BankID som valg.
 - **Beskyttelse mot svindel**, moderering og rapportering (se under).

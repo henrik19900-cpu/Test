@@ -126,11 +126,31 @@ def validate_registration(email: str, name: str, password: str | None) -> list[d
         )
     if password is None:
         return errors
+    return errors + validate_password(password)
+
+
+def validate_password(password: str) -> list[dict[str, str]]:
     if len(password) < 8:
-        errors.append({"field": "password", "message": "Passordet må ha minst 8 tegn."})
-    elif len(password) > 200:
-        errors.append({"field": "password", "message": "Passordet kan ha maks 200 tegn."})
-    return errors
+        return [{"field": "password", "message": "Passordet må ha minst 8 tegn."}]
+    if len(password) > 200:
+        return [{"field": "password", "message": "Passordet kan ha maks 200 tegn."}]
+    return []
+
+
+def set_password(
+    conn: sqlite3.Connection, user_id: int, password: str, *, keep_session: str | None = None
+) -> None:
+    """Change the password and log out every other web session (whoever knew the old one is out)."""
+    errors = validate_password(password)
+    if errors:
+        raise ValidationProblem.from_errors(errors)
+    hashed = hash_password(password)
+    with transaction(conn):
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed, user_id))
+        conn.execute(
+            "DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
+            (user_id, hash_token(keep_session) if keep_session else ""),
+        )
 
 
 def create_user(

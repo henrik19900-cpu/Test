@@ -188,6 +188,7 @@ CREATE TABLE phone_codes (
     phone_hash TEXT NOT NULL,
     phone_hint TEXT NOT NULL,
     code_hash TEXT NOT NULL,
+    purpose TEXT NOT NULL DEFAULT 'verify',  -- 'verify' a number, or 'reset' a forgotten password
     attempts INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,

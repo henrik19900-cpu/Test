@@ -124,6 +124,24 @@
     <button type="submit" class="button">{% if mail_enabled and not user.email_verified_at %}Send bekreftelse{% else %}Lagre{% endif %}</button>
   </form>
   <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a></p>
+  {% if user.has_password %}
+  <details id="passord">
+    <summary>Bytt passord</summary>
+    <form method="post" action="/min-side/passord">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="current-password">Nåværende passord</label>
+        <input id="current-password" name="current" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="field">
+        <label for="new-password">Nytt passord</label>
+        <input id="new-password" name="password" type="password" autocomplete="new-password" required minlength="8">
+        <p class="hint">Minst 8 tegn. Andre steder du er logget inn, blir logget ut.</p>
+      </div>
+      <button type="submit" class="button">Bytt passord</button>
+    </form>
+  </details>
+  {% endif %}
   <details id="slett" class="danger-zone">
     <summary>Slett kontoen min</summary>
     <form method="post" action="/min-side/slett-konto">

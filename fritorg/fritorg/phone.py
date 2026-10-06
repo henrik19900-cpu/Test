@@ -76,8 +76,9 @@ def phone_hint(e164: str) -> str:
     return f"+47 •••••{e164[-3:]}"
 
 
-def _code_hash(secret: str, user_id: int, code: str) -> str:
-    return hmac.new(secret.encode(), f"code|{user_id}|{code}".encode(), hashlib.sha256).hexdigest()
+def _code_hash(secret: str, user_id: int, code: str, purpose: str = "verify") -> str:
+    message = f"code|{purpose}|{user_id}|{code}".encode()
+    return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
 
 
 # --- Senders ------------------------------------------------------------------------------------
@@ -209,10 +210,19 @@ def start(
     *,
     limiter: RateLimiter | None = None,
     client_ip: str = "unknown",
-) -> CodeSent:
-    """Send a code to the number. Returns the hint to show ("+47 •••••567")."""
+    purpose: str = "verify",
+) -> CodeSent | None:
+    """Send a code to the number. Returns the hint to show ("+47 •••••567").
+
+    With purpose "reset" (forgotten password) the number must be the one the account confirmed;
+    otherwise nothing is sent and None is returned, without telling the caller why.
+    """
     e164 = normalize_mobile(raw_phone)
     hashed = phone_hash(secret, e164)
+    if purpose == "reset":
+        row = conn.execute("SELECT phone_hash FROM users WHERE id = ?", (user_id,)).fetchone()
+        if row is None or not row["phone_hash"] or not hmac.compare_digest(row["phone_hash"], hashed):
+            return None
     taken = conn.execute(
         "SELECT id FROM users WHERE phone_hash = ? AND id != ?", (hashed, user_id)
     ).fetchone()
@@ -244,21 +254,23 @@ def start(
     code = f"{secrets.randbelow(10**6):06d}"
     with transaction(conn):
         conn.execute(
-            "INSERT INTO phone_codes (user_id, phone_hash, phone_hint, code_hash, created_at, expires_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO phone_codes (user_id, phone_hash, phone_hint, code_hash, purpose, created_at, expires_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 user_id,
                 hashed,
                 phone_hint(e164),
-                _code_hash(secret, user_id, code),
+                _code_hash(secret, user_id, code, purpose),
+                purpose,
                 now_iso(),
                 iso_in(minutes=CODE_MINUTES),
             ),
         )
     site = settings.site_name
+    what = "koden for å lage nytt passord" if purpose == "reset" else "koden din"
     sender.send(
         e164,
-        f"{code} er koden din hos {site}. Den gjelder i {CODE_MINUTES} minutter. Ikke del den med noen – "
+        f"{code} er {what} hos {site}. Den gjelder i {CODE_MINUTES} minutter. Ikke del den med noen – "
         f"{site} spør aldri om den på telefon.",
     )
     return CodeSent(
@@ -266,20 +278,22 @@ def start(
     )
 
 
-def pending_hint(conn: sqlite3.Connection, user_id: int) -> str | None:
+def pending_hint(conn: sqlite3.Connection, user_id: int, purpose: str = "verify") -> str | None:
     row = conn.execute(
-        "SELECT phone_hint FROM phone_codes WHERE user_id = ? AND used_at IS NULL AND expires_at > ? "
-        "ORDER BY id DESC LIMIT 1",
-        (user_id, now_iso()),
+        "SELECT phone_hint FROM phone_codes WHERE user_id = ? AND purpose = ? AND used_at IS NULL "
+        "AND expires_at > ? ORDER BY id DESC LIMIT 1",
+        (user_id, purpose, now_iso()),
     ).fetchone()
     return row["phone_hint"] if row else None
 
 
-def confirm(conn: sqlite3.Connection, secret: str, user_id: int, code: str) -> None:
+def _check_code(conn: sqlite3.Connection, secret: str, user_id: int, code: str, purpose: str) -> sqlite3.Row:
+    """The latest unused code for the purpose, if `code` matches it. Every attempt counts."""
     code = re.sub(r"\D", "", code or "")
     row = conn.execute(
-        "SELECT * FROM phone_codes WHERE user_id = ? AND used_at IS NULL AND expires_at > ? ORDER BY id DESC LIMIT 1",
-        (user_id, now_iso()),
+        "SELECT * FROM phone_codes WHERE user_id = ? AND purpose = ? AND used_at IS NULL AND expires_at > ? "
+        "ORDER BY id DESC LIMIT 1",
+        (user_id, purpose, now_iso()),
     ).fetchone()
     if row is None:
         raise ValidationProblem.field("code", "Koden er utløpt eller brukt. Be om en ny kode.")
@@ -290,11 +304,25 @@ def confirm(conn: sqlite3.Connection, secret: str, user_id: int, code: str) -> N
     )
     if counted.rowcount == 0:
         raise ValidationProblem.field("code", "For mange feil forsøk. Be om en ny kode.")
-    if not hmac.compare_digest(row["code_hash"], _code_hash(secret, user_id, code)):
+    if not hmac.compare_digest(row["code_hash"], _code_hash(secret, user_id, code, purpose)):
         left = MAX_ATTEMPTS - row["attempts"] - 1
         raise ValidationProblem.field(
             "code", f"Feil kode. Du har {left} forsøk igjen." if left > 0 else "Feil kode. Be om en ny kode."
         )
+    return row
+
+
+def confirm_reset(conn: sqlite3.Connection, secret: str, user_id: int, code: str) -> None:
+    """Check a code for resetting a forgotten password (sent to the account's confirmed number)."""
+    _check_code(conn, secret, user_id, code, "reset")
+    conn.execute(
+        "UPDATE phone_codes SET used_at = ? WHERE user_id = ? AND purpose = 'reset' AND used_at IS NULL",
+        (now_iso(), user_id),
+    )
+
+
+def confirm(conn: sqlite3.Connection, secret: str, user_id: int, code: str) -> None:
+    row = _check_code(conn, secret, user_id, code, "verify")
     with transaction(conn):
         if conn.execute(
             "SELECT 1 FROM users WHERE phone_hash = ? AND id != ?", (row["phone_hash"], user_id)
@@ -307,5 +335,6 @@ def confirm(conn: sqlite3.Connection, secret: str, user_id: int, code: str) -> N
             (row["phone_hash"], row["phone_hint"], now, now, user_id),
         )
         conn.execute(
-            "UPDATE phone_codes SET used_at = ? WHERE user_id = ? AND used_at IS NULL", (now, user_id)
+            "UPDATE phone_codes SET used_at = ? WHERE user_id = ? AND purpose = 'verify' AND used_at IS NULL",
+            (now, user_id),
         )

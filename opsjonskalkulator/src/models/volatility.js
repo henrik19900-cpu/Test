@@ -10,7 +10,7 @@
 //   Implisitt korrelasjon fra valutavolatiliteter og gjennomsnittlig implisitt indekskorrelasjon
 //   Variance swap: rettferdig variansstrike ved statisk replikasjon (Demeterfi m.fl. 1999)
 
-import { cndInv, cnd } from '../math/normal.js';
+import { cndInv } from '../math/normal.js';
 import { chi2cdf, lnGamma } from '../math/special.js';
 import { brent } from '../math/solvers.js';
 import { gaussLegendreComposite } from '../math/integrate.js';

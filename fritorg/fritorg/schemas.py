@@ -468,14 +468,15 @@ class SavedSearchIn(BaseModel):
     type: str | None = None
     county: str | None = None
     location: str | None = Field(None, max_length=80)
-    price_min: int | None = Field(None, ge=0)
-    price_max: int | None = Field(None, ge=0)
+    price_min: int | None = Field(None, ge=0, le=1_000_000_000)
+    price_max: int | None = Field(None, ge=0, le=1_000_000_000)
     attr: list[str] = Field(
         default_factory=list,
+        max_length=20,
         description="Attribute filters as in GET /api/v1/listings, e.g. ['fuel:electric', 'year:2018..'].",
     )
     has_images: bool = False
-    seller_id: int | None = None
+    seller_id: int | None = Field(None, ge=1, le=2**63 - 1)
     notify: bool = Field(
         True,
         description="E-mail the user about new matches, at most hourly (only to a verified e-mail address).",
@@ -502,7 +503,7 @@ class SavedSearchOut(BaseModel):
     url: str = Field(description="The search on the website.")
     listings_url: str = Field(description="All current matches, newest first.")
     new_listings_url: str = Field(
-        description='Only the new matches. Mark them as seen with PATCH {"seen": true}.'
+        description='Only the new matches (needs the token). Mark them as seen with PATCH {"seen": true}.'
     )
 
 

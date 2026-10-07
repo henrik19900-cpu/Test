@@ -656,6 +656,12 @@ def newest_id(conn: sqlite3.Connection) -> int:
     return int(row["seq"]) if row else 0
 
 
+def newest_seq(conn: sqlite3.Connection) -> int:
+    """Listings published from now on get a higher public_seq than this (see SCHEMA_V4)."""
+    row = conn.execute("SELECT MAX(public_seq) FROM listings").fetchone()
+    return max(row[0] or 0, newest_id(conn))
+
+
 def get_listing(conn: sqlite3.Connection, listing_id: int) -> Listing:
     row = conn.execute(f"{_SELECT} WHERE l.id = ?", (listing_id,)).fetchone()
     if row is None:
@@ -824,7 +830,14 @@ def update_listing(
             values["attributes"] = merged
         else:
             values["attributes"] = incoming
+    old_place = postcodes.lookup(listing.postal_code)
     values.update(changes)
+    new_place = postcodes.lookup(values.get("postal_code"))
+    if old_place and new_place and new_place != old_place:
+        if values.get("location") == old_place.place:
+            values["location"] = None
+        if values.get("county") == old_place.county:
+            values["county"] = None
     clean = validate_listing(values)
     new_status = status or listing.status
     with transaction(conn):
@@ -998,6 +1011,9 @@ SORTS = {
 }
 SEARCH_STATUSES = ("active", "sold", "any")
 MAX_LIMIT = 100
+MAX_OFFSET = 1_000_000
+MAX_ATTR_FILTERS = 20
+MAX_SQL_INT = 2**63 - 1  # the largest number SQLite stores
 
 
 @dataclass
@@ -1042,7 +1058,12 @@ class SearchParams:
     include_hidden: bool = False  # allows status "inactive"/"all"; owner views only, never from public input
     include_imported: bool = True  # False leaves out listings imported from open sources
     after_id: int | None = None  # only listings with a higher id, i.e. added after that one (ids only grow)
-    up_to_id: int | None = None  # and not above this id (a fixed end for a batch of new listings)
+    # Saved searches: only listings that became public after this point in the order of publishing
+    # (public_seq), and not after up_to_seq. A draft or a listing that waited for review counts from
+    # when it was published.
+    after_seq: int | None = None
+    up_to_seq: int | None = None
+    exclude_user_id: int | None = None  # leave out this person's own listings
 
     @property
     def effective_sort(self) -> str:
@@ -1174,18 +1195,38 @@ def validate_search(params: SearchParams) -> SearchParams:
             raise ValidationProblem.field(
                 "updated_since", "Ugyldig tidspunkt.", hint="Use ISO 8601, e.g. 2026-10-01T12:00:00Z"
             ) from None
+    for key in ("price_min", "price_max"):
+        value = getattr(params, key)
+        if value is not None and not 0 <= value <= MAX_PRICE:
+            raise ValidationProblem.field(
+                key,
+                f"Prisen må være mellom 0 og {format_number(MAX_PRICE)} kr.",
+                hint="Leave it out for no limit.",
+            )
+    if params.user_id is not None and not 0 <= params.user_id <= MAX_SQL_INT:
+        raise ValidationProblem.field("seller_id", "Ukjent selger.")
+    if len(params.attrs) > MAX_ATTR_FILTERS:
+        raise _attr_error(f"Maks {MAX_ATTR_FILTERS} attributtfiltre per søk.")
+    for flt in params.attrs:
+        for value in [*(flt.values or []), flt.min, flt.max]:
+            if isinstance(value, int) and not -MAX_SQL_INT <= value <= MAX_SQL_INT:
+                raise _attr_error(f"{flt.key}: tallet er for stort.")
     params.limit = max(1, min(int(params.limit), MAX_LIMIT))
-    params.offset = max(0, int(params.offset))
-    if params.after_id is not None:
-        params.after_id = max(0, int(params.after_id))
+    params.offset = max(0, min(int(params.offset), MAX_OFFSET))
+    for key in ("after_id", "after_seq", "up_to_seq"):
+        value = getattr(params, key)
+        if value is not None:
+            setattr(params, key, max(0, min(int(value), MAX_SQL_INT)))
     return params
 
 
-def _int_param(value: str | None) -> int | None:
+def _int_param(value: str | None, high: int = MAX_SQL_INT) -> int | None:
+    """A whole number from a URL, or None if it is missing, not a number or out of range."""
     try:
-        return int(value) if value not in (None, "") else None
+        number = int(value) if value not in (None, "") else None
     except ValueError:
         return None
+    return number if number is None or 0 <= number <= high else None
 
 
 def params_from_query(pairs: Iterable[tuple[str, str]], *, limit: int = 20) -> SearchParams:
@@ -1193,25 +1234,27 @@ def params_from_query(pairs: Iterable[tuple[str, str]], *, limit: int = 20) -> S
     searches: invalid values are left out instead of failing."""
     items = list(pairs)
     values: dict[str, str] = {}
-    attrs = []
+    attrs: list[AttrFilter] = []
     for name, value in items:
         if name == "attr" or name.startswith("a."):
             try:
-                attrs.extend(attr_filters_from_params([(name, value)]))
+                found = attr_filters_from_params([(name, value)])
+                validate_search(SearchParams(attrs=found))  # e.g. numbers SQLite cannot hold
             except ValidationProblem:
                 continue
+            attrs.extend(found)
         else:
             values[name] = value  # the last one wins, as in Starlette's query_params
     qp = values.get
     return SearchParams(
-        q=(qp("q") or "").strip() or None,
+        q=" ".join((qp("q") or "").split()) or None,
         category=qp("category") if qp("category") in taxonomy.CATEGORIES else None,
         type=qp("type") if qp("type") in LISTING_TYPES else None,
         county=qp("county") if qp("county") in COUNTIES else None,
-        location=(qp("location") or "").strip() or None,
-        price_min=_int_param(qp("price_min")),
-        price_max=_int_param(qp("price_max")),
-        attrs=attrs,
+        location=" ".join((qp("location") or "").split())[:80] or None,
+        price_min=_int_param(qp("price_min"), MAX_PRICE),
+        price_max=_int_param(qp("price_max"), MAX_PRICE),
+        attrs=attrs[:MAX_ATTR_FILTERS],
         user_id=_int_param(qp("seller_id")),
         status=qp("status") if qp("status") in SEARCH_STATUSES else "active",
         has_images=qp("has_images") in ("1", "true", "on"),
@@ -1309,9 +1352,15 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
     if params.after_id is not None:
         conditions.append("l.id > ?")
         args.append(params.after_id)
-    if params.up_to_id is not None:
-        conditions.append("l.id <= ?")
-        args.append(params.up_to_id)
+    if params.exclude_user_id is not None:
+        conditions.append("l.user_id != ?")
+        args.append(params.exclude_user_id)
+    if params.after_seq is not None:
+        conditions.append("l.public_seq > ?")
+        args.append(params.after_seq)
+    if params.up_to_seq is not None:
+        conditions.append("l.public_seq <= ?")
+        args.append(params.up_to_seq)
 
     for flt in params.attrs:
         attr = ATTRIBUTES[flt.key]  # keys were validated against the registry when parsed

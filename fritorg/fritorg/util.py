@@ -54,7 +54,10 @@ def format_number(value: int, sep: str = " ") -> str:
 def format_date_no(iso: str | None) -> str:
     if not iso:
         return ""
-    moment = parse_iso(iso).astimezone(LOCAL_TZ)
+    try:
+        moment = parse_iso(iso).astimezone(LOCAL_TZ)
+    except ValueError:  # e.g. an impossible date from an import: show it as it is
+        return str(iso)
     return f"{moment.day}. {MONTHS_NO[moment.month - 1]} {moment.year}"
 
 

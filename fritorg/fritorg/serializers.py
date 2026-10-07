@@ -180,7 +180,7 @@ def saved_search_dict(saved: SavedSearch, base: str) -> dict[str, Any]:
         "last_alert_at": saved.alerted_at,
         "url": f"{base}{saved.web_path}",
         "listings_url": f"{base}/api/v1/listings?{saved.query}&sort=newest",
-        "new_listings_url": f"{base}/api/v1/listings?{saved.query}&after_id={saved.seen_id}&sort=newest",
+        "new_listings_url": f"{base}/api/v1/me/saved-searches/{saved.id}/new",
     }
 
 

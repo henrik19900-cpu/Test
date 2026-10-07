@@ -14,6 +14,7 @@ import logging
 import re
 import urllib.parse
 from collections.abc import Callable
+from datetime import date
 from typing import Any
 
 from . import imports, listings
@@ -72,6 +73,14 @@ def employment_type(ad: dict[str, Any]) -> str | None:
     return None
 
 
+def _real_date(text: str) -> bool:
+    try:
+        date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
 def _place(ad: dict[str, Any]) -> tuple[str | None, str | None]:
     """(county slug, place). Ads in Norway get a Norwegian county when the region names one."""
     address = ad.get("workplace_address") or {}
@@ -110,7 +119,7 @@ def to_item(ad: dict[str, Any]) -> imports.Item | None:
     if kind:
         attributes["employment_type"] = kind
     deadline = str(ad.get("application_deadline") or "")[:10]
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", deadline):
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", deadline) and _real_date(deadline):
         attributes["deadline"] = deadline
     salary = " ".join(str(ad.get("salary_description") or "").split())
     if salary:

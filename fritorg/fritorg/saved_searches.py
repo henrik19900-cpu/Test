@@ -2,12 +2,14 @@
 many listings are new since they last looked) and, if they want, by e-mail.
 
 A search is stored as its /sok query parameters, normalised, so the same search is saved once. New
-matches are found by listing id: ids only grow, so everything above the newest id at the last look is
-new. (A listing that waited for moderation is approved with its original id, so it is not announced.)
+matches are found by the order in which listings were published (listings.public_seq, see SCHEMA_V4):
+everything published after the person last looked is new, also a draft that is published later or a
+listing that waited for review. The person's own listings are left out.
 """
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode
@@ -17,6 +19,8 @@ from .errors import NotFound, ValidationProblem
 from .listings import SearchParams, SearchResult
 from .mailer import Mail, Mailer
 from .util import format_number, iso_ago, now_iso
+
+logger = logging.getLogger(__name__)
 
 MAX_SAVED = 50
 ALERT_INTERVAL_HOURS = 1  # at most one e-mail per saved search per hour; matches wait for the next one
@@ -67,8 +71,8 @@ def canonical_query(params: SearchParams) -> str:
         items.append(("q", " ".join(params.q.split())))
     for key in ("category", "type", "county", "location", "price_min", "price_max"):
         value = getattr(params, key)
-        if value not in (None, ""):
-            items.append((key, str(value).strip()))
+        if value not in (None, "") and (text := " ".join(str(value).split())):
+            items.append((key, text))
     items += sorted(("attr", flt.to_expression()) for flt in params.attrs)
     if params.user_id is not None:
         items.append(("seller_id", str(params.user_id)))
@@ -92,8 +96,8 @@ def describe(params: SearchParams) -> str:
         parts.append(taxonomy.LISTING_TYPES[params.type].label)
     if params.county in taxonomy.COUNTIES:
         parts.append(taxonomy.COUNTIES[params.county].name)
-    if params.location:
-        parts.append(params.location)
+    if params.location and params.location.strip():
+        parts.append(" ".join(params.location.split()))
     if params.price_min is not None and params.price_max is not None:
         parts.append(f"{format_number(params.price_min, NBSP)}–{_price(params.price_max)}")
     elif params.price_max is not None:
@@ -160,7 +164,7 @@ def create(
             f"Du kan ha maks {MAX_SAVED} lagrede søk. Slett noen du ikke trenger lenger.",
             hint="Delete one with DELETE /api/v1/me/saved-searches/{id} (MCP: delete_saved_search).",
         )
-    newest = listings.newest_id(conn)
+    newest = listings.newest_seq(conn)
     cursor = conn.execute(
         "INSERT INTO saved_searches (user_id, name, query, notify, seen_id, alerted_id, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -171,11 +175,12 @@ def create(
 
 
 def new_matches(
-    conn: sqlite3.Connection, saved: SavedSearch, limit: int = 10, up_to_id: int | None = None
+    conn: sqlite3.Connection, saved: SavedSearch, limit: int = 10, up_to_seq: int | None = None
 ) -> SearchResult:
-    """Active listings added since the person last looked, newest first."""
+    """Active listings published since the person last looked, newest first."""
     params = saved.params
-    params.after_id, params.up_to_id, params.sort, params.limit = saved.seen_id, up_to_id, "newest", limit
+    params.after_seq, params.up_to_seq, params.sort, params.limit = saved.seen_id, up_to_seq, "newest", limit
+    params.exclude_user_id = saved.user_id  # nobody needs to hear about their own listings
     return listings.search(conn, params)
 
 
@@ -186,16 +191,19 @@ def list_for(conn: sqlite3.Connection, user_id: int) -> list[SavedSearch]:
         for row in conn.execute("SELECT * FROM saved_searches WHERE user_id = ? ORDER BY id DESC", (user_id,))
     ]
     for saved in items:
-        saved.new_count = new_matches(conn, saved, limit=1).total
+        try:
+            saved.new_count = new_matches(conn, saved, limit=1).total
+        except Exception:  # one broken search must not break the page
+            logger.exception("Saved search %s could not be counted", saved.id)
     return items
 
 
 def mark_seen(
-    conn: sqlite3.Connection, user_id: int, search_id: int, up_to_id: int | None = None
+    conn: sqlite3.Connection, user_id: int, search_id: int, up_to_seq: int | None = None
 ) -> SavedSearch:
-    """Everything up to now (or up to `up_to_id`) counts as seen."""
+    """Everything published up to now (or up to `up_to_seq`) counts as seen."""
     saved = get(conn, user_id, search_id)
-    saved.seen_id = max(saved.seen_id, listings.newest_id(conn) if up_to_id is None else up_to_id)
+    saved.seen_id = max(saved.seen_id, listings.newest_seq(conn) if up_to_seq is None else up_to_seq)
     conn.execute("UPDATE saved_searches SET seen_id = ? WHERE id = ?", (saved.seen_id, saved.id))
     saved.new_count = 0
     return saved
@@ -205,7 +213,7 @@ def set_notify(conn: sqlite3.Connection, user_id: int, search_id: int, notify: b
     saved = get(conn, user_id, search_id)
     if notify and not saved.notify:
         # From now on: no e-mail about what came while alerts were off.
-        saved.alerted_id = listings.newest_id(conn)
+        saved.alerted_id = listings.newest_seq(conn)
     conn.execute(
         "UPDATE saved_searches SET notify = ?, alerted_id = ? WHERE id = ?",
         (int(notify), saved.alerted_id, saved.id),
@@ -236,6 +244,7 @@ def _alert_mail(
     email: str,
     name: str,
     user_id: int,
+    user_created: str,
     hits: list[tuple[SavedSearch, SearchResult]],
 ) -> Mail:
     if len(hits) == 1:
@@ -249,50 +258,68 @@ def _alert_mail(
             details = ", ".join(part for part in (item.price_text(), item.place) if part)
             lines += [f"- {item.title}" + (f" ({details})" if details else ""), f"  {base}/annonse/{item.id}"]
         rest = result.total - len(result.items)
+        search_off = alerts.unsubscribe_url(base, secret, "search", saved.id, saved.created_at)
         lines += [
             "",
             (f"Se alle, også {rest} til: " if rest > 0 else "Se søket: ") + f"{base}/lagrede-sok/{saved.id}",
-            f"Slå av varsel for dette søket: {alerts.unsubscribe_url(base, secret, 'search', saved.id)}",
+            f"Slå av varsel for dette søket: {search_off}",
             "",
         ]
-    off = alerts.unsubscribe_url(base, secret, "searches", user_id)
+    off = alerts.unsubscribe_url(base, secret, "searches", user_id, user_created)
     lines += [
         f"Du får denne e-posten fordi du har lagret søk med e-postvarsel på {site}. "
         f"Endre varslene på {base}/lagrede-sok, eller slå av alle: {off}",
         "",
         f"Husk: {site} sender aldri betalingslenker. Se varen før du betaler.",
     ]
+    subject = " ".join(subject.split())  # never a line break in a header
     return Mail(email, subject, "\n".join(lines) + "\n", headers=alerts.one_click_headers(off))
 
 
 def send_alerts(conn: sqlite3.Connection, mailer: Mailer, base: str, secret: str) -> int:
     """E-mail people about new matches for their saved searches (verified addresses only). Returns the
-    number of e-mails sent. Searches checked without a match just move on, so no listing is announced twice."""
+    number of e-mails sent. A search is only marked as alerted once its e-mail is on its way, and a search
+    that cannot be checked is logged and left for the next round without holding up the others."""
     if not mailer.enabled:
         return 0
-    newest = listings.newest_id(conn)
+    newest = listings.newest_seq(conn)
     rows = conn.execute(
-        "SELECT s.*, u.email, u.name AS user_name FROM saved_searches s JOIN users u ON u.id = s.user_id "
+        "SELECT s.*, u.email, u.name AS user_name, u.created_at AS user_created FROM saved_searches s "
+        "JOIN users u ON u.id = s.user_id "
         "WHERE s.notify = 1 AND s.alerted_id < ? AND (s.alerted_at IS NULL OR s.alerted_at < ?) "
         "AND u.email_verified_at IS NOT NULL AND u.banned_at IS NULL ORDER BY s.user_id, s.id",
         (newest, iso_ago(hours=ALERT_INTERVAL_HOURS)),
     ).fetchall()
-    found: dict[int, tuple[str, str, list[tuple[SavedSearch, SearchResult]]]] = {}
+    found: dict[int, tuple[sqlite3.Row, list[tuple[SavedSearch, SearchResult]]]] = {}
     for row in rows:
         saved = _saved(row)
-        params = saved.params
-        params.after_id = max(saved.alerted_id, saved.seen_id)
-        params.up_to_id, params.sort, params.limit = newest, "newest", ALERT_ITEMS
-        result = listings.search(conn, params)
+        try:
+            params = saved.params
+            params.after_seq = max(saved.alerted_id, saved.seen_id)
+            params.up_to_seq, params.sort, params.limit = newest, "newest", ALERT_ITEMS
+            params.exclude_user_id = saved.user_id
+            result = listings.search(conn, params)
+        except Exception:
+            logger.exception("Saved search %s could not be checked", saved.id)
+            continue
         if result.total:
-            found.setdefault(saved.user_id, (row["email"], row["user_name"], []))[2].append((saved, result))
-            conn.execute(
-                "UPDATE saved_searches SET alerted_id = ?, alerted_at = ? WHERE id = ?",
-                (newest, now_iso(), saved.id),
-            )
-        else:
+            found.setdefault(saved.user_id, (row, []))[1].append((saved, result))
+        else:  # nothing new: move on, so the same listings are not searched again
             conn.execute("UPDATE saved_searches SET alerted_id = ? WHERE id = ?", (newest, saved.id))
     site = mailer.settings.site_name
-    for user_id, (email, name, hits) in found.items():
-        mailer.send_later(_alert_mail(base, site, secret, email, name, user_id, hits))
-    return len(found)
+    sent = 0
+    for user_id, (row, hits) in found.items():
+        try:
+            mail = _alert_mail(
+                base, site, secret, row["email"], row["user_name"], user_id, row["user_created"], hits
+            )
+            mailer.send_later(mail)
+        except Exception:
+            logger.exception("Alert e-mail for user %s could not be made", user_id)
+            continue
+        conn.executemany(
+            "UPDATE saved_searches SET alerted_id = ?, alerted_at = ? WHERE id = ?",
+            [(newest, now_iso(), saved.id) for saved, _ in hits],
+        )
+        sent += 1
+    return sent

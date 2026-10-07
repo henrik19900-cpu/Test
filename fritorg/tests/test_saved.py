@@ -70,13 +70,13 @@ def test_saved_search_counts_new_matches(client, auth, other_auth):
     make_listing(client, auth, title="Barnesykkel i Bergen", county="vestland", price=900)  # no match
     [listed] = client.get("/api/v1/me/saved-searches", headers=other_auth).json()
     assert listed["new_count"] == 1
-    new_items = client.get(listed["new_listings_url"]).json()["items"]
+    new_items = client.get(listed["new_listings_url"], headers=other_auth).json()["items"]
     assert [i["id"] for i in new_items] == [new["id"]]
     assert client.get(listed["listings_url"]).json()["total"] == 2
 
     seen = client.patch(f"/api/v1/me/saved-searches/{saved['id']}", json={"seen": True}, headers=other_auth)
     assert seen.json()["new_count"] == 0
-    assert client.get(seen.json()["new_listings_url"]).json()["total"] == 0
+    assert client.get(seen.json()["new_listings_url"], headers=other_auth).json()["total"] == 0
 
     bad = client.post("/api/v1/me/saved-searches", json={}, headers=other_auth)
     assert bad.status_code == 422

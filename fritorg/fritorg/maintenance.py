@@ -7,7 +7,9 @@ from __future__ import annotations
 import logging
 import sqlite3
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TypeVar
 
 from . import alerts, listings, saved_searches
 from .config import Settings
@@ -19,6 +21,7 @@ from .views import ViewCounter
 logger = logging.getLogger(__name__)
 
 INTERVAL_SECONDS = 600
+T = TypeVar("T")
 
 
 @dataclass
@@ -71,18 +74,31 @@ def run(
 ) -> Report:
     report = Report()
     base = settings.base_url or "http://127.0.0.1:8000"
+
+    def step(name: str, action: Callable[[], T]) -> T | None:
+        """Each step on its own: one that fails is logged, and the others still run."""
+        try:
+            return action()
+        except Exception:
+            logger.exception("Maintenance step %r failed", name)
+            return None
+
     with db.session() as conn:
         if views is not None:
-            views.flush(conn)
-        expired = listings.expire_listings(conn)
+            step("views", lambda: views.flush(conn))
+        expired = step("expiry", lambda: listings.expire_listings(conn)) or []
         report.expired = len(expired)
         if mailer is not None and mailer.enabled:
             for listing in expired:
-                _tell_owner(mailer, conn, base, listing)
+                step("expiry e-mail", lambda listing=listing: _tell_owner(mailer, conn, base, listing))
             if secret:  # signs the unsubscribe links in the alerts
-                report.alerts = saved_searches.send_alerts(conn, mailer, base, secret)
-                report.price_drops = alerts.send_price_drops(conn, mailer, base, secret)
-        report.purged = purge(conn)
+                report.alerts = (
+                    step("search alerts", lambda: saved_searches.send_alerts(conn, mailer, base, secret)) or 0
+                )
+                report.price_drops = (
+                    step("price alerts", lambda: alerts.send_price_drops(conn, mailer, base, secret)) or 0
+                )
+        report.purged = step("purge", lambda: purge(conn)) or 0
     return report
 
 

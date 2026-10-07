@@ -505,7 +505,7 @@ def _save_search(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 def _check_saved_searches(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     assert ctx.user is not None
     mark_seen = args.get("mark_seen") is not False
-    newest = listings.newest_id(ctx.conn)
+    newest = listings.newest_seq(ctx.conn)
     entries = []
     for saved in saved_searches.list_for(ctx.conn, ctx.user.id):
         entry: dict[str, Any] = {
@@ -516,11 +516,11 @@ def _check_saved_searches(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
             "url": ctx.base + saved.web_path,
         }
         if saved.new_count:
-            result = saved_searches.new_matches(ctx.conn, saved, limit=10, up_to_id=newest)
+            result = saved_searches.new_matches(ctx.conn, saved, limit=10, up_to_seq=newest)
             entry["new_count"] = result.total
             entry["new_listings"] = [_compact(item, ctx.base) for item in result.items]
             if mark_seen:
-                saved_searches.mark_seen(ctx.conn, ctx.user.id, saved.id, up_to_id=newest)
+                saved_searches.mark_seen(ctx.conn, ctx.user.id, saved.id, up_to_seq=newest)
         entries.append(entry)
     return {
         "saved_searches": entries,

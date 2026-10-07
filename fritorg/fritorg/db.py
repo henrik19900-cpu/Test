@@ -299,8 +299,34 @@ CREATE INDEX idx_blocks_blocked ON blocks(blocked_id);
 ALTER TABLE listings ADD COLUMN views INTEGER NOT NULL DEFAULT 0;
 """
 
+# The order in which listings were published, for "new since you last looked" in saved searches:
+# a draft or a listing that waited for review is new when it becomes active, not when it was written.
+# Triggers number a listing the first time it becomes active, always above every listing id and every
+# number handed out before, so watermarks from earlier versions (listing ids) stay valid.
+_NEXT_SEQ = (
+    "(SELECT MAX(COALESCE((SELECT MAX(public_seq) FROM listings), 0), "
+    "COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'listings'), 0)) + 1)"
+)
+SCHEMA_V4 = f"""
+ALTER TABLE listings ADD COLUMN public_seq INTEGER;
+UPDATE listings SET public_seq = id WHERE status IN ('active', 'sold');
+CREATE INDEX idx_listings_public_seq ON listings(public_seq);
+
+CREATE TRIGGER listings_published_on_insert AFTER INSERT ON listings
+WHEN NEW.status = 'active' AND NEW.public_seq IS NULL
+BEGIN
+    UPDATE listings SET public_seq = {_NEXT_SEQ} WHERE id = NEW.id;
+END;
+
+CREATE TRIGGER listings_published_on_update AFTER UPDATE OF status ON listings
+WHEN NEW.status = 'active' AND NEW.public_seq IS NULL
+BEGIN
+    UPDATE listings SET public_seq = {_NEXT_SEQ} WHERE id = NEW.id;
+END;
+"""
+
 # Append new migrations to the end; never edit one that has shipped.
-MIGRATIONS: list[str] = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3]
+MIGRATIONS: list[str] = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4]
 
 
 def _casefold(value: object) -> object:

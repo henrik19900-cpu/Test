@@ -258,6 +258,7 @@ def search_listings(
         int | None,
         Query(
             ge=0,
+            le=2**63 - 1,
             description="Only listings added after this one (ids only grow). To follow new listings, poll with "
             "the highest id you have seen, or save the search: POST /api/v1/me/saved-searches.",
         ),
@@ -828,6 +829,27 @@ def create_saved_search(
     if not created:
         response.status_code = 200
     return serializers.saved_search_dict(saved, base_url(request))
+
+
+@router.get(
+    "/me/saved-searches/{search_id}/new",
+    response_model=SearchOut,
+    tags=["account"],
+    summary="New matches of a saved search",
+)
+def saved_search_new_matches(
+    search_id: int,
+    request: Request,
+    conn: Conn,
+    user: CurrentUser,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> dict:
+    """Listings published since the user last looked, newest first (drafts and listings that waited for
+    review count from when they were published). Mark them as seen with PATCH {"seen": true}."""
+    saved = saved_searches.get(conn, user.id, search_id)
+    return serializers.search_dict(
+        saved_searches.new_matches(conn, saved, limit=limit), base_url(request), None
+    )
 
 
 @router.patch(

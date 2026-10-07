@@ -46,6 +46,7 @@ from .templating import (
 router = APIRouter(include_in_schema=False)
 Conn = Annotated[sqlite3.Connection, Depends(get_conn)]
 PAGE_SIZE = 24
+MAX_PAGE = 1000
 
 
 async def get_form(request: Request) -> FormData:
@@ -133,7 +134,7 @@ def _int_param(value: str | None) -> int | None:
 def search_params_from_request(request: Request, limit: int = PAGE_SIZE) -> SearchParams:
     """Lenient parsing for web URLs: invalid values are ignored instead of failing the page."""
     params = listings.params_from_query(request.query_params.multi_items(), limit=limit)
-    page = max(1, _int_param(request.query_params.get("side")) or 1)
+    page = min(max(1, _int_param(request.query_params.get("side")) or 1), MAX_PAGE)
     params.offset = (page - 1) * limit
     return params
 
@@ -858,7 +859,7 @@ def favorites_page(request: Request, conn: Conn) -> Response:
     user = current_user(request, conn)
     if user is None:
         return login_redirect(request)
-    page = max(1, _int_param(request.query_params.get("side")) or 1)
+    page = min(max(1, _int_param(request.query_params.get("side")) or 1), MAX_PAGE)
     items, total = favorites.saved_listings(conn, user.id, PAGE_SIZE * 2, (page - 1) * PAGE_SIZE * 2)
     return render(
         request,

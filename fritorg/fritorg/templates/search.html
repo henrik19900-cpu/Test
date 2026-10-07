@@ -119,8 +119,9 @@
       {{ pagination(page, pages, page_url) }}
     {% else %}
       <div class="empty">
-        <p><strong>Ingen treff.</strong> Prøv færre filtre eller et annet søkeord.</p>
+        <p><strong>Ingen treff akkurat nå.</strong> Prøv færre filtre eller et annet søkeord.</p>
         <p>Tips: Søket finner også deler av ord, så «sykkel» gir treff på «barnesykkel».</p>
+        {% if save_query and not saved_search %}<p>Eller lagre søket med knappen over, så ser du det med en gang når det kommer en annonse som passer.</p>{% endif %}
       </div>
     {% endif %}
 

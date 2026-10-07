@@ -101,3 +101,17 @@ def test_login_page_says_why(client):
     assert "Logg inn for å legge ut annonsen din" in client.get("/logg-inn?neste=/ny-annonse").text
     assert "Logg inn for å lagre søket" in client.get("/logg-inn?neste=/sok%3Fq%3Dsykkel").text
     assert "Logg inn for å" not in client.get("/logg-inn").text
+
+
+def test_search_titles(client):
+    cases = {
+        "/sok?category=bil&county=oslo": "Bil i Oslo",
+        "/sok?category=bil": "Bil",
+        "/sok?q=sofa": "Søk etter «sofa»",
+        "/sok?q=sofa&category=mobler": "«sofa» i Møbler og interiør",
+        "/sok?county=vestland": "Annonser i Vestland",
+        "/sok": "Alle annonser",
+    }
+    for url, title in cases.items():
+        page = client.get(url).text
+        assert f"<title>{title} – Fritorg</title>" in page, url

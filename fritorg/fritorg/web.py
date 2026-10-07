@@ -215,14 +215,15 @@ def home_markdown(request: Request, conn: Conn) -> Response:
 
 
 def _search_title(params: SearchParams) -> str:
-    parts = []
+    """A heading that reads well and works as a page title: "Bil i Oslo", "«sofa» i Møbler og interiør"."""
+    category = taxonomy.CATEGORIES[params.category].name if params.category else None
+    county = taxonomy.COUNTIES[params.county].name if params.county else None
     if params.q:
-        parts.append(f"«{params.q}»")
-    if params.category:
-        parts.append(taxonomy.CATEGORIES[params.category].name)
-    if params.county:
-        parts.append(taxonomy.COUNTIES[params.county].name)
-    return "Søk: " + ", ".join(parts) if parts else "Alle annonser"
+        places = [part for part in (category, county) if part]
+        return f"«{params.q}» i {', '.join(places)}" if places else f"Søk etter «{params.q}»"
+    if category:
+        return f"{category} i {county}" if county else category
+    return f"Annonser i {county}" if county else "Alle annonser"
 
 
 @router.get("/sok")

@@ -25,6 +25,8 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
 - **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk, så gamle annonser ikke hoper seg opp. Selgeren får e-post når en annonse går ut.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
+- **Favoritter og lagrede søk:** lagre annonser med hjertet, og lagre et søk for å se hvor mange nye treff som har kommet siden sist. Med bekreftet e-post kommer nye treff på e-post, høyst én gang i timen per søk, med lenke for å melde seg av uten å logge inn. Selgeren ser hvor mange som har lagret annonsen, men ikke hvem.
+- **Deling:** hver annonse har forhåndsvisning med bilde, tittel og pris når den deles i meldinger og sosiale medier (Open Graph), og viser lignende annonser.
 - **Glemt passord** løses med en lenke på e-post eller en kode på SMS til det bekreftede nummeret.
 - **Bilder** som skaleres, lagres som WebP og får fjernet EXIF- og GPS-data.
 - **Bekreftede brukere:** norsk mobilnummer med SMS-kode som standard, BankID som valg.
@@ -92,6 +94,7 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
 - MCP-server (Streamable HTTP): `/mcp`. Uten nøkkel får agenten verktøy for å lese, med en personlig nøkkel også for å skrive. Eksempel: `claude mcp add --transport http fritorg https://fritorg.no/mcp`
 - REST-API: `/api/v1`, dokumentert i `/openapi.json` og `/api/docs`. Feil følger RFC 9457 med norsk `detail` og engelsk `hint`.
 - Agenter kan be om tilgang selv med device flow (`POST /api/v1/auth/device`), og personen godkjenner på `/koble-til`.
+- Agenter kan følge med på søk for brukeren (`save_search` og `check_saved_searches`, eller `/api/v1/me/saved-searches`) og lagre favoritter.
 - Alle offentlige annonser: `/api/v1/export/listings.ndjson`.
 
 ## Hente inn annonser fra andre kilder

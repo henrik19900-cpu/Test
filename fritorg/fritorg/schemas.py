@@ -438,6 +438,60 @@ class TokenCreateIn(BaseModel):
     name: str = Field("API", max_length=60)
 
 
+class FavoritesOut(BaseModel):
+    total: int
+    items: list[ListingSummaryOut] = Field(description="Most recently saved first.")
+
+
+class SavedSearchIn(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"q": "sykkel", "county": "oslo", "price_max": 3000}]},
+    )
+
+    q: str | None = Field(None, max_length=200, description="Free text, as in GET /api/v1/listings.")
+    category: str | None = None
+    type: str | None = None
+    county: str | None = None
+    location: str | None = Field(None, max_length=80)
+    price_min: int | None = Field(None, ge=0)
+    price_max: int | None = Field(None, ge=0)
+    attr: list[str] = Field(
+        default_factory=list,
+        description="Attribute filters as in GET /api/v1/listings, e.g. ['fuel:electric', 'year:2018..'].",
+    )
+    has_images: bool = False
+    seller_id: int | None = None
+    notify: bool = Field(
+        True,
+        description="E-mail the user about new matches, at most hourly (only to a verified e-mail address).",
+    )
+
+
+class SavedSearchUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    notify: bool | None = Field(None, description="Turn e-mail alerts on or off.")
+    seen: bool | None = Field(
+        None, description="true marks the current matches as seen: new_count becomes 0."
+    )
+
+
+class SavedSearchOut(BaseModel):
+    id: int
+    name: str = Field(description="Generated from the filters, e.g. '«sykkel», Oslo, under 3 000 kr'.")
+    query: dict[str, Any] = Field(description="The search's filters, as GET /api/v1/listings parameters.")
+    notify: bool
+    new_count: int = Field(description="Matches added since the user last looked.")
+    created_at: str
+    last_alert_at: str | None = Field(description="When the last e-mail about new matches was sent.")
+    url: str = Field(description="The search on the website.")
+    listings_url: str = Field(description="All current matches, newest first.")
+    new_listings_url: str = Field(
+        description='Only the new matches. Mark them as seen with PATCH {"seen": true}.'
+    )
+
+
 class MessageOut(BaseModel):
     id: int
     sender_id: int

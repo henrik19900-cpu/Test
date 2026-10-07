@@ -25,7 +25,7 @@ Key facts for agents:
 
 ## Connect
 
-- [MCP server]({{ base }}/mcp): Streamable HTTP, stateless. Anonymous connections get the read-only tools `search_listings`, `get_listing`, `list_categories` and `report_listing`. With the header `Authorization: Bearer <token>` (or the personal URL `{{ base }}/mcp/<token>`) agents also get `create_listing`, `update_listing`, `delete_listing`, `add_listing_image`, `my_listings`, `send_message`, `list_conversations`, `get_conversation`, `report_conversation`{% if settings.phone_verification_required %}, `verify_phone`{% endif %} and `whoami`.
+- [MCP server]({{ base }}/mcp): Streamable HTTP, stateless. Anonymous connections get the read-only tools `search_listings`, `get_listing`, `list_categories` and `report_listing`. With the header `Authorization: Bearer <token>` (or the personal URL `{{ base }}/mcp/<token>`) agents also get `create_listing`, `update_listing`, `delete_listing`, `add_listing_image`, `my_listings`, `send_message`, `list_conversations`, `get_conversation`, `report_conversation`, `save_favorite`, `list_favorites`, `save_search`, `check_saved_searches`, `delete_saved_search`{% if settings.phone_verification_required %}, `verify_phone`{% endif %} and `whoami`.
 - [OpenAPI 3.1 specification]({{ base }}/openapi.json): the REST API under `/api/v1`.
 - [Interactive API documentation]({{ base }}/api/docs)
 - [Agent guide in Norwegian]({{ base }}/for-agenter.md): how to connect Claude, ChatGPT, Cursor and other clients.
@@ -33,10 +33,11 @@ Key facts for agents:
 ## Data
 
 - [Categories and attribute schemas]({{ base }}/api/v1/categories): category slugs, allowed listing types and category-specific fields, for example cars (`bil`): `make`, `model`, `year`, `mileage_km`, `fuel`, `gearbox`.
-- [Search]({{ base }}/api/v1/listings?q=sykkel): parameters `q`, `category`, `type`, `county`, `location`, `price_min`, `price_max`, `attr` (repeatable: `key:value`, `key:v1,v2`, `key:min..max`), `seller_id`, `status`, `updated_since`, `has_images`, `sort`, `limit`, `offset`.
+- [Search]({{ base }}/api/v1/listings?q=sykkel): parameters `q`, `category`, `type`, `county`, `location`, `price_min`, `price_max`, `attr` (repeatable: `key:value`, `key:v1,v2`, `key:min..max`), `seller_id`, `status`, `updated_since`, `has_images`, `after_id` (only listings added after that id; ids only grow), `sort`, `limit`, `offset`.
 - [Counties]({{ base }}/api/v1/counties): slugs for the `county` filter.
 - [Bulk export as NDJSON]({{ base }}/api/v1/export/listings.ndjson): every public listing, one JSON object per line. Use it instead of crawling.
 - [Atom feeds]({{ base }}/feed.atom?q=sykkel): any search as a feed of new matches.
+- Following a search for your user: `POST {{ base }}/api/v1/me/saved-searches` (MCP `save_search`) with the same filters as a search. `GET {{ base }}/api/v1/me/saved-searches` (MCP `check_saved_searches`) returns `new_count` and `new_listings_url`; with `notify` the user also gets an e-mail about new matches, at most hourly. Favourites: `PUT`/`DELETE {{ base }}/api/v1/me/favorites/{id}` (MCP `save_favorite`).
 - [Sitemap]({{ base }}/sitemap.xml)
 
 ## Getting a token (device flow)

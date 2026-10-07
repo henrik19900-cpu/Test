@@ -1,5 +1,6 @@
 """Housekeeping that runs in the background while the app runs: listings whose period is over
-are hidden (and their owners told), and expired sessions, codes and login states are deleted."""
+are hidden (and their owners told), people hear about new matches for their saved searches, and
+expired sessions, codes and login states are deleted."""
 
 from __future__ import annotations
 
@@ -8,7 +9,7 @@ import sqlite3
 import threading
 from dataclasses import dataclass
 
-from . import listings
+from . import listings, saved_searches
 from .config import Settings
 from .db import Database
 from .mailer import Mail, Mailer
@@ -23,6 +24,7 @@ INTERVAL_SECONDS = 600
 class Report:
     expired: int = 0
     purged: int = 0
+    alerts: int = 0
 
 
 def purge(conn: sqlite3.Connection) -> int:
@@ -58,7 +60,7 @@ def _tell_owner(mailer: Mailer, conn: sqlite3.Connection, base: str, listing: li
     )
 
 
-def run(db: Database, settings: Settings, mailer: Mailer | None = None) -> Report:
+def run(db: Database, settings: Settings, mailer: Mailer | None = None, secret: str | None = None) -> Report:
     report = Report()
     base = settings.base_url or "http://127.0.0.1:8000"
     with db.session() as conn:
@@ -67,6 +69,8 @@ def run(db: Database, settings: Settings, mailer: Mailer | None = None) -> Repor
         if mailer is not None and mailer.enabled:
             for listing in expired:
                 _tell_owner(mailer, conn, base, listing)
+            if secret:  # signs the unsubscribe links in the alerts
+                report.alerts = saved_searches.send_alerts(conn, mailer, base, secret)
         report.purged = purge(conn)
     return report
 
@@ -93,8 +97,13 @@ class Worker:
         while not self._stop.wait(delay):
             delay = INTERVAL_SECONDS
             try:
-                report = run(self.db, self.settings, getattr(self.state, "mailer", None))
+                state = self.state
+                report = run(
+                    self.db, self.settings, getattr(state, "mailer", None), getattr(state, "secret_key", None)
+                )
                 if report.expired:
                     logger.info("Hid %s expired listings", report.expired)
+                if report.alerts:
+                    logger.info("Sent %s saved-search alerts", report.alerts)
             except Exception:
                 logger.exception("Maintenance failed; trying again later")

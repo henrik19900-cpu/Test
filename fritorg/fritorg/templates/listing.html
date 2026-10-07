@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import listing_grid %}
+{% from "macros.html" import listing_grid, favorite_button with context %}
 {% from "icons.html" import icon %}
 
 {% block title %}{{ listing.title }} – {{ site_name }}{% endblock %}
@@ -9,11 +9,22 @@
 <link rel="alternate" type="application/json" href="/annonse/{{ listing.id }}.json">
 <link rel="alternate" type="text/markdown" href="/annonse/{{ listing.id }}.md">
 {% if not listing.is_public %}<meta name="robots" content="noindex">{% endif %}
-<meta property="og:title" content="{{ listing.title }}">
-<meta property="og:type" content="product">
-<meta property="og:url" content="{{ base }}/annonse/{{ listing.id }}">
-{% if listing.thumbnail %}<meta property="og:image" content="{{ base }}{{ listing.thumbnail.path }}">{% endif %}
 <script type="application/ld+json">{{ jsonld|safe }}</script>
+{% endblock %}
+{% block og %}
+<meta property="og:type" content="product">
+<meta property="og:title" content="{{ listing.title }}{% set price = listing.price_text() %}{% if price %} – {{ price }}{% endif %}">
+<meta property="og:description" content="{{ listing.place }}{% if listing.place %} · {% endif %}{{ listing.description|shorten(180) }}">
+<meta property="og:url" content="{{ base }}/annonse/{{ listing.id }}">
+{% if listing.thumbnail %}
+<meta property="og:image" content="{{ base }}{{ listing.thumbnail.path }}">
+{% if listing.thumbnail.width %}<meta property="og:image:width" content="{{ listing.thumbnail.width }}"><meta property="og:image:height" content="{{ listing.thumbnail.height }}">{% endif %}
+<meta property="og:image:alt" content="{{ listing.thumbnail.alt_text or listing.title }}">
+<meta name="twitter:card" content="summary_large_image">
+{% else %}
+<meta property="og:image" content="{{ base }}/static/og.png">
+<meta name="twitter:card" content="summary">
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -58,7 +69,12 @@
         {% if listing.created_via == "mcp" %}<span class="tag tag-agent" title="Annonsen ble laget av en AI-agent på vegne av selgeren">{{ icon("robot", 14) }} Laget via AI-agent</span>{% endif %}
         {% if listing.is_imported %}<span class="tag tag-source">Fra {{ listing.source_name }}</span>{% endif %}
       </p>
-      <h1>{{ listing.title }}</h1>
+      <div class="listing-title-row">
+        <h1>{{ listing.title }}</h1>
+        {% if not is_owner and listing.is_public %}
+          {% if user %}{{ favorite_button(listing) }}{% else %}<a class="button fav-button" href="/logg-inn?neste=/annonse/{{ listing.id }}" title="Lagre som favoritt">{{ icon("heart", 20) }} Lagre</a>{% endif %}
+        {% endif %}
+      </div>
       {% set price = listing.price_text(NBSP) %}
       {% if price %}<p class="listing-price">{{ price }}</p>{% endif %}
       {% if listing.place %}<p class="listing-place">{{ icon("pin", 18) }} {{ listing.place }}{% if listing.postal_code %} ({{ listing.postal_code }}){% endif %}</p>{% endif %}
@@ -144,6 +160,7 @@
       <div class="panel owner-tools">
         <h2 class="panel-title">Din annonse</h2>
         {% if listing.status == "active" and listing.expires_at %}<p class="small">Aktiv til {{ listing.expires_at|date_no }}. Etter det skjules den, og du kan gjøre den aktiv igjen.</p>{% endif %}
+        {% if favorite_count %}<p class="small">{{ icon("heart", 16) }} {{ favorite_count }} har lagret annonsen.</p>{% endif %}
         <a class="button button-block" href="/annonse/{{ listing.id }}/rediger">Rediger annonsen</a>
         <form method="post" action="/annonse/{{ listing.id }}/status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -208,6 +225,16 @@
 <section aria-labelledby="flere">
   <h2 id="flere" class="section-title">Flere annonser fra {{ listing.seller_name }}</h2>
   {{ listing_grid(more_from_seller) }}
+</section>
+{% endif %}
+
+{% if similar %}
+<section aria-labelledby="lignende">
+  <div class="section-head">
+    <h2 id="lignende" class="section-title">{% if listing.type == "job" %}Lignende stillinger{% else %}Lignende annonser{% endif %}</h2>
+    <a href="/sok?category={{ listing.category }}">Se alle i {{ listing.category_obj.name }} →</a>
+  </div>
+  {{ listing_grid(similar) }}
 </section>
 {% endif %}
 {% endblock %}

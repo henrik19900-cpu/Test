@@ -236,6 +236,31 @@ CREATE TABLE import_queue (
     PRIMARY KEY (source, item_id)
 );
 
+-- Listings a person has saved to look at again ("favoritter").
+CREATE TABLE favorites (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, listing_id)
+) WITHOUT ROWID;
+CREATE INDEX idx_favorites_listing ON favorites(listing_id);
+
+-- Saved searches, as /sok query parameters. Listing ids only grow, so the new matches are those with
+-- a higher id than the newest listing when the person last looked (seen_id) or was e-mailed (alerted_id).
+CREATE TABLE saved_searches (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    query TEXT NOT NULL,
+    notify INTEGER NOT NULL DEFAULT 1,
+    seen_id INTEGER NOT NULL DEFAULT 0,
+    alerted_id INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    alerted_at TEXT
+);
+CREATE UNIQUE INDEX idx_saved_searches_user_query ON saved_searches(user_id, query);
+CREATE INDEX idx_saved_searches_notify ON saved_searches(notify, alerted_id);
+
 -- Every moderator decision, kept for accountability.
 CREATE TABLE moderation_log (
     id INTEGER PRIMARY KEY,

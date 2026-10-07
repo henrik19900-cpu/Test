@@ -11,7 +11,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import __version__, messages, phone, taxonomy, users
+from . import __version__, favorites, messages, phone, taxonomy, users
 from .listings import REPORT_REASONS, SORTS
 from .util import format_date_no, format_datetime_no, format_number, truncate
 
@@ -67,6 +67,9 @@ def base_context(request: Request, conn: sqlite3.Connection | None) -> dict[str,
         "operator": settings.operator,
         "base": settings.base_url or str(request.base_url).rstrip("/"),
         "path": request.url.path,
+        # Where forms on the page send the person back to, e.g. after saving a favourite.
+        "here": request.url.path + (f"?{request.url.query}" if request.url.query else ""),
+        "favorite_ids": favorites.FavoriteIds(conn, user.id if user else None),
     }
 
 

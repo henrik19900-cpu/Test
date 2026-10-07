@@ -6,6 +6,7 @@ from __future__ import annotations
 import hmac
 import sqlite3
 from typing import Annotated, Any
+from urllib.parse import parse_qsl
 
 import markdown
 from fastapi import APIRouter, Depends, Request
@@ -14,6 +15,7 @@ from starlette.datastructures import FormData, UploadFile
 
 from . import (
     discovery,
+    favorites,
     images,
     listings,
     messages,
@@ -21,13 +23,14 @@ from . import (
     phone,
     privacy,
     recovery,
+    saved_searches,
     serializers,
     taxonomy,
     users,
 )
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
 from .errors import AppError, Conflict, NotFound, RateLimited, ValidationProblem
-from .listings import SORTS, SearchParams
+from .listings import SearchParams
 from .mailer import notify_moderation, notify_new_message, send_verification, verify_email
 from .templating import (
     CSRF_COOKIE,
@@ -128,32 +131,10 @@ def _int_param(value: str | None) -> int | None:
 
 def search_params_from_request(request: Request, limit: int = PAGE_SIZE) -> SearchParams:
     """Lenient parsing for web URLs: invalid values are ignored instead of failing the page."""
-    qp = request.query_params
-    attrs = []
-    for name, value in qp.multi_items():
-        if name == "attr" or name.startswith("a."):
-            try:
-                attrs.extend(listings.attr_filters_from_params([(name, value)]))
-            except ValidationProblem:
-                continue
-    county = qp.get("county") if qp.get("county") in taxonomy.COUNTIES else None
-    page = max(1, _int_param(qp.get("side")) or 1)
-    return SearchParams(
-        q=(qp.get("q") or "").strip() or None,
-        category=qp.get("category") if qp.get("category") in taxonomy.CATEGORIES else None,
-        type=qp.get("type") if qp.get("type") in taxonomy.LISTING_TYPES else None,
-        county=county,
-        location=(qp.get("location") or "").strip() or None,
-        price_min=_int_param(qp.get("price_min")),
-        price_max=_int_param(qp.get("price_max")),
-        attrs=attrs,
-        user_id=_int_param(qp.get("seller_id")),
-        status=qp.get("status") if qp.get("status") in ("active", "sold", "any") else "active",
-        has_images=qp.get("has_images") in ("1", "true", "on"),
-        sort=qp.get("sort") if qp.get("sort") in SORTS else None,
-        limit=limit,
-        offset=(page - 1) * limit,
-    )
+    params = listings.params_from_query(request.query_params.multi_items(), limit=limit)
+    page = max(1, _int_param(request.query_params.get("side")) or 1)
+    params.offset = (page - 1) * limit
+    return params
 
 
 def api_query(params: SearchParams) -> list[tuple[str, str]]:
@@ -289,11 +270,16 @@ def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
         if flt.max is not None:
             selected_attrs[f"{flt.key}.max"] = flt.max
     pages = max(1, -(-result.total // params.limit))
+    user = current_user(request, conn)
+    save_query = saved_searches.canonical_query(params)
     return render(
         request,
         conn,
         "search.html",
         {
+            "save_query": save_query,
+            "saved_search": saved_searches.find(conn, user.id, params) if user and save_query else None,
+            "new_after": _int_param(request.query_params.get("nye")),
             "result": result,
             "params": params,
             "header_q": params.q,
@@ -353,7 +339,11 @@ def listing_page(listing_id: int, request: Request, conn: Conn) -> Response:
             "SELECT id FROM conversations WHERE listing_id = ? AND buyer_id = ?", (listing.id, viewer)
         ).fetchone()
         conversation_id = row["id"] if row else None
-    more = listings.search(conn, SearchParams(user_id=listing.user_id, limit=5))
+    more = (
+        []
+        if listing.is_imported
+        else listings.search(conn, SearchParams(user_id=listing.user_id, limit=5)).items
+    )
     return render(
         request,
         conn,
@@ -363,11 +353,31 @@ def listing_page(listing_id: int, request: Request, conn: Conn) -> Response:
             "is_owner": viewer == listing.user_id,
             "is_admin": admin,
             "conversation_id": conversation_id,
+            "favorite_count": favorites.count_for(conn, listing.id) if viewer == listing.user_id else 0,
             "jsonld": serializers.jsonld_script(serializers.listing_jsonld(listing, base)),
-            "more_from_seller": [item for item in more.items if item.id != listing.id][:4],
+            "more_from_seller": [item for item in more if item.id != listing.id][:4],
+            "similar": _similar(conn, listing),
         },
         headers={"Vary": "Accept"},
     )
+
+
+def _similar(conn: sqlite3.Connection, listing: listings.Listing, count: int = 4) -> list[listings.Listing]:
+    """Other active listings in the same category, nearby first. The seller's own are shown separately."""
+    if not listing.is_public:
+        return []
+    found: list[listings.Listing] = []
+    searches = [SearchParams(category=listing.category, limit=count + 5)]
+    if listing.county:
+        searches.insert(0, SearchParams(category=listing.category, county=listing.county, limit=count + 5))
+    for params in searches:
+        for item in listings.search(conn, params).items:
+            same_seller = item.user_id == listing.user_id and not listing.is_imported
+            if item.id != listing.id and not same_seller and item.id not in {f.id for f in found}:
+                found.append(item)
+        if len(found) >= count:
+            break
+    return found[:count]
 
 
 @router.post("/annonse/{listing_id:int}/melding")
@@ -731,6 +741,162 @@ def report_conversation(conversation_id: int, request: Request, conn: Conn, form
         conversation_id=conversation.id,
     )
     return redirect(f"/meldinger/{conversation_id}", flash="Takk! En moderator ser på saken.")
+
+
+# --- Favourites and saved searches ------------------------------------------------------------
+
+
+@router.post("/annonse/{listing_id:int}/favoritt")
+def toggle_favorite(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return redirect(
+            url_with_query("", "/logg-inn", [("neste", f"/annonse/{listing_id}")]),
+            flash="Logg inn for å lagre favoritter. Det er gratis å lage konto.",
+        )
+    target = safe_next(str(form.get("neste") or ""), f"/annonse/{listing_id}")
+    if form.get("action") == "remove":
+        favorites.remove(conn, user.id, listing_id)
+        return redirect(target, flash="Fjernet fra favorittene.")
+    try:
+        favorites.add(conn, user.id, listing_id)
+    except ValidationProblem as exc:
+        return redirect(target, flash=exc.message)
+    return redirect(target, flash="Lagret i favorittene dine.")
+
+
+@router.get("/favoritter")
+def favorites_page(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    page = max(1, _int_param(request.query_params.get("side")) or 1)
+    items, total = favorites.saved_listings(conn, user.id, PAGE_SIZE * 2, (page - 1) * PAGE_SIZE * 2)
+    return render(
+        request,
+        conn,
+        "favorites.html",
+        {
+            "items": items,
+            "total": total,
+            "page": page,
+            "pages": max(1, -(-total // (PAGE_SIZE * 2))),
+            "page_url": lambda n: "/favoritter" + (f"?side={n}" if n > 1 else ""),
+        },
+    )
+
+
+@router.post("/lagrede-sok")
+def save_search(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    params = listings.params_from_query(parse_qsl(str(form.get("query") or "")))
+    query = saved_searches.canonical_query(params)
+    back = f"/sok?{query}" if query else "/sok"
+    user = current_user(request, conn)
+    if user is None:
+        return redirect(
+            url_with_query("", "/logg-inn", [("neste", back)]),
+            flash="Logg inn for å lagre søket. Det er gratis å lage konto.",
+        )
+    try:
+        _, created = saved_searches.create(conn, user.id, params)
+    except ValidationProblem as exc:
+        return redirect(back, flash=_problem_text(exc))
+    if not created:
+        flash = "Du har allerede lagret dette søket."
+    elif not request.app.state.mailer.enabled:
+        flash = "Søket er lagret. Nye treff ser du under Lagrede søk."
+    elif user.email_verified_at:
+        flash = "Søket er lagret. Du får e-post når det kommer nye treff."
+    else:
+        flash = "Søket er lagret. Bekreft e-postadressen din på Min side for å få nye treff på e-post."
+    return redirect(back, flash=flash)
+
+
+@router.get("/lagrede-sok")
+def saved_searches_page(request: Request, conn: Conn) -> Response:
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    return render(
+        request,
+        conn,
+        "saved_searches.html",
+        {
+            "searches": saved_searches.list_for(conn, user.id),
+            "mail_enabled": request.app.state.mailer.enabled,
+            "max_saved": saved_searches.MAX_SAVED,
+        },
+    )
+
+
+@router.get("/lagrede-sok/av")
+def unsubscribe_page(request: Request, conn: Conn) -> Response:
+    """From the link in an alert e-mail: confirm turning alerts off (works without logging in)."""
+    token = request.query_params.get("token", "")
+    target = saved_searches.unsubscribe_target(conn, request.app.state.secret_key, token)
+    return render(
+        request,
+        conn,
+        "unsubscribe.html",
+        {"token": token, "target": target[2] if target else None, "done": False},
+        status=200 if target else 404,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post("/lagrede-sok/av")
+def unsubscribe(request: Request, conn: Conn, form: Form) -> Response:
+    """Turn alerts off. Also the one-click target of the List-Unsubscribe header (RFC 8058), so it needs
+    no form token: the signed link is the permission."""
+    token = request.query_params.get("token", "") or str(form.get("token") or "")
+    target = saved_searches.unsubscribe(conn, request.app.state.secret_key, token)
+    if form.get("List-Unsubscribe") == "One-Click":
+        return PlainTextResponse("ok" if target else "invalid", status_code=200 if target else 404)
+    return render(
+        request,
+        conn,
+        "unsubscribe.html",
+        {"token": token, "target": target, "done": target is not None},
+        status=200 if target else 404,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/lagrede-sok/{search_id:int}")
+def open_saved_search(search_id: int, request: Request, conn: Conn) -> Response:
+    """Show a saved search's matches (new ones are marked) and count them as seen."""
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    seen_before = saved_searches.get(conn, user.id, search_id).seen_id
+    saved = saved_searches.mark_seen(conn, user.id, search_id)
+    return redirect(
+        url_with_query("", "/sok", [*parse_qsl(saved.query), ("sort", "newest"), ("nye", str(seen_before))])
+    )
+
+
+@router.post("/lagrede-sok/{search_id:int}/varsel")
+def saved_search_alerts(search_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    notify = form.get("notify") == "1"
+    saved = saved_searches.set_notify(conn, user.id, search_id, notify)
+    flash = f"E-postvarsel er slått {'på' if notify else 'av'} for «{saved.name}»."
+    return redirect(f"/lagrede-sok#s{search_id}", flash=flash)
+
+
+@router.post("/lagrede-sok/{search_id:int}/slett")
+def delete_saved_search(search_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    saved_searches.delete(conn, user.id, search_id)
+    return redirect("/lagrede-sok", flash="Søket er slettet.")
 
 
 # --- Account ----------------------------------------------------------------------------------

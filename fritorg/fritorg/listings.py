@@ -538,6 +538,20 @@ def _index(conn: sqlite3.Connection, listing_id: int, values: dict[str, Any]) ->
 index_listing = _index  # for importers that write listings themselves
 
 
+def fetch(conn: sqlite3.Connection, tail: str, args: Iterable[Any] = ()) -> list[Listing]:
+    """Listings with seller fields and images: `SELECT ... FROM listings l JOIN users u` + tail
+    (further joins, WHERE, ORDER BY, LIMIT)."""
+    items = [_listing(row) for row in conn.execute(f"{_SELECT} {tail}", list(args))]
+    _attach_images(conn, items)
+    return items
+
+
+def newest_id(conn: sqlite3.Connection) -> int:
+    """The highest listing id handed out so far (ids are never reused)."""
+    row = conn.execute("SELECT seq FROM sqlite_sequence WHERE name = 'listings'").fetchone()
+    return int(row["seq"]) if row else 0
+
+
 def get_listing(conn: sqlite3.Connection, listing_id: int) -> Listing:
     row = conn.execute(f"{_SELECT} WHERE l.id = ?", (listing_id,)).fetchone()
     if row is None:
@@ -923,6 +937,8 @@ class SearchParams:
     offset: int = 0
     include_hidden: bool = False  # allows status "inactive"/"all"; owner views only, never from public input
     include_imported: bool = True  # False leaves out listings imported from open sources
+    after_id: int | None = None  # only listings with a higher id, i.e. added after that one (ids only grow)
+    up_to_id: int | None = None  # and not above this id (a fixed end for a batch of new listings)
 
     @property
     def effective_sort(self) -> str:
@@ -1056,7 +1072,48 @@ def validate_search(params: SearchParams) -> SearchParams:
             ) from None
     params.limit = max(1, min(int(params.limit), MAX_LIMIT))
     params.offset = max(0, int(params.offset))
+    if params.after_id is not None:
+        params.after_id = max(0, int(params.after_id))
     return params
+
+
+def _int_param(value: str | None) -> int | None:
+    try:
+        return int(value) if value not in (None, "") else None
+    except ValueError:
+        return None
+
+
+def params_from_query(pairs: Iterable[tuple[str, str]], *, limit: int = 20) -> SearchParams:
+    """Search parameters from /sok-style query parameters. Lenient, for URLs people share and saved
+    searches: invalid values are left out instead of failing."""
+    items = list(pairs)
+    values: dict[str, str] = {}
+    attrs = []
+    for name, value in items:
+        if name == "attr" or name.startswith("a."):
+            try:
+                attrs.extend(attr_filters_from_params([(name, value)]))
+            except ValidationProblem:
+                continue
+        else:
+            values[name] = value  # the last one wins, as in Starlette's query_params
+    qp = values.get
+    return SearchParams(
+        q=(qp("q") or "").strip() or None,
+        category=qp("category") if qp("category") in taxonomy.CATEGORIES else None,
+        type=qp("type") if qp("type") in LISTING_TYPES else None,
+        county=qp("county") if qp("county") in COUNTIES else None,
+        location=(qp("location") or "").strip() or None,
+        price_min=_int_param(qp("price_min")),
+        price_max=_int_param(qp("price_max")),
+        attrs=attrs,
+        user_id=_int_param(qp("seller_id")),
+        status=qp("status") if qp("status") in SEARCH_STATUSES else "active",
+        has_images=qp("has_images") in ("1", "true", "on"),
+        sort=qp("sort") if qp("sort") in SORTS else None,
+        limit=limit,
+    )
 
 
 _TOKEN_RE = re.compile(r"[\w][\w\-./+]*", re.UNICODE)
@@ -1145,6 +1202,12 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
         conditions.append("EXISTS (SELECT 1 FROM listing_images i WHERE i.listing_id = l.id)")
     if not params.include_imported:
         conditions.append("l.source IS NULL")
+    if params.after_id is not None:
+        conditions.append("l.id > ?")
+        args.append(params.after_id)
+    if params.up_to_id is not None:
+        conditions.append("l.id <= ?")
+        args.append(params.up_to_id)
 
     for flt in params.attrs:
         attr = ATTRIBUTES[flt.key]  # keys were validated against the registry when parsed

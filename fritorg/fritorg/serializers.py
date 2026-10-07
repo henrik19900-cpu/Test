@@ -12,6 +12,7 @@ from typing import Any
 from . import taxonomy
 from .listings import AttrFilter, Image, Listing, SearchResult
 from .messages import Conversation
+from .saved_searches import SavedSearch
 from .taxonomy import LISTING_TYPES, Category
 from .util import format_date_no, truncate
 
@@ -152,6 +153,34 @@ def search_query_dict(result: SearchResult) -> dict[str, Any]:
         "sort": params.effective_sort,
     }
     return {k: v for k, v in query.items() if v not in (None, [], "")}
+
+
+def saved_search_dict(saved: SavedSearch, base: str) -> dict[str, Any]:
+    params = saved.params
+    query = {
+        "q": params.q,
+        "category": params.category,
+        "type": params.type,
+        "county": params.county,
+        "location": params.location,
+        "price_min": params.price_min,
+        "price_max": params.price_max,
+        "attr": [f.to_expression() for f in params.attrs],
+        "seller_id": params.user_id,
+        "has_images": params.has_images or None,
+    }
+    return {
+        "id": saved.id,
+        "name": saved.name,
+        "query": {k: v for k, v in query.items() if v not in (None, [], "")},
+        "notify": saved.notify,
+        "new_count": saved.new_count,
+        "created_at": saved.created_at,
+        "last_alert_at": saved.alerted_at,
+        "url": f"{base}{saved.web_path}",
+        "listings_url": f"{base}/api/v1/listings?{saved.query}&sort=newest",
+        "new_listings_url": f"{base}/api/v1/listings?{saved.query}&after_id={saved.seen_id}&sort=newest",
+    }
 
 
 def search_dict(result: SearchResult, base: str, next_url: str | None) -> dict[str, Any]:

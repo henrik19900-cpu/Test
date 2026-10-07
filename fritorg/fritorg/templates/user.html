@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import listing_grid %}
+{% from "macros.html" import listing_grid with context %}
 
 {% block title %}{{ seller.name }} – {{ site_name }}{% endblock %}
 {% block head %}<link rel="alternate" type="application/json" href="/api/v1/listings?seller_id={{ seller.id }}&amp;status=any">{% endblock %}

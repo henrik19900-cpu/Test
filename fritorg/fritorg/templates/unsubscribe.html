@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Slå av e-postvarsler – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <section class="panel">
+  {% if done %}
+    <h1>Varslene er slått av</h1>
+    <p>Du får ikke lenger e-post om nye treff for {{ target }}. Søkene ligger fortsatt under <a href="/lagrede-sok">Lagrede søk</a>, der du kan slå varslene på igjen.</p>
+  {% elif target %}
+    <h1>Slå av e-postvarsler?</h1>
+    <p>Du får ikke lenger e-post om nye treff for {{ target }}. Søkene blir liggende under Lagrede søk.</p>
+    <form method="post" action="/lagrede-sok/av?token={{ token|urlencode }}">
+      <button type="submit" class="button button-primary">Slå av varslene</button>
+    </form>
+  {% else %}
+    <h1>Lenken virker ikke</h1>
+    <p>Lenken er ugyldig, eller søket er slettet. Logg inn og endre varslene under <a href="/lagrede-sok">Lagrede søk</a>.</p>
+  {% endif %}
+  </section>
+</div>
+{% endblock %}

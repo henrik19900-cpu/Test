@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from "macros.html" import listing_grid, pagination, attribute_filter %}
+{% from "macros.html" import listing_grid, pagination, attribute_filter with context %}
+{% from "icons.html" import icon %}
 
 {% block title %}{{ title }} – {{ site_name }}{% endblock %}
 {% block description %}{{ result.total }} annonser på {{ site_name }}. {{ title }}.{% endblock %}
@@ -81,7 +82,19 @@
     <div class="results-head">
       <div>
         <h1 id="results-title">{{ title }}</h1>
-        <p class="muted">{{ result.total }} treff</p>
+        <p class="muted">{{ result.total|number }} treff</p>
+        {% if save_query %}
+          {% if saved_search %}
+            <p class="saved-note small">{{ icon("bell", 16) }} Søket er lagret. <a href="/lagrede-sok">Lagrede søk</a></p>
+          {% else %}
+            <form class="save-search" method="post" action="/lagrede-sok">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="query" value="{{ save_query }}">
+              <button type="submit" class="button button-small">{{ icon("bell", 16) }} Lagre søket</button>
+              <span class="muted small">og få beskjed om nye treff</span>
+            </form>
+          {% endif %}
+        {% endif %}
       </div>
       <nav class="sort" aria-label="Sortering">
         {% for key, label in SORTS.items() %}
@@ -101,7 +114,7 @@
     {% endif %}
 
     {% if result.items %}
-      {{ listing_grid(result.items) }}
+      {{ listing_grid(result.items, new_after) }}
       {{ pagination(page, pages, page_url) }}
     {% else %}
       <div class="empty">

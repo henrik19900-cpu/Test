@@ -34,6 +34,7 @@ class Mail:
     to: str
     subject: str
     body: str
+    headers: dict[str, str] | None = None  # extra headers, e.g. List-Unsubscribe
 
 
 class Mailer:
@@ -66,6 +67,8 @@ class Mailer:
         message["To"] = mail.to
         message["Subject"] = mail.subject
         message["Message-ID"] = make_msgid(domain="fritorg")
+        for name, value in (mail.headers or {}).items():
+            message[name] = value
         message.set_content(mail.body)
         context = ssl.create_default_context()
         if s.smtp_security == "ssl":

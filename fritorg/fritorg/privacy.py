@@ -74,6 +74,26 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
             "SELECT created_at, expires_at FROM sessions WHERE user_id = ? ORDER BY created_at", (user.id,)
         )
     ]
+    favorites = [
+        {
+            "listing_id": r["listing_id"],
+            "url": serializers.listing_url(base, r["listing_id"]),
+            "saved_at": r["created_at"],
+        }
+        for r in conn.execute(
+            "SELECT listing_id, created_at FROM favorites WHERE user_id = ? ORDER BY created_at", (user.id,)
+        )
+    ]
+    searches = [
+        {
+            "name": r["name"],
+            "url": f"{base}/sok?{r['query']}",
+            "email_alerts": bool(r["notify"]),
+            "created_at": r["created_at"],
+            "last_alert_at": r["alerted_at"],
+        }
+        for r in conn.execute("SELECT * FROM saved_searches WHERE user_id = ? ORDER BY id", (user.id,))
+    ]
     return {
         "exported_at": now_iso(),
         "site": base,
@@ -84,6 +104,8 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "conversations": conversations,
         "api_tokens": tokens,
         "logged_in_sessions": sessions,
+        "favorites": favorites,
+        "saved_searches": searches,
         "reports_made": reports_made,
         "reports_about_you": reports_about,
         "moderation_decisions": decisions,

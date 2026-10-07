@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid, pagination, saved_tabs with context %}
+
+{% block title %}Favoritter – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+{{ saved_tabs("favoritter") }}
+<div class="page-head">
+  <div>
+    <h1>Favoritter</h1>
+    <p class="muted">{% if total == 1 %}1 lagret annonse{% else %}{{ total|number }} lagrede annonser{% endif %}</p>
+  </div>
+</div>
+{% if items %}
+  {{ listing_grid(items) }}
+  {{ pagination(page, pages, page_url) }}
+{% else %}
+  <div class="empty">
+    <p><strong>Du har ingen favoritter ennå.</strong></p>
+    <p>Trykk på hjertet på en annonse for å lagre den her, så finner du den igjen senere. Bare du ser favorittene dine.</p>
+    <p><a class="button" href="/sok">Se annonser</a></p>
+  </div>
+{% endif %}
+{% endblock %}

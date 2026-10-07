@@ -10,6 +10,17 @@
   <link rel="service-desc" type="application/openapi+json" href="/openapi.json">
   <link rel="service-doc" href="/api/docs">
   <link rel="help" type="text/markdown" href="/llms.txt" title="Dokumentasjon for AI-agenter">
+  <meta name="theme-color" content="#0b6b4f">
+  <meta property="og:site_name" content="{{ site_name }}">
+  <meta property="og:locale" content="nb_NO">
+  {% block og %}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  <meta property="og:url" content="{{ base }}{{ path }}">
+  <meta property="og:image" content="{{ base }}/static/og.png">
+  <meta name="twitter:card" content="summary">
+  {% endblock %}
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -30,9 +41,10 @@
       <nav class="header-nav" aria-label="Hovedmeny">
         <a class="button button-primary" href="/ny-annonse">{{ icon("plus", 18) }} Ny annonse</a>
         {% if user %}
-          {% if user.is_admin %}<a class="nav-link" href="/moderering">Moderering</a>{% endif %}
-          <a class="nav-link" href="/meldinger">Meldinger{% if unread %} <span class="badge" aria-label="{{ unread }} uleste">{{ unread }}</span>{% endif %}</a>
-          <a class="nav-link" href="/min-side">Min side</a>
+          {% if user.is_admin %}<a class="nav-link" href="/moderering" title="Moderering">{{ icon("shield", 20) }}<span class="nav-label">Moderering</span></a>{% endif %}
+          <a class="nav-link" href="/favoritter" title="Favoritter og lagrede søk">{{ icon("heart", 20) }}<span class="nav-label">Favoritter</span></a>
+          <a class="nav-link" href="/meldinger" title="Meldinger">{{ icon("chat", 20) }}<span class="nav-label">Meldinger</span>{% if unread %} <span class="badge" aria-label="{{ unread }} uleste">{{ unread }}</span>{% endif %}</a>
+          <a class="nav-link" href="/min-side" title="Min side">{{ icon("user", 20) }}<span class="nav-label">Min side</span></a>
         {% else %}
           <a class="nav-link" href="/logg-inn">Logg inn</a>
         {% endif %}

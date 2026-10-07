@@ -10,7 +10,20 @@ from fastapi import APIRouter, Depends, File, Form, Query, Request, Response, Up
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from . import identity, images, inventory, listings, messages, phone, privacy, serializers, taxonomy, users
+from . import (
+    favorites,
+    identity,
+    images,
+    inventory,
+    listings,
+    messages,
+    phone,
+    privacy,
+    saved_searches,
+    serializers,
+    taxonomy,
+    users,
+)
 from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
 from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized
@@ -27,6 +40,7 @@ from .schemas import (
     DeviceStartIn,
     DeviceStartOut,
     DeviceTokenIn,
+    FavoritesOut,
     FeedOut,
     FeedSyncIn,
     FeedSyncOut,
@@ -44,6 +58,9 @@ from .schemas import (
     ReplyIn,
     ReportIn,
     ReportOut,
+    SavedSearchIn,
+    SavedSearchOut,
+    SavedSearchUpdate,
     SearchOut,
     TokenCreateIn,
     TokenOut,
@@ -236,6 +253,14 @@ def search_listings(
         str | None, Query(description="ISO 8601 timestamp; only listings created or changed since then.")
     ] = None,
     has_images: Annotated[bool, Query(description="Only listings with at least one image.")] = False,
+    after_id: Annotated[
+        int | None,
+        Query(
+            ge=0,
+            description="Only listings added after this one (ids only grow). To follow new listings, poll with "
+            "the highest id you have seen, or save the search: POST /api/v1/me/saved-searches.",
+        ),
+    ] = None,
     sort: Annotated[
         str | None,
         Query(
@@ -259,6 +284,7 @@ def search_listings(
         status=status,
         updated_since=updated_since,
         has_images=has_images,
+        after_id=after_id,
         sort=sort,
         limit=limit,
         offset=offset,
@@ -705,6 +731,104 @@ def create_token(body: TokenCreateIn, request: Request, conn: Conn, user: Curren
 @router.delete("/me/tokens/{token_id}", status_code=204, tags=["account"], summary="Revoke an API token")
 def revoke_token(token_id: int, conn: Conn, user: CurrentUser) -> Response:
     users.revoke_api_token(conn, user.id, token_id)
+    return Response(status_code=204)
+
+
+# --- Favourites and saved searches ------------------------------------------------------------
+
+
+@router.get("/me/favorites", response_model=FavoritesOut, tags=["account"], summary="Your favourites")
+def list_favorites(
+    request: Request,
+    conn: Conn,
+    user: CurrentUser,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict:
+    """Listings the user has saved, most recently saved first. Sold ones stay until removed."""
+    items, total = favorites.saved_listings(conn, user.id, limit, offset)
+    base = base_url(request)
+    return {"total": total, "items": [serializers.listing_summary(item, base) for item in items]}
+
+
+@router.put("/me/favorites/{listing_id}", status_code=204, tags=["account"], summary="Save a listing")
+def add_favorite(listing_id: int, conn: Conn, user: CurrentUser) -> Response:
+    """Add a listing to the user's favourites (idempotent). Sellers see how many saved it, never who."""
+    favorites.add(conn, user.id, listing_id)
+    return Response(status_code=204)
+
+
+@router.delete("/me/favorites/{listing_id}", status_code=204, tags=["account"], summary="Remove a favourite")
+def remove_favorite(listing_id: int, conn: Conn, user: CurrentUser) -> Response:
+    favorites.remove(conn, user.id, listing_id)
+    return Response(status_code=204)
+
+
+@router.get(
+    "/me/saved-searches", response_model=list[SavedSearchOut], tags=["account"], summary="Your saved searches"
+)
+def list_saved_searches(request: Request, conn: Conn, user: CurrentUser) -> list[dict]:
+    """Saved searches with the number of new matches since the user last looked."""
+    base = base_url(request)
+    return [serializers.saved_search_dict(saved, base) for saved in saved_searches.list_for(conn, user.id)]
+
+
+@router.post(
+    "/me/saved-searches",
+    status_code=201,
+    response_model=SavedSearchOut,
+    tags=["account"],
+    summary="Save a search",
+)
+def create_saved_search(
+    body: SavedSearchIn, request: Request, response: Response, conn: Conn, user: CurrentUser
+) -> dict:
+    """Follow a search: new matches are counted from now, and with `notify` the user gets an e-mail about
+    them (at most hourly, only to a verified address). Saving the same filters again returns the existing
+    search (200)."""
+    params = SearchParams(
+        q=body.q,
+        category=body.category,
+        type=body.type,
+        county=body.county,
+        location=body.location,
+        price_min=body.price_min,
+        price_max=body.price_max,
+        attrs=[listings.parse_attr_expression(expression) for expression in body.attr],
+        user_id=body.seller_id,
+        has_images=body.has_images,
+    )
+    notify = body.notify if "notify" in body.model_fields_set else None
+    saved, created = saved_searches.create(conn, user.id, params, notify=notify)
+    if not created:
+        response.status_code = 200
+    return serializers.saved_search_dict(saved, base_url(request))
+
+
+@router.patch(
+    "/me/saved-searches/{search_id}",
+    response_model=SavedSearchOut,
+    tags=["account"],
+    summary="Change a saved search",
+)
+def update_saved_search(
+    search_id: int, body: SavedSearchUpdate, request: Request, conn: Conn, user: CurrentUser
+) -> dict:
+    saved = saved_searches.get(conn, user.id, search_id)
+    if body.notify is not None:
+        saved = saved_searches.set_notify(conn, user.id, search_id, body.notify)
+    if body.seen:
+        saved = saved_searches.mark_seen(conn, user.id, search_id)
+    else:
+        saved.new_count = saved_searches.new_matches(conn, saved, limit=1).total
+    return serializers.saved_search_dict(saved, base_url(request))
+
+
+@router.delete(
+    "/me/saved-searches/{search_id}", status_code=204, tags=["account"], summary="Delete a saved search"
+)
+def delete_saved_search(search_id: int, conn: Conn, user: CurrentUser) -> Response:
+    saved_searches.delete(conn, user.id, search_id)
     return Response(status_code=204)
 
 

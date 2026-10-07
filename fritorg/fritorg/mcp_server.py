@@ -22,7 +22,18 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import ValidationError
 
-from . import __version__, images, listings, messages, phone, serializers, taxonomy, users
+from . import (
+    __version__,
+    favorites,
+    images,
+    listings,
+    messages,
+    phone,
+    saved_searches,
+    serializers,
+    taxonomy,
+    users,
+)
 from .config import Settings
 from .deps import base_url, client_ip
 from .errors import AppError, Unauthorized, ValidationProblem
@@ -168,21 +179,12 @@ def _ensure_verified(ctx: ToolContext) -> None:
 
 
 def _search_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    params = SearchParams(
-        q=_str(args, "query"),
-        category=_str(args, "category"),
-        type=_str(args, "type"),
-        county=_str(args, "county"),
-        location=_str(args, "location"),
-        price_min=_int(args, "price_min"),
-        price_max=_int(args, "price_max"),
-        attrs=listings.attr_filters_from_object(args.get("attributes")),
-        status="any" if args.get("include_sold") else "active",
-        updated_since=_str(args, "updated_since"),
-        sort=_str(args, "sort"),
-        limit=min(_int(args, "limit") or 10, 50),
-        offset=_int(args, "offset") or 0,
-    )
+    params = _search_params(args)
+    params.status = "any" if args.get("include_sold") else "active"
+    params.updated_since = _str(args, "updated_since")
+    params.sort = _str(args, "sort")
+    params.limit = min(_int(args, "limit") or 10, 50)
+    params.offset = _int(args, "offset") or 0
     result = listings.search(ctx.conn, params)
     return {
         "total": result.total,
@@ -446,6 +448,95 @@ def _get_conversation(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     return serializers.conversation_dict(conversation, ctx.user.id, ctx.base, with_messages=True)
 
 
+def _search_params(args: dict[str, Any]) -> SearchParams:
+    """The filters shared by search_listings and save_search."""
+    return SearchParams(
+        q=_str(args, "query"),
+        category=_str(args, "category"),
+        type=_str(args, "type"),
+        county=_str(args, "county"),
+        location=_str(args, "location"),
+        price_min=_int(args, "price_min"),
+        price_max=_int(args, "price_max"),
+        attrs=listings.attr_filters_from_object(args.get("attributes")),
+    )
+
+
+def _save_favorite(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    listing_id = _int(args, "listing_id", required=True)
+    assert listing_id is not None
+    if args.get("remove"):
+        changed = favorites.remove(ctx.conn, ctx.user.id, listing_id)
+        return {"listing_id": listing_id, "saved": False, "changed": changed}
+    changed = favorites.add(ctx.conn, ctx.user.id, listing_id)
+    return {
+        "listing_id": listing_id,
+        "saved": True,
+        "changed": changed,
+        "favorites_url": f"{ctx.base}/favoritter",
+    }
+
+
+def _list_favorites(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    items, total = favorites.saved_listings(ctx.conn, ctx.user.id, limit=100)
+    return {"total": total, "items": [_compact(item, ctx.base) for item in items]}
+
+
+def _save_search(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    notify = args.get("notify")
+    saved, created = saved_searches.create(
+        ctx.conn, ctx.user.id, _search_params(args), notify=notify if isinstance(notify, bool) else None
+    )
+    return {
+        **serializers.saved_search_dict(saved, ctx.base),
+        "created": created,
+        "next_steps": "New matches are counted from now. Call check_saved_searches later to get them"
+        + (
+            " (the user is also e-mailed, at most hourly, if their e-mail address is verified)."
+            if saved.notify
+            else "."
+        ),
+    }
+
+
+def _check_saved_searches(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    mark_seen = args.get("mark_seen") is not False
+    newest = listings.newest_id(ctx.conn)
+    entries = []
+    for saved in saved_searches.list_for(ctx.conn, ctx.user.id):
+        entry: dict[str, Any] = {
+            "id": saved.id,
+            "name": saved.name,
+            "email_alerts": saved.notify,
+            "new_count": saved.new_count,
+            "url": ctx.base + saved.web_path,
+        }
+        if saved.new_count:
+            result = saved_searches.new_matches(ctx.conn, saved, limit=10, up_to_id=newest)
+            entry["new_count"] = result.total
+            entry["new_listings"] = [_compact(item, ctx.base) for item in result.items]
+            if mark_seen:
+                saved_searches.mark_seen(ctx.conn, ctx.user.id, saved.id, up_to_id=newest)
+        entries.append(entry)
+    return {
+        "saved_searches": entries,
+        "note": "new_listings holds up to 10 of the newest matches; "
+        + ("they are now marked as seen." if mark_seen else "nothing was marked as seen."),
+    }
+
+
+def _delete_saved_search(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    search_id = _int(args, "saved_search_id", required=True)
+    assert search_id is not None
+    saved_searches.delete(ctx.conn, ctx.user.id, search_id)
+    return {"deleted": True, "saved_search_id": search_id}
+
+
 def _report_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     listing_id = _int(args, "listing_id", required=True)
     assert listing_id is not None
@@ -521,6 +612,29 @@ _LISTING_FIELDS: dict[str, Any] = {
     },
 }
 
+_SEARCH_FILTERS: dict[str, Any] = {
+    "query": {
+        "type": "string",
+        "description": "Free text, ideally in Norwegian (e.g. 'barnesykkel').",
+    },
+    "category": {
+        "type": "string",
+        "enum": taxonomy.ALL_SLUGS,
+        "description": "Category or group slug, e.g. 'bil', 'mobler', 'torget'.",
+    },
+    "type": _TYPE,
+    "county": _COUNTY,
+    "location": {"type": "string", "description": "Part of a place name, e.g. 'Trondheim'."},
+    "price_min": {"type": "integer", "minimum": 0},
+    "price_max": {"type": "integer", "minimum": 0, "description": "Use 0 to find free items."},
+    "attributes": {
+        "type": "object",
+        "description": 'Attribute filters, e.g. {"fuel": "electric", "year": {"min": 2018}, '
+        '"make": ["Volvo", "Tesla"]}. Keys per category: list_categories.',
+        "additionalProperties": True,
+    },
+}
+
 TOOLS: list[Tool] = [
     Tool(
         "search_listings",
@@ -529,26 +643,7 @@ TOOLS: list[Tool] = [
         "Returns compact results; call get_listing for full details. Text search matches substrings, so 'sofa' also "
         "finds 'hjørnesofa'. Prices are whole NOK.",
         {
-            "query": {
-                "type": "string",
-                "description": "Free text, ideally in Norwegian (e.g. 'barnesykkel').",
-            },
-            "category": {
-                "type": "string",
-                "enum": taxonomy.ALL_SLUGS,
-                "description": "Category or group slug, e.g. 'bil', 'mobler', 'torget'.",
-            },
-            "type": _TYPE,
-            "county": _COUNTY,
-            "location": {"type": "string", "description": "Part of a place name, e.g. 'Trondheim'."},
-            "price_min": {"type": "integer", "minimum": 0},
-            "price_max": {"type": "integer", "minimum": 0, "description": "Use 0 to find free items."},
-            "attributes": {
-                "type": "object",
-                "description": 'Attribute filters, e.g. {"fuel": "electric", "year": {"min": 2018}, '
-                '"make": ["Volvo", "Tesla"]}. Keys per category: list_categories.',
-                "additionalProperties": True,
-            },
+            **_SEARCH_FILTERS,
             "include_sold": {"type": "boolean", "description": "Also return listings marked as sold."},
             "updated_since": {
                 "type": "string",
@@ -731,6 +826,63 @@ TOOLS: list[Tool] = [
         idempotent=False,
     ),
     Tool(
+        "save_favorite",
+        "Save or remove a favourite",
+        "Save a listing in the user's favourites (shown at /favoritter), or remove it with remove=true. "
+        "Private: the seller only sees how many saved it.",
+        {
+            "listing_id": _LISTING_ID,
+            "remove": {"type": "boolean", "description": "true removes the listing from the favourites."},
+        },
+        _save_favorite,
+        required=("listing_id",),
+        requires_auth=True,
+        read_only=False,
+    ),
+    Tool(
+        "list_favorites",
+        "List favourites",
+        "The listings the user has saved, most recently saved first (sold ones stay until removed).",
+        {},
+        _list_favorites,
+        requires_auth=True,
+    ),
+    Tool(
+        "save_search",
+        "Save a search",
+        "Follow a search for the user, e.g. new flats for rent in Bergen or an electric car under 200 000 kr. "
+        "New matches are counted from now; get them with check_saved_searches. With notify (default true) the "
+        "user also gets an e-mail about new matches, at most hourly. Saving the same filters twice keeps one.",
+        {
+            **_SEARCH_FILTERS,
+            "notify": {"type": "boolean", "description": "E-mail the user about new matches. Default true."},
+        },
+        _save_search,
+        requires_auth=True,
+        read_only=False,
+    ),
+    Tool(
+        "check_saved_searches",
+        "Check saved searches",
+        "The user's saved searches with their new matches since the last check (up to 10 newest per search), "
+        "which are then marked as seen.",
+        {"mark_seen": {"type": "boolean", "description": "Default true. false only peeks."}},
+        _check_saved_searches,
+        requires_auth=True,
+        read_only=False,
+    ),
+    Tool(
+        "delete_saved_search",
+        "Delete a saved search",
+        "Stop following a saved search (ids from check_saved_searches).",
+        {"saved_search_id": {"type": "integer"}},
+        _delete_saved_search,
+        required=("saved_search_id",),
+        requires_auth=True,
+        read_only=False,
+        destructive=True,
+    ),
+    Tool(
         "list_conversations",
         "List conversations",
         "The user's conversations with buyers and sellers, newest first, with unread counts.",
@@ -788,6 +940,10 @@ def instructions(base: str, user: users.User | None, settings: Settings) -> str:
         lines.append(
             "To move the user's own listing from another marketplace, use their own text and photos. Never copy "
             "listings from finn.no or other sites: their terms and Norwegian database law forbid it."
+        )
+        lines.append(
+            'To keep an eye on something for the user ("tell me when a cheap road bike turns up"), use save_search; '
+            "check_saved_searches later returns the new matches. save_favorite bookmarks single listings."
         )
         if phone.verification_needed(settings, user):
             lines.append(

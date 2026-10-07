@@ -115,3 +115,12 @@ def test_search_titles(client):
     for url, title in cases.items():
         page = client.get(url).text
         assert f"<title>{title} – Fritorg</title>" in page, url
+
+
+def test_share_button_is_an_extra(client, auth):
+    listing = make_listing(client, auth)
+    page = client.get(f"/annonse/{listing['id']}").text
+    assert f'data-share-url="http://testserver/annonse/{listing["id"]}"' in page and " hidden>" in page
+    script = client.get("/static/app.js")
+    assert script.status_code == 200 and "navigator.share" in script.text
+    assert '<script src="/static/app.js' in page

@@ -76,9 +76,12 @@
       </p>
       <div class="listing-title-row">
         <h1>{{ listing.title }}</h1>
-        {% if not is_owner and listing.is_public %}
-          {% if user %}{{ favorite_button(listing) }}{% else %}<a class="button fav-button" href="/logg-inn?neste=/annonse/{{ listing.id }}" title="Lagre som favoritt">{{ icon("heart", 20) }} Lagre</a>{% endif %}
-        {% endif %}
+        <div class="listing-actions">
+          {% if listing.is_public %}<button type="button" class="button share-button" data-share-url="{{ base }}/annonse/{{ listing.id }}" data-share-title="{{ listing.title }}" hidden>{{ icon("share", 20) }} <span class="share-label" aria-live="polite">Del</span></button>{% endif %}
+          {% if not is_owner and listing.is_public %}
+            {% if user %}{{ favorite_button(listing) }}{% else %}<a class="button fav-button" href="/logg-inn?neste=/annonse/{{ listing.id }}" title="Lagre som favoritt">{{ icon("heart", 20) }} Lagre</a>{% endif %}
+          {% endif %}
+        </div>
       </div>
       {% set price = listing.price_text(NBSP) %}
       {% if price %}<p class="listing-price">{{ price }}</p>{% endif %}

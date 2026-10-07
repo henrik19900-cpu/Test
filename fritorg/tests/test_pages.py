@@ -124,3 +124,41 @@ def test_share_button_is_an_extra(client, auth):
     script = client.get("/static/app.js")
     assert script.status_code == 200 and "navigator.share" in script.text
     assert '<script src="/static/app.js' in page
+
+
+def test_help_page(client):
+    page = client.get("/hjelp").text
+    assert "<h1" in page and "Hva koster det?" in page and "Lagre søket" in page
+    assert '<a href="/hjelp">Hjelp</a>' in client.get("/").text
+    assert client.get("/hjelp.md").headers["content-type"].startswith("text/markdown")
+
+
+def test_cards_say_how_new_a_listing_is(client, auth):
+    from fritorg.util import format_ago_no, iso_ago
+
+    assert format_ago_no(iso_ago(minutes=5)) == "i dag"
+    assert format_ago_no(iso_ago(days=1)) == "i går"
+    assert format_ago_no(iso_ago(days=3)) == "3 dager siden"
+    assert format_ago_no("2001-03-05T12:00:00Z") == "5. mars 2001"
+
+    make_listing(
+        client,
+        auth,
+        category="jobb-it",
+        type="job",
+        title="Utvikler til lite team",
+        description="Vi søker en utvikler med erfaring fra Python.",
+        price=None,
+        attributes={"employer": "Firma AS", "deadline": "2030-12-01"},
+    )
+    page = client.get("/sok?category=jobb").text
+    assert "Søknadsfrist 1. des. 2030" in page and "· <time" in page and ">i dag</time>" in page
+
+
+def test_moderators_see_key_numbers(app, client, auth):
+    make_listing(client, auth)
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE users SET is_admin = 1")
+    web_login(client)
+    page = client.get("/moderering").text
+    assert "Nøkkeltall" in page and "Aktive annonser" in page and "<dd>1</dd>" in page

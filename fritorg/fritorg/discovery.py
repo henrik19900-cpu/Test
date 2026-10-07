@@ -135,7 +135,7 @@ def sitemap(request: Request, conn: Conn) -> Response:
         if lastmod:
             ET.SubElement(url, "lastmod").text = lastmod
 
-    for path in ("/", "/sok", "/for-agenter", "/for-bedrifter", "/trygg-handel", "/om", "/vilkar"):
+    for path in ("/", "/sok", "/hjelp", "/for-agenter", "/for-bedrifter", "/trygg-handel", "/om", "/vilkar"):
         add(base + path)
     for slug in taxonomy.ALL_SLUGS:
         add(f"{base}/sok?category={slug}")

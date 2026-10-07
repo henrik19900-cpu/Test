@@ -50,6 +50,40 @@ def _log(
     )
 
 
+def stats(conn: sqlite3.Connection) -> list[tuple[str, int]]:
+    """Key numbers for running the site (accounts that own imported listings are left out)."""
+    day, week = iso_ago(days=1), iso_ago(days=7)
+    queries = [
+        ("Brukere", "SELECT COUNT(*) FROM users WHERE created_via != 'import'", ()),
+        (
+            "Nye brukere siste 7 dager",
+            "SELECT COUNT(*) FROM users WHERE created_via != 'import' AND created_at > ?",
+            (week,),
+        ),
+        (
+            "Bekreftede brukere",
+            "SELECT COUNT(*) FROM users WHERE created_via != 'import' AND verified_at IS NOT NULL",
+            (),
+        ),
+        ("Aktive annonser", "SELECT COUNT(*) FROM listings WHERE status = 'active' AND source IS NULL", ()),
+        (
+            "Nye annonser siste døgn",
+            "SELECT COUNT(*) FROM listings WHERE source IS NULL AND created_at > ?",
+            (day,),
+        ),
+        (
+            "Hentede annonser",
+            "SELECT COUNT(*) FROM listings WHERE status = 'active' AND source IS NOT NULL",
+            (),
+        ),
+        ("Meldinger siste døgn", "SELECT COUNT(*) FROM messages WHERE created_at > ?", (day,)),
+        ("Til kontroll", "SELECT COUNT(*) FROM listings WHERE status = 'review'", ()),
+        ("Åpne rapporter", "SELECT COUNT(*) FROM reports WHERE resolved_at IS NULL", ()),
+        ("Stengte kontoer", "SELECT COUNT(*) FROM users WHERE banned_at IS NOT NULL", ()),
+    ]
+    return [(label, conn.execute(sql, args).fetchone()[0]) for label, sql, args in queries]
+
+
 def review_queue(conn: sqlite3.Connection) -> list[Listing]:
     params = SearchParams(status="review", include_hidden=True, sort="oldest", limit=100)
     return search(conn, params).items

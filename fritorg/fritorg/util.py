@@ -58,6 +58,23 @@ def format_date_no(iso: str | None) -> str:
     return f"{moment.day}. {MONTHS_NO[moment.month - 1]} {moment.year}"
 
 
+def format_ago_no(iso: str | None) -> str:
+    """How old something is, in Norwegian days: "i dag", "i går", "3 dager siden", then the date."""
+    if not iso:
+        return ""
+    day = parse_iso(iso).astimezone(LOCAL_TZ).date()
+    today = utcnow().astimezone(LOCAL_TZ).date()
+    days = (today - day).days
+    if days <= 0:
+        return "i dag"
+    if days == 1:
+        return "i går"
+    if days < 7:
+        return f"{days} dager siden"
+    text = f"{day.day}. {MONTHS_NO[day.month - 1]}"
+    return text if day.year == today.year else f"{text} {day.year}"
+
+
 def format_datetime_no(iso: str | None) -> str:
     if not iso:
         return ""

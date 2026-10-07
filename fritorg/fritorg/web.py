@@ -1520,6 +1520,7 @@ def moderation_page(request: Request, conn: Conn) -> Response:
         conn,
         "moderation.html",
         {
+            "stats": moderation.stats(conn),
             "queue": moderation.review_queue(conn),
             "cases": moderation.open_reports(conn),
             "flagged": moderation.flagged_messages(conn),
@@ -1582,6 +1583,7 @@ def ban_user(user_id: int, request: Request, conn: Conn, form: Form) -> Response
 # --- Documents (Markdown source, HTML for people) -----------------------------------------------
 
 DOCS = {
+    "hjelp": ("hjelp.md", "Hjelp"),
     "for-agenter": ("for-agenter.md", "For AI-agenter"),
     "for-bedrifter": ("for-bedrifter.md", "For bedrifter"),
     "trygg-handel": ("trygg-handel.md", "Trygg handel"),
@@ -1605,6 +1607,16 @@ def _doc(request: Request, conn: sqlite3.Connection, slug: str, fmt: str) -> Res
     return render(
         request, conn, "doc.html", {"title": title, "content": html, "slug": slug}, headers={"Vary": "Accept"}
     )
+
+
+@router.get("/hjelp")
+def help_page(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "hjelp", preferred_format(request))
+
+
+@router.get("/hjelp.md")
+def help_markdown(request: Request, conn: Conn) -> Response:
+    return _doc(request, conn, "hjelp", "markdown")
 
 
 @router.get("/for-agenter")

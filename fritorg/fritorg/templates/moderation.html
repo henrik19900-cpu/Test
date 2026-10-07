@@ -7,6 +7,10 @@
 <h1>Moderering</h1>
 <p class="muted">Annonser til kontroll, rapporter fra brukere og meldinger med sterke svindelsignaler. Alle beslutninger logges.</p>
 
+<dl class="stats" aria-label="Nøkkeltall">
+  {% for label, value in stats %}<div><dt>{{ label }}</dt><dd>{{ value|number }}</dd></div>{% endfor %}
+</dl>
+
 <section class="panel" aria-labelledby="kontroll">
   <h2 id="kontroll">Til kontroll ({{ queue|length }})</h2>
   {% if queue %}

@@ -731,6 +731,12 @@ fieldset {
   font-size: 1.05rem;
 }
 
+.card-deadline {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
 .card-price-muted {
   font-weight: 600;
   color: var(--muted);
@@ -798,9 +804,13 @@ fieldset {
 
 .search-layout {
   display: grid;
-  grid-template-columns: 17rem 1fr;
+  grid-template-columns: 17rem minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
+}
+
+.search-layout > * {
+  min-width: 0;
 }
 
 .filters {
@@ -1675,6 +1685,31 @@ section.panel {
   margin: 0 0 0.25rem;
 }
 
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0 1.5rem;
+}
+
+.stats div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  padding: 0.6rem 0.8rem;
+}
+
+.stats dt {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.stats dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
 .quick-replies {
   display: flex;
   flex-wrap: wrap;
@@ -1916,6 +1951,18 @@ section.panel {
     min-width: 44px;
     min-height: 44px;
     justify-content: center;
+  }
+
+  /* Subcategories in one row that scrolls sideways, so the results come sooner. */
+  .chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.3rem;
+    scrollbar-width: thin;
+  }
+
+  .chips li {
+    flex: none;
   }
 
   /* The home page has its own big search box. */

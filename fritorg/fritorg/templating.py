@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__, favorites, messages, phone, taxonomy, users
 from .listings import REPORT_REASONS, SORTS
-from .util import format_date_no, format_datetime_no, format_number, truncate
+from .util import format_ago_no, format_date_no, format_datetime_no, format_number, truncate
 
 SESSION_COOKIE = "ft_session"
 CSRF_COOKIE = "ft_csrf"
@@ -25,6 +25,7 @@ templates.env.filters.update(
     nok=lambda value: format_number(value, NBSP) + NBSP + "kr",
     number=lambda value: format_number(value, NBSP),
     date_no=format_date_no,
+    ago=format_ago_no,
     datetime_no=format_datetime_no,
     shorten=truncate,
 )

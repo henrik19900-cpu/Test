@@ -70,7 +70,7 @@ def test_account_creation_requires_bankid(bankid_client, bankid_app):
 
     register_with_bankid(bankid_client)
     me = bankid_client.get("/min-side")
-    assert "Hei, Kari N.!" in me.text and "BankID-verifisert" in me.text
+    assert "Hei, Kari!" in me.text and "Kari N." in me.text and "BankID-verifisert" in me.text
 
     with bankid_app.state.db.session() as conn:
         row = conn.execute("SELECT * FROM users").fetchone()

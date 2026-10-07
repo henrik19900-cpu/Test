@@ -35,7 +35,7 @@
 </nav>
 
 {% if listing.status == "sold" %}
-  <p class="notice">Denne annonsen er merket som solgt.</p>
+  <p class="notice">Denne annonsen er merket som {{ listing.shown_status|lower }}.</p>
 {% elif listing.status == "inactive" %}
   <p class="notice">Denne annonsen er skjult og vises bare for deg.</p>
 {% elif listing.status == "review" %}
@@ -54,18 +54,23 @@
     {% if listing.images %}
       <div class="gallery" aria-label="Bilder">
         {% for image in listing.images %}
-          <a class="gallery-item" href="{{ image.path }}"><img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}"{% if image.width %} width="{{ image.width }}" height="{{ image.height }}"{% endif %}{% if not loop.first %} loading="lazy"{% endif %}></a>
+          <a class="gallery-item" id="bilde-{{ loop.index }}" href="{{ image.path }}" title="Åpne bildet i full størrelse"><img src="{{ image.path }}" alt="{{ image.alt_text or listing.title }}"{% if image.width %} width="{{ image.width }}" height="{{ image.height }}"{% endif %}{% if not loop.first %} loading="lazy"{% endif %}></a>
         {% endfor %}
       </div>
-      {% if listing.images|length > 1 %}<p class="muted small">{{ listing.images|length }} bilder – sveip eller rull sidelengs.</p>{% endif %}
+      {% if listing.images|length > 1 %}
+      <nav class="gallery-thumbs" aria-label="Velg bilde">
+        {% for image in listing.images %}
+          <a href="#bilde-{{ loop.index }}"><img src="{{ image.thumb_path }}" alt="Bilde {{ loop.index }} av {{ listing.images|length }}" loading="lazy"></a>
+        {% endfor %}
+      </nav>
+      {% endif %}
     {% else %}
       <div class="gallery-empty placeholder placeholder-{{ listing.group.slug }}">{{ icon(listing.group.slug, 64) }}</div>
     {% endif %}
 
     <header class="listing-header">
       <p class="badges">
-        <span class="tag tag-{{ listing.type }}">{{ listing.type_label }}</span>
-        {% if listing.status == "sold" %}<span class="tag tag-sold">Solgt</span>{% endif %}
+        {% if listing.status == "sold" %}<span class="tag tag-sold">{{ listing.shown_status }}</span>{% else %}<span class="tag tag-{{ listing.type }}">{{ listing.type_label }}</span>{% endif %}
         {% if listing.created_via == "mcp" %}<span class="tag tag-agent" title="Annonsen ble laget av en AI-agent på vegne av selgeren">{{ icon("robot", 14) }} Laget via AI-agent</span>{% endif %}
         {% if listing.is_imported %}<span class="tag tag-source">Fra {{ listing.source_name }}</span>{% endif %}
       </p>
@@ -78,6 +83,14 @@
       {% set price = listing.price_text(NBSP) %}
       {% if price %}<p class="listing-price">{{ price }}</p>{% endif %}
       {% if listing.place %}<p class="listing-place">{{ icon("pin", 18) }} {{ listing.place }}{% if listing.postal_code %} ({{ listing.postal_code }}){% endif %}</p>{% endif %}
+      {% if listing.status == "active" and not is_owner %}
+        {% if listing.is_imported %}
+          {% set info = listing.source_info %}
+          <p class="mobile-only"><a class="button button-primary button-block" href="{{ listing.apply_url or listing.source_url }}" rel="nofollow noopener">{{ info.action if info else "Gå til annonsen" }}</a></p>
+        {% else %}
+          <p class="mobile-only"><a class="button button-primary button-block" href="#kontakt">{{ icon("chat", 18) }} {{ listing.contact_label }}</a></p>
+        {% endif %}
+      {% endif %}
     </header>
 
     {% if listing.attribute_rows %}
@@ -109,25 +122,6 @@
       <p class="machine-links">For agenter: <a href="/annonse/{{ listing.id }}.json">JSON</a> · <a href="/annonse/{{ listing.id }}.md">Markdown</a> · <a href="/api/v1/listings/{{ listing.id }}">API</a></p>
     </section>
 
-    {% if not is_owner %}
-    <details class="report">
-      <summary>Rapporter annonsen</summary>
-      <form method="post" action="/annonse/{{ listing.id }}/rapporter">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="field">
-          <label for="report-reason">Hva er galt?</label>
-          <select id="report-reason" name="reason" required>
-            {% for key, label in REPORT_REASONS.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label for="report-comment">Kommentar (valgfritt)</label>
-          <textarea id="report-comment" name="comment" rows="3" maxlength="2000"></textarea>
-        </div>
-        <button type="submit" class="button">Send rapport</button>
-      </form>
-    </details>
-    {% endif %}
   </article>
 
   <aside class="listing-side">
@@ -144,13 +138,13 @@
     </div>
     {% else %}
     <div class="panel">
-      <p class="muted small">Selger</p>
+      <p class="muted small">{{ listing.poster_role }}</p>
       <p class="seller-name"><a href="/bruker/{{ listing.user_id }}">{{ listing.seller_name }}</a></p>
       <p class="trust">
         {% if listing.seller_verified %}<span class="tag tag-verified" title="{{ listing.seller_verification_title }}">{{ icon("shield", 14) }} {{ listing.seller_verification_label }}</span>{% endif %}
         {% if listing.seller_is_new %}<span class="tag tag-new" title="Kontoen er mindre enn en uke gammel">Ny bruker</span>{% endif %}
       </p>
-      <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} aktive annonser{% endif %}</p>
+      <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} {{ "aktiv annonse" if listing.seller_active == 1 else "aktive annonser" }}{% endif %}</p>
     </div>
     {% endif %}
 
@@ -166,7 +160,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           {% if listing.status == "active" %}
             {% if listing.expires_soon %}<button class="button button-block button-primary" name="status" value="active">Forny annonsen</button>{% endif %}
-            <button class="button button-block" name="status" value="sold">Merk som solgt</button>
+            <button class="button button-block" name="status" value="sold">{{ listing.words.mark_done }}</button>
             <button class="button button-block" name="status" value="inactive">Skjul annonsen</button>
           {% else %}
             <button class="button button-block button-primary" name="status" value="active">Gjør aktiv igjen</button>
@@ -183,18 +177,22 @@
       </div>
     {% elif listing.status == "active" %}
       <div class="panel" id="kontakt">
-        <h2 class="panel-title">{{ icon("chat", 20) }} Kontakt selger</h2>
+        <h2 class="panel-title">{{ icon("chat", 20) }} {{ listing.contact_label }}</h2>
         {% if user and needs_verification %}
           <p>Bekreft mobilnummeret ditt for å sende meldinger. Det tar under ett minutt.</p>
           <p><a class="button button-primary button-block" href="/verifiser-telefon?neste=/annonse/{{ listing.id }}%23kontakt">Bekreft mobilnummer</a></p>
         {% elif user %}
-          {% if conversation_id %}<p class="small">Du har allerede en <a href="/meldinger/{{ conversation_id }}">samtale om denne annonsen</a>.</p>{% endif %}
+          {% if conversation_id %}
+          <p class="small">Du har allerede en samtale om denne annonsen.</p>
+          <p><a class="button button-primary button-block" href="/meldinger/{{ conversation_id }}#siste">Gå til samtalen</a></p>
+          {% else %}
           <form method="post" action="/annonse/{{ listing.id }}/melding">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label class="visually-hidden" for="message">Melding</label>
-            <textarea id="message" name="message" rows="5" required maxlength="5000">Hei! Er «{{ listing.title }}» fortsatt tilgjengelig?</textarea>
+            <textarea id="message" name="message" rows="5" required maxlength="5000">{{ listing.contact_prefill }}</textarea>
             <button type="submit" class="button button-primary button-block">Send melding</button>
           </form>
+          {% endif %}
         {% else %}
           <p><a class="button button-primary button-block" href="/logg-inn?neste=/annonse/{{ listing.id }}">Logg inn for å sende melding</a></p>
           <p class="small muted">Det er gratis å lage konto.</p>
@@ -217,6 +215,25 @@
       </ul>
       <p class="small"><a href="/trygg-handel">Flere tips</a></p>
     </div>
+    {% endif %}
+    {% if not is_owner %}
+    <details class="report">
+      <summary>Rapporter annonsen</summary>
+      <form method="post" action="/annonse/{{ listing.id }}/rapporter">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="field">
+          <label for="report-reason">Hva er galt?</label>
+          <select id="report-reason" name="reason" required>
+            {% for key, label in REPORT_REASONS.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="report-comment">Kommentar (valgfritt)</label>
+          <textarea id="report-comment" name="comment" rows="3" maxlength="2000"></textarea>
+        </div>
+        <button type="submit" class="button">Send rapport</button>
+      </form>
+    </details>
     {% endif %}
   </aside>
 </div>

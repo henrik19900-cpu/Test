@@ -57,7 +57,7 @@ def test_reset_by_email_link(app, client, outbox):
             follow_redirects=False,
         )
         assert done.status_code == 303 and done.headers["location"] == "/min-side"
-        assert "Hei, Kari Nordmann" in browser.get("/min-side").text  # logged in
+        assert "Hei, Kari!" in browser.get("/min-side").text  # logged in
 
         reused = browser.get(link, follow_redirects=False)
         assert reused.headers["location"] == "/glemt-passord"  # the link works once

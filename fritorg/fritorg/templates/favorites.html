@@ -24,7 +24,7 @@
 </form>
 {% endif %}
 {% if items %}
-  {{ listing_grid(items) }}
+  {{ listing_grid(items, heading=2) }}
   {{ pagination(page, pages, page_url) }}
 {% else %}
   <div class="empty">

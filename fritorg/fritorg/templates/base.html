@@ -25,7 +25,7 @@
   {% endblock %}
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <a class="skip-link" href="#innhold">Hopp til innhold</a>
   {% if bankid_mode == "simulated" %}<div class="test-banner">Testmodus: BankID er simulert. Kontoer og innlogging her er ikke ekte.</div>
   {% elif sms_test_mode %}<div class="test-banner">Testmodus: SMS-koder sendes ikke, men vises på skjermen. Kontoer her er ikke bekreftet.</div>{% endif %}

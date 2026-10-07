@@ -7,6 +7,7 @@
   --text: #17201b;
   --muted: #59645e;
   --line: #dde2dc;
+  --field-line: #879189;
   --brand: #0b6b4f;
   --brand-strong: #07563f;
   --brand-soft: #e2f1ea;
@@ -14,6 +15,7 @@
   --accent: #f2b23a;
   --danger: #b42318;
   --danger-soft: #fdecea;
+  --on-danger: #ffffff;
   --give: #8a4fff;
   --wanted: #0b62c4;
   --rent: #b3541e;
@@ -33,12 +35,14 @@
     --text: #e7eee9;
     --muted: #a3b0a8;
     --line: #2b3631;
+    --field-line: #66756d;
     --brand: #3cbf8d;
     --brand-strong: #6fd8af;
     --brand-soft: #16332a;
     --on-brand: #06231a;
     --danger: #ff8a7a;
     --danger-soft: #3a1a17;
+    --on-danger: #2a0905;
     --give: #b89cff;
     --wanted: #7fb6ff;
     --rent: #f0a26f;
@@ -237,7 +241,7 @@ pre code {
   padding: 0 0.4em;
   border-radius: 999px;
   background: var(--danger);
-  color: #fff;
+  color: var(--on-danger);
   font-size: 0.78rem;
   line-height: 1.4em;
   text-align: center;
@@ -262,7 +266,7 @@ textarea {
   color: inherit;
   width: 100%;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: var(--radius-small);
   background: var(--surface);
 }
@@ -281,7 +285,18 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--brand);
-  outline: 2px solid var(--brand-soft);
+  outline: 3px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  outline-offset: 1px;
+}
+
+[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+pre:focus-visible,
+.table-wrap:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
 }
 
 label,
@@ -426,7 +441,7 @@ fieldset {
 .button-danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: var(--on-danger);
 }
 
 .button-block {
@@ -625,6 +640,24 @@ fieldset {
   color: inherit;
   text-decoration: none;
   height: 100%;
+  border-radius: var(--radius);
+}
+
+.card-link:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: -3px;
+}
+
+/* The picture would cover a ring inside the card, so the whole card gets it. */
+@supports selector(:has(a)) {
+  .card-link:focus-visible {
+    outline: none;
+  }
+
+  .card:has(.card-link:focus-visible) {
+    outline: 3px solid var(--brand);
+    outline-offset: 2px;
+  }
 }
 
 .card-media {
@@ -773,6 +806,8 @@ fieldset {
   padding: 1rem;
   position: sticky;
   top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
 }
 
 .filters fieldset {
@@ -883,6 +918,12 @@ fieldset {
 .gallery-item {
   flex: 0 0 100%;
   scroll-snap-align: start;
+  scroll-margin-top: 1rem;
+  aspect-ratio: 4 / 3;
+  max-height: 32rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--surface-2);
   border-radius: var(--radius);
   overflow: hidden;
@@ -890,9 +931,35 @@ fieldset {
 
 .gallery-item img {
   width: 100%;
-  max-height: 32rem;
+  height: 100%;
   object-fit: contain;
-  margin-inline: auto;
+}
+
+.gallery-thumbs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  margin-top: 0.5rem;
+  padding: 0.15rem 0.15rem 0.3rem;
+}
+
+.gallery-thumbs a {
+  flex: 0 0 4.5rem;
+  aspect-ratio: 1;
+  border-radius: var(--radius-small);
+  overflow: hidden;
+  border: 2px solid var(--line);
+}
+
+.gallery-thumbs a:hover,
+.gallery-thumbs a:focus-visible {
+  border-color: var(--brand);
+}
+
+.gallery-thumbs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .gallery-empty {
@@ -1047,12 +1114,29 @@ details summary {
 }
 
 .my-listings li {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8.5rem auto;
+  grid-template-areas:
+    "title tag actions"
+    "meta meta actions"
+    "note note note";
   align-items: center;
-  gap: 0.5rem 0.9rem;
+  gap: 0.25rem 0.9rem;
   padding: 0.8rem 1rem;
   border-bottom: 1px solid var(--line);
+}
+
+.my-listings li > .tag {
+  grid-area: tag;
+  justify-self: start;
+}
+
+.my-listings li > .muted {
+  grid-area: meta;
+}
+
+.my-listings .status-note {
+  grid-area: note;
 }
 
 .my-listings li:last-child {
@@ -1060,11 +1144,14 @@ details summary {
 }
 
 .my-listing-title {
+  grid-area: title;
   font-weight: 650;
-  flex: 1 1 14rem;
+  overflow-wrap: anywhere;
 }
 
 .my-listing-actions {
+  grid-area: actions;
+  justify-self: end;
   display: flex;
   gap: 0.9rem;
   align-items: center;
@@ -1277,10 +1364,19 @@ section.panel {
   margin-top: 2rem;
 }
 
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 0 1rem;
+}
+
 .prose table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.92rem;
+}
+
+.prose td code {
+  white-space: nowrap;
 }
 
 .prose th,
@@ -1694,6 +1790,14 @@ section.panel {
   white-space: nowrap;
 }
 
+.mobile-only {
+  display: none;
+}
+
+.filter-jump {
+  margin: 0.5rem 0 0 !important;
+}
+
 /* Small screens */
 
 @media (max-width: 860px) {
@@ -1705,6 +1809,20 @@ section.panel {
   .filters,
   .listing-side {
     position: static;
+  }
+
+  .filters {
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* Results before the filter form; a button at the top jumps to the filters. */
+  .search-layout .results {
+    order: -1;
+  }
+
+  .mobile-only {
+    display: block;
   }
 
   .header-nav {
@@ -1730,6 +1848,67 @@ section.panel {
 }
 
 @media (max-width: 560px) {
+  .header-nav .nav-link {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* The home page has its own big search box. */
+  .page-home .header-search {
+    display: none;
+  }
+
+  .hero {
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .hero h1 {
+    font-size: 1.6rem;
+    margin-top: 0;
+  }
+
+  .hero .lead {
+    font-size: 1rem;
+  }
+
+  .hero-search {
+    margin-top: 1rem;
+  }
+
+  /* Categories as a compact grid; the subcategories are one tap away. */
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+
+  .category-card {
+    padding: 0.75rem;
+  }
+
+  .category-head {
+    margin: 0;
+    gap: 0.5rem;
+  }
+
+  .category-links {
+    display: none;
+  }
+
+  .my-listings li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title tag"
+      "meta meta"
+      "actions actions"
+      "note note";
+  }
+
+  .my-listing-actions {
+    justify-self: start;
+  }
+
   .header-nav .nav-label {
     position: absolute;
     width: 1px;

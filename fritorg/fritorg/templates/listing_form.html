@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import attribute_input, field_error %}
+{% from "macros.html" import attribute_input, field_error, invalid %}
 
 {% block title %}{% if listing %}Rediger annonse{% else %}Ny annonse i {{ category.name }}{% endif %} – {{ site_name }}{% endblock %}
 
@@ -11,7 +11,13 @@
 {% if errors %}
   <div class="error-summary" role="alert">
     <p><strong>Noe må rettes før annonsen kan lagres:</strong></p>
-    <ul>{% for field, message in errors.items() %}<li>{{ message }}</li>{% endfor %}</ul>
+    <ul>
+      {% for field, message in errors.items() %}
+        {% set target = "attr-" ~ field[11:] if field.startswith("attributes.") else field %}
+        <li><a href="#{{ target or 'title' }}">{{ message }}</a></li>
+      {% endfor %}
+    </ul>
+    {% if not listing %}<p class="small">Hadde du valgt bilder, må du velge dem på nytt.</p>{% endif %}
   </div>
 {% endif %}
 
@@ -21,7 +27,7 @@
   <input type="hidden" name="category" value="{{ category.slug }}">
 
   {% if category.types|length > 1 %}
-  <fieldset class="field">
+  <fieldset class="field" id="type">
     <legend>Type annonse</legend>
     <div class="radio-row">
       {% for t in category.types %}
@@ -36,13 +42,13 @@
 
   <div class="field">
     <label for="title">Overskrift</label>
-    <input id="title" name="title" type="text" required minlength="3" maxlength="120" value="{{ values.title or '' }}" placeholder="F.eks. Pent brukt sovesofa fra IKEA">
+    <input id="title" name="title" type="text"{{ invalid(errors, "title") }} required minlength="3" maxlength="120" value="{{ values.title or '' }}" placeholder="F.eks. Pent brukt sovesofa fra IKEA">
     {{ field_error(errors, "title") }}
   </div>
 
   <div class="field">
     <label for="description">Beskrivelse</label>
-    <textarea id="description" name="description" rows="8" required minlength="10" maxlength="10000" placeholder="Tilstand, mål, hva som følger med, henting eller frakt …">{{ values.description or '' }}</textarea>
+    <textarea id="description" name="description"{{ invalid(errors, "description") }} rows="8" required minlength="10" maxlength="10000" placeholder="Tilstand, mål, hva som følger med, henting eller frakt …">{{ values.description or '' }}</textarea>
     {{ field_error(errors, "description") }}
   </div>
 
@@ -50,8 +56,8 @@
   <div class="field-row">
     <div class="field">
       <label for="price">Pris (kr)</label>
-      <input id="price" name="price" type="text" inputmode="numeric" value="{{ values.price if values.price is not none else '' }}" placeholder="La stå tom for «pris ikke oppgitt»">
-      <p class="hint">Annonser av typen «Gis bort» får alltid pris 0.</p>
+      <input id="price" name="price" type="text" inputmode="numeric"{{ invalid(errors, "price") }} value="{{ values.price if values.price is not none else '' }}" placeholder="La stå tom for «pris ikke oppgitt»">
+      {% if "give" in category.types %}<p class="hint">Annonser av typen «Gis bort» får alltid pris 0.</p>{% endif %}
       {{ field_error(errors, "price") }}
     </div>
     <div class="field">
@@ -79,7 +85,7 @@
     <div class="field-row">
       <div class="field">
         <label for="county">Fylke</label>
-        <select id="county" name="county">
+        <select id="county" name="county"{{ invalid(errors, "county") }}>
           <option value="">Velg fylke …</option>
           {% for county in COUNTIES.values() %}
             <option value="{{ county.slug }}" {% if values.county == county.slug %}selected{% endif %}>{{ county.name }}</option>
@@ -89,12 +95,12 @@
       </div>
       <div class="field">
         <label for="location">Sted</label>
-        <input id="location" name="location" type="text" maxlength="80" value="{{ values.location or '' }}" placeholder="F.eks. Tromsø sentrum">
+        <input id="location" name="location" type="text"{{ invalid(errors, "location") }} maxlength="80" value="{{ values.location or '' }}" placeholder="F.eks. Tromsø sentrum">
         {{ field_error(errors, "location") }}
       </div>
       <div class="field field-small">
         <label for="postal_code">Postnummer</label>
-        <input id="postal_code" name="postal_code" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" value="{{ values.postal_code or '' }}">
+        <input id="postal_code" name="postal_code" type="text" inputmode="numeric"{{ invalid(errors, "postal_code") }} pattern="[0-9]{4}" maxlength="4" value="{{ values.postal_code or '' }}">
         {{ field_error(errors, "postal_code") }}
       </div>
     </div>
@@ -118,6 +124,7 @@
 {% if listing %}
 <section id="bilder" class="panel">
   <h2>Bilder</h2>
+  <p class="hint">Lagre endringene i teksten først: opplastingen er et eget skjema.</p>
   {% if listing.images %}
     <ul class="image-admin">
       {% for image in listing.images %}

@@ -6,6 +6,9 @@
 {% block content %}
 <div class="narrow">
   <h1>Logg inn</h1>
+  {% if next and next != "/" and not error %}
+    <p class="notice">{% if next.startswith("/ny-annonse") %}Logg inn for å legge ut annonsen din.{% elif next.startswith("/sok") %}Logg inn for å lagre søket.{% elif next.startswith("/annonse/") %}Logg inn for å lagre annonsen eller sende en melding.{% elif next.startswith("/favoritter") or next.startswith("/lagrede-sok") %}Logg inn for å se det du har lagret.{% else %}Logg inn for å fortsette.{% endif %} {% if bankid_mode == "off" %}Har du ikke konto, er det gratis å lage en.{% endif %}</p>
+  {% endif %}
   {% if bankid_mode != "off" %}
     <div class="panel">
       <p>Alle kontoer på {{ site_name }} er knyttet til en ekte person med BankID. Det gjør det mye vanskeligere å svindle.</p>

@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="page-head">
-  <h1>Hei, {{ user.name }}!</h1>
+  <h1>Hei, {{ user.first_name }}!</h1>
   <form method="post" action="/logg-ut">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="button">Logg ut</button>
@@ -31,7 +31,7 @@
     {% for item in my_listings %}
     <li>
       <a class="my-listing-title" href="/annonse/{{ item.id }}">{{ item.title }}</a>
-      <span class="tag tag-status-{{ item.status }}">{{ item.status_label }}</span>
+      <span class="tag tag-status-{{ item.status }}">{{ item.shown_status }}</span>
       <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.status == "active" and item.expires_at %} · aktiv til {{ item.expires_at|date_no }}{% endif %}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
       {% if item.status == "review" %}<span class="small status-note">Venter på godkjenning fra moderator.</span>{% elif item.status == "removed" %}<span class="small status-note status-note-danger">Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %}</span>{% endif %}
       <span class="my-listing-actions">
@@ -41,7 +41,7 @@
           <input type="hidden" name="neste" value="/min-side">
           {% if item.status == "active" %}
             {% if item.expires_soon %}<button class="link-button" name="status" value="active">Forny</button>{% endif %}
-            <button class="link-button" name="status" value="sold">Merk solgt</button>
+            <button class="link-button" name="status" value="sold">{{ item.words.mark_done }}</button>
             <button class="link-button" name="status" value="inactive">Skjul</button>
           {% elif item.status in ("sold", "inactive") %}
             <button class="link-button" name="status" value="active">Aktiver</button>

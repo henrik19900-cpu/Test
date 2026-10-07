@@ -112,6 +112,29 @@ def problem_response(exc: AppError, request: Request) -> JSONResponse:
     )
 
 
+class HeadAsGet:
+    """Answer HEAD like GET without the body (uptime monitors and link checkers use HEAD)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            await self.app(scope, receive, send)
+            return
+        ended = False
+
+        async def send_headers_only(message):
+            nonlocal ended
+            if message["type"] != "http.response.body":
+                await send(message)
+            elif not ended and not message.get("more_body"):
+                ended = True
+                await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+        await self.app({**scope, "method": "GET"}, receive, send_headers_only)
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     _install_log_redaction()
@@ -261,6 +284,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ],
         max_age=86400,
     )
+    app.add_middleware(HeadAsGet)
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):

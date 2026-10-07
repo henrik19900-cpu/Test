@@ -13,7 +13,7 @@
 
 {% block content %}
 <div class="search-layout">
-  <aside class="filters" aria-label="Filtre">
+  <aside class="filters" id="filtre" aria-label="Filtre">
     <form action="/sok" method="get">
       <div class="field">
         <label for="f-q">Søkeord</label>
@@ -83,6 +83,7 @@
       <div>
         <h1 id="results-title">{{ title }}</h1>
         <p class="muted">{{ result.total|number }} treff</p>
+        <p class="mobile-only filter-jump"><a class="button button-small" href="#filtre">Filtrer{% if filter_count %} ({{ filter_count }}){% endif %}</a></p>
         {% if save_query %}
           {% if saved_search %}
             <p class="saved-note small">{{ icon("bell", 16) }} Søket er lagret. <a href="/lagrede-sok">Lagrede søk</a></p>
@@ -114,7 +115,7 @@
     {% endif %}
 
     {% if result.items %}
-      {{ listing_grid(result.items, new_after) }}
+      {{ listing_grid(result.items, new_after, heading=2) }}
       {{ pagination(page, pages, page_url) }}
     {% else %}
       <div class="empty">

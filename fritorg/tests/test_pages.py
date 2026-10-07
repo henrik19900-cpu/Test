@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from conftest import PHOTO, make_listing
+from conftest import PHOTO, make_listing, register, web_login
 
 
 def test_sharing_previews(client, auth):
@@ -61,3 +61,43 @@ def test_similar_listings(client, auth, other_auth):
     section = page[page.index('id="lignende"') :]
     assert "Hybridsykkel Merida" in section and f"/annonse/{similar['id']}" in section
     assert "Spisebord" not in section and "Sykkel fra samme selger" not in section
+
+
+def test_head_requests(client):
+    for path in ("/", "/sok?q=sykkel", "/llms.txt", "/feed.atom", "/api/v1/listings"):
+        response = client.head(path)
+        assert response.status_code == 200, path
+        assert response.content == b""
+    assert client.head("/annonse/999999").status_code == 404
+
+
+def test_wording_follows_the_listing_type(client, auth):
+    wanted = make_listing(
+        client,
+        auth,
+        category="mobler",
+        type="wanted",
+        title="Ønsker meg en sofa",
+        description="Ser etter en pen sofa til stua.",
+        price=3000,
+        attributes={},
+    )
+    register(client, email="ola@example.no", name="Ola Hansen")
+    web_login(client, email="ola@example.no")
+    page = client.get(f"/annonse/{wanted['id']}").text
+    assert (
+        "Ønskes av" in page
+        and "Svar på annonsen" in page
+        and "Jeg så at du ønsker «Ønsker meg en sofa»" in page
+    )
+    assert "Kontakt selger" not in page
+
+    client.patch(f"/api/v1/listings/{wanted['id']}", json={"status": "sold"}, headers=auth)
+    page = client.get(f"/annonse/{wanted['id']}").text
+    assert "merket som funnet" in page and '<span class="tag tag-sold">Funnet</span>' in page
+
+
+def test_login_page_says_why(client):
+    assert "Logg inn for å legge ut annonsen din" in client.get("/logg-inn?neste=/ny-annonse").text
+    assert "Logg inn for å lagre søket" in client.get("/logg-inn?neste=/sok%3Fq%3Dsykkel").text
+    assert "Logg inn for å" not in client.get("/logg-inn").text

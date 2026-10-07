@@ -279,6 +279,21 @@ def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
         "search.html",
         {
             "save_query": save_query,
+            "filter_count": sum(
+                1
+                for value in (
+                    params.category,
+                    params.type,
+                    params.county,
+                    params.location,
+                    params.price_min,
+                    params.price_max,
+                )
+                if value not in (None, "")
+            )
+            + len(params.attrs)
+            + params.has_images
+            + (params.status != "active"),
             "saved_search": saved_searches.find(conn, user.id, params) if user and save_query else None,
             "new_after": _int_param(request.query_params.get("nye")),
             "result": result,
@@ -437,7 +452,7 @@ def change_status(listing_id: int, request: Request, conn: Conn, form: Form) -> 
     days = request.app.state.settings.listing_days
     listings.set_status(conn, user.id, listing_id, status, is_admin=user.is_admin, active_days=days)
     labels = {
-        "sold": "Annonsen er merket som solgt.",
+        "sold": f"Annonsen er merket som {listings.get_listing(conn, listing_id).shown_status.lower()}.",
         "inactive": "Annonsen er skjult.",
         "active": f"Annonsen er aktiv de neste {days} dagene." if days else "Annonsen er aktiv.",
     }
@@ -752,10 +767,7 @@ def toggle_favorite(listing_id: int, request: Request, conn: Conn, form: Form) -
     check_csrf(request, form)
     user = current_user(request, conn)
     if user is None:
-        return redirect(
-            url_with_query("", "/logg-inn", [("neste", f"/annonse/{listing_id}")]),
-            flash="Logg inn for å lagre favoritter. Det er gratis å lage konto.",
-        )
+        return redirect(url_with_query("", "/logg-inn", [("neste", f"/annonse/{listing_id}")]))
     target = safe_next(str(form.get("neste") or ""), f"/annonse/{listing_id}")
     if form.get("action") == "remove":
         favorites.remove(conn, user.id, listing_id)
@@ -811,10 +823,7 @@ def save_search(request: Request, conn: Conn, form: Form) -> Response:
     back = f"/sok?{query}" if query else "/sok"
     user = current_user(request, conn)
     if user is None:
-        return redirect(
-            url_with_query("", "/logg-inn", [("neste", back)]),
-            flash="Logg inn for å lagre søket. Det er gratis å lage konto.",
-        )
+        return redirect(url_with_query("", "/logg-inn", [("neste", back)]))
     try:
         _, created = saved_searches.create(conn, user.id, params)
     except ValidationProblem as exc:
@@ -1085,7 +1094,7 @@ def login(request: Request, conn: Conn, form: Form) -> Response:
             {"next": target, "error": exc.message, "values": {"email": email}},
             status=401,
         )
-    return _start_session(request, conn, user, target, f"Velkommen tilbake, {user.name}!")
+    return _start_session(request, conn, user, target, f"Velkommen tilbake, {user.first_name}!")
 
 
 @router.get("/registrer")
@@ -1133,7 +1142,7 @@ def register(request: Request, conn: Conn, form: Form) -> Response:
         )
     state = request.app.state
     send_verification(state.mailer, state.secret_key, base_url(request), user.id, user.name, user.email)
-    welcome = f"Velkommen til {settings.site_name}, {user.name}!"
+    welcome = f"Velkommen til {settings.site_name}, {user.first_name}!"
     if must_verify(request, user):
         verify = url_with_query("", "/verifiser-telefon", [("neste", target)])
         return _start_session(
@@ -1507,6 +1516,12 @@ def _doc(request: Request, conn: sqlite3.Connection, slug: str, fmt: str) -> Res
     if fmt == "markdown":
         return markdown_response(text)
     html = markdown.markdown(text, extensions=["extra", "sane_lists", "toc"])
+    # Wide code blocks and tables scroll sideways; tabindex lets keyboard users scroll them too.
+    html = (
+        html.replace("<pre>", '<pre tabindex="0">')
+        .replace("<table>", '<div class="table-wrap" tabindex="0" role="region" aria-label="Tabell"><table>')
+        .replace("</table>", "</table></div>")
+    )
     return render(
         request, conn, "doc.html", {"title": title, "content": html, "slug": slug}, headers={"Vary": "Accept"}
     )

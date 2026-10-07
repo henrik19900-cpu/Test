@@ -12,7 +12,7 @@ import sqlite3
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any
+from typing import Any, NamedTuple
 
 from . import fraud, taxonomy, users
 from .db import transaction
@@ -72,6 +72,55 @@ EDITABLE_FIELDS = (
     "attributes",
 )
 MAX_PRICE = 1_000_000_000
+
+
+class TypeWords(NamedTuple):
+    """How a listing type is talked about: who posted it, how to contact them, a suggested first message,
+    what "sold" means for it, and the button that marks it so."""
+
+    role: str
+    contact: str
+    prefill: str
+    done: str
+    mark_done: str
+
+
+TYPE_WORDS = {
+    "sell": TypeWords(
+        "Selger", "Kontakt selger", "Hei! Er «{title}» fortsatt til salgs?", "Solgt", "Merk som solgt"
+    ),
+    "give": TypeWords(
+        "Gis bort av",
+        "Kontakt giveren",
+        "Hei! Er «{title}» fortsatt ledig? Jeg henter gjerne.",
+        "Gitt bort",
+        "Merk som gitt bort",
+    ),
+    "wanted": TypeWords(
+        "Ønskes av",
+        "Svar på annonsen",
+        "Hei! Jeg så at du ønsker «{title}». Jeg har noe som kan passe.",
+        "Funnet",
+        "Merk som funnet",
+    ),
+    "rent": TypeWords(
+        "Utleier", "Kontakt utleier", "Hei! Er «{title}» fortsatt ledig?", "Utleid", "Merk som utleid"
+    ),
+    "job": TypeWords(
+        "Arbeidsgiver",
+        "Kontakt arbeidsgiver",
+        "Hei! Jeg er interessert i stillingen «{title}».",
+        "Besatt",
+        "Merk som besatt",
+    ),
+    "service": TypeWords(
+        "Tilbys av",
+        "Kontakt tilbyderen",
+        "Hei! Jeg er interessert i «{title}». Når har du tid?",
+        "Avsluttet",
+        "Merk som avsluttet",
+    ),
+}
 
 REPORT_REASONS = {
     "spam": "Spam eller duplikat",
@@ -187,6 +236,27 @@ class Listing:
     @property
     def is_imported(self) -> bool:
         return self.source is not None
+
+    @property
+    def words(self) -> TypeWords:
+        return TYPE_WORDS.get(self.type, TYPE_WORDS["sell"])
+
+    @property
+    def poster_role(self) -> str:
+        return self.words.role
+
+    @property
+    def contact_label(self) -> str:
+        return self.words.contact
+
+    @property
+    def contact_prefill(self) -> str:
+        return self.words.prefill.format(title=self.title)
+
+    @property
+    def shown_status(self) -> str:
+        """The status as people see it, e.g. "Utleid" for a sold rental."""
+        return self.words.done if self.status == "sold" else self.status_label
 
     @property
     def price_drop(self) -> int | None:
@@ -381,7 +451,7 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
 
     title = " ".join(str(values.get("title") or "").split())
     if not 3 <= len(title) <= 120:
-        error("title", "Tittelen må være mellom 3 og 120 tegn.")
+        error("title", "Overskriften må være mellom 3 og 120 tegn.")
 
     description = str(values.get("description") or "").replace("\r\n", "\n").strip()
     if not 10 <= len(description) <= 10_000:

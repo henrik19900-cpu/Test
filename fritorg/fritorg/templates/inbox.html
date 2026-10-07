@@ -9,9 +9,9 @@
 <ul class="inbox">
   {% for c in conversations %}
   <li class="{% if c.unread %}unread{% endif %}">
-    <a href="/meldinger/{{ c.id }}">
+    <a href="/meldinger/{{ c.id }}#siste">
       <span class="inbox-who">{{ c.other_name(user.id) }}{% if c.unread %} <span class="badge">{{ c.unread }}</span>{% endif %}</span>
-      <span class="inbox-listing">{{ c.listing_title }} · {% if c.role(user.id) == "seller" %}du selger{% else %}du er interessert{% endif %}</span>
+      <span class="inbox-listing">{{ c.listing_title }} · {% if c.role(user.id) == "seller" %}din annonse{% else %}du tok kontakt{% endif %}</span>
       <span class="inbox-preview">{{ (c.last_message or "")|shorten(120) }}</span>
       <span class="inbox-time muted small">{{ c.last_message_at|datetime_no }}</span>
     </a>
@@ -19,6 +19,6 @@
   {% endfor %}
 </ul>
 {% else %}
-<p class="empty">Ingen meldinger ennå. Finn noe du liker og send en melding til selgeren!</p>
+<p class="empty">Ingen meldinger ennå. Finn noe du liker og send en melding til den som har lagt det ut!</p>
 {% endif %}
 {% endblock %}

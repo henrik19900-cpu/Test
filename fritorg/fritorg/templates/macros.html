@@ -1,6 +1,6 @@
 {% from "icons.html" import icon %}
 
-{% macro listing_card(item, new_after=None) -%}
+{% macro listing_card(item, new_after=None, heading=3) -%}
 <article class="card" id="a{{ item.id }}">
   <a class="card-link" href="/annonse/{{ item.id }}">
     <div class="card-media">
@@ -10,7 +10,7 @@
         <div class="placeholder placeholder-{{ item.group.slug }}">{{ icon(item.group.slug, 40) }}</div>
       {% endif %}
       {% if item.status == "sold" %}
-        <span class="tag tag-sold">Solgt</span>
+        <span class="tag tag-sold">{{ item.shown_status }}</span>
       {% elif item.status in ("inactive", "review", "removed") %}
         <span class="tag tag-hidden">{{ item.status_label }}</span>
       {% elif item.type not in ("sell", "job", "service") %}
@@ -19,7 +19,7 @@
     </div>
     <div class="card-body">
       <p class="card-meta">{% if new_after and item.id > new_after %}<span class="card-new">Ny</span> {% endif %}{{ item.place or item.category_obj.name }}</p>
-      <h3 class="card-title">{{ item.title }}</h3>
+      <h{{ heading }} class="card-title">{{ item.title }}</h{{ heading }}>
       {% set price = item.price_text(NBSP) %}
       {% if price %}<p class="card-price">{{ price }}{% if item.price_drop %} <span class="card-drop"><span class="visually-hidden">Satt ned fra </span><s>{{ item.price_drop|nok }}</s></span>{% endif %}</p>{% elif item.type == "job" %}<p class="card-price card-price-muted">{{ item.attributes.get("employer") or "Ledig stilling" }}</p>{% endif %}
       {% if item.is_imported %}<p class="card-source">Fra {{ item.source_name }}</p>{% endif %}
@@ -29,9 +29,10 @@
 </article>
 {%- endmacro %}
 
-{% macro listing_grid(items, new_after=None) -%}
+{# heading: the level of the card titles, one below the section's heading. #}
+{% macro listing_grid(items, new_after=None, heading=3) -%}
 <div class="grid">
-  {% for item in items %}{{ listing_card(item, new_after) }}{% endfor %}
+  {% for item in items %}{{ listing_card(item, new_after, heading) }}{% endfor %}
 </div>
 {%- endmacro %}
 
@@ -70,6 +71,11 @@
 {% if errors and errors.get(name) %}<p class="field-error" id="{{ name|replace('.', '-') }}-error">{{ errors.get(name) }}</p>{% endif %}
 {%- endmacro %}
 
+{# Marks an input that has an error and points it to the message (for screen readers). #}
+{% macro invalid(errors, name) -%}
+{% if errors and errors.get(name) %} aria-invalid="true" aria-describedby="{{ name|replace('.', '-') }}-error"{% endif %}
+{%- endmacro %}
+
 {% macro attribute_input(attr, value, errors) -%}
 {% set name = "attr." ~ attr.key %}
 {% set field_id = "attr-" ~ attr.key %}
@@ -79,18 +85,18 @@
   {% else %}
     <label for="{{ field_id }}">{{ attr.label }}{% if attr.unit %} <span class="muted">({{ attr.unit }})</span>{% endif %}</label>
     {% if attr.type == "enum" %}
-      <select id="{{ field_id }}" name="{{ name }}">
+      <select id="{{ field_id }}" name="{{ name }}"{{ invalid(errors, "attributes." ~ attr.key) }}>
         <option value="">Velg …</option>
         {% for option in attr.options %}
           <option value="{{ option.value }}" {% if value == option.value %}selected{% endif %}>{{ option.label }}</option>
         {% endfor %}
       </select>
     {% elif attr.type == "integer" %}
-      <input id="{{ field_id }}" name="{{ name }}" type="number" inputmode="numeric" {% if attr.min is not none %}min="{{ attr.min }}"{% endif %} {% if attr.max is not none %}max="{{ attr.max }}"{% endif %} value="{{ value if value is not none else '' }}">
+      <input id="{{ field_id }}" name="{{ name }}" type="number" inputmode="numeric"{{ invalid(errors, "attributes." ~ attr.key) }} {% if attr.min is not none %}min="{{ attr.min }}"{% endif %} {% if attr.max is not none %}max="{{ attr.max }}"{% endif %} value="{{ value if value is not none else '' }}">
     {% elif attr.type == "date" %}
-      <input id="{{ field_id }}" name="{{ name }}" type="date" value="{{ value or '' }}">
+      <input id="{{ field_id }}" name="{{ name }}" type="date"{{ invalid(errors, "attributes." ~ attr.key) }} value="{{ value or '' }}">
     {% else %}
-      <input id="{{ field_id }}" name="{{ name }}" type="text" maxlength="{{ attr.max_length }}" value="{{ value or '' }}">
+      <input id="{{ field_id }}" name="{{ name }}" type="text"{{ invalid(errors, "attributes." ~ attr.key) }} maxlength="{{ attr.max_length }}" value="{{ value or '' }}">
     {% endif %}
   {% endif %}
   {{ field_error(errors, "attributes." ~ attr.key) }}

@@ -56,6 +56,11 @@ class User:
     price_alerts: bool = True  # e-mail when a favourite gets cheaper
 
     @property
+    def first_name(self) -> str:
+        """For greetings: "Kari" for "Kari N."."""
+        return self.name.split()[0] if self.name.split() else self.name
+
+    @property
     def is_new(self) -> bool:
         """Accounts younger than a day get stricter quotas."""
         return self.created_at > iso_ago(days=1)

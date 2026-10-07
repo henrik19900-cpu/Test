@@ -27,14 +27,14 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
 - **Favoritter og lagrede søk:** lagre annonser med hjertet, og lagre et søk for å se hvor mange nye treff som har kommet siden sist. Med bekreftet e-post kommer nye treff på e-post, høyst én gang i timen per søk, med lenke for å melde seg av uten å logge inn. Selgeren ser hvor mange som har lagret annonsen, men ikke hvem.
 - **Prisvarsel:** settes prisen på en favoritt ned med minst 5 %, vises den gamle prisen på favorittsiden, og man får e-post om det (høyst to ganger i døgnet, kan slås av).
-- **Deling:** hver annonse har forhåndsvisning med bilde, tittel og pris når den deles i meldinger og sosiale medier (Open Graph), og viser lignende annonser. Siden kan legges på hjemskjermen på mobilen med eget ikon.
+- **Deling:** «Del»-knappen åpner mobilens delemeny (eller kopierer lenken), og hver annonse har forhåndsvisning med bilde, tittel og pris når den deles i meldinger og sosiale medier (Open Graph). Annonsesiden viser også lignende annonser. Siden kan legges på hjemskjermen på mobilen med eget ikon.
 - **Glemt passord** løses med en lenke på e-post eller en kode på SMS til det bekreftede nummeret.
 - **Bilder** som skaleres, lagres som WebP og får fjernet EXIF- og GPS-data.
 - **Bekreftede brukere:** norsk mobilnummer med SMS-kode som standard, BankID som valg.
 - **Beskyttelse mot svindel**, moderering og rapportering (se under).
 - **Åpent for agenter:** MCP-server, REST-API med OpenAPI 3.1, `llms.txt`, eksport av alle annonser som NDJSON, Atom-feeder og JSON/Markdown-versjon av hver side.
 - **Annonser fra åpne kilder:** titusenvis av ledige stillinger fra arbeidsplassen.no (Nav), og svenske stillinger for folk som kan norsk. Alt hentes automatisk og holdes oppdatert.
-- **Universell utforming og personvern:** fungerer uten JavaScript, ingen sporingskapsler og ingen reklame.
+- **Universell utforming og personvern:** fungerer uten JavaScript (det lille skriptet for «Del» er et tillegg), synlig tastaturfokus og god kontrast i lyst og mørkt tema, ingen sporingskapsler og ingen reklame.
 
 ## Kom i gang lokalt
 

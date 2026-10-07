@@ -82,6 +82,7 @@
 
   <fieldset>
     <legend>Hvor?</legend>
+    <p class="hint">Holder det med postnummer, finner vi sted og fylke selv.</p>
     <div class="field-row">
       <div class="field">
         <label for="county">Fylke</label>
@@ -100,7 +101,7 @@
       </div>
       <div class="field field-small">
         <label for="postal_code">Postnummer</label>
-        <input id="postal_code" name="postal_code" type="text" inputmode="numeric"{{ invalid(errors, "postal_code") }} pattern="[0-9]{4}" maxlength="4" value="{{ values.postal_code or '' }}">
+        <input id="postal_code" name="postal_code" type="text" autocomplete="postal-code" inputmode="numeric"{{ invalid(errors, "postal_code") }} pattern="[0-9]{4}" maxlength="4" value="{{ values.postal_code or '' }}">
         {{ field_error(errors, "postal_code") }}
       </div>
     </div>

@@ -162,3 +162,20 @@ def test_moderators_see_key_numbers(app, client, auth):
     web_login(client)
     page = client.get("/moderering").text
     assert "Nøkkeltall" in page and "Aktive annonser" in page and "<dd>1</dd>" in page
+
+
+def test_postal_code_fills_in_place_and_county(client, auth):
+    from fritorg import postcodes
+
+    assert postcodes.lookup("8601").place == "Mo i Rana" and postcodes.lookup("8601").county == "nordland"
+    assert postcodes.lookup("0150").county == "oslo" and postcodes.lookup("9170").county == "svalbard"
+    assert postcodes.lookup("0000") is None and postcodes.lookup(None) is None
+
+    listing = make_listing(client, auth, county=None, location=None, postal_code="5003")
+    assert (listing["location"], listing["county"]) == ("Bergen", "vestland")
+    # What the seller wrote wins.
+    listing = make_listing(
+        client, auth, title="Sykkel nummer to", county="oslo", location="Grünerløkka", postal_code="5003"
+    )
+    assert (listing["location"], listing["county"]) == ("Grünerløkka", "oslo")
+    assert "Bergen" in client.get("/sok?county=vestland").text

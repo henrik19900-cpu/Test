@@ -25,7 +25,11 @@
 
 {% if settings.operator %}{{ site_name }} drives av {{ settings.operator }}. {% endif %}{% if settings.contact_email %}Du når oss på {{ settings.contact_email }}.{% endif %}
 
-{% endif %}## Trygg handel
+{% endif %}## Data fra andre
+
+Sted og fylke fyller vi ut fra postnummeret med postnummerregisteret til Posten Bring AS, som er åpne data under [norsk lisens for offentlige data (NLOD)](https://data.norge.no/nlod/no/2.0).
+
+## Trygg handel
 
 - Møt gjerne selgeren og se varen før du betaler.
 - Send aldri penger eller BankID-koder til noen du ikke kjenner.

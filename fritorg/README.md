@@ -62,6 +62,8 @@ Alt ligger i datamappen (`FRITORG_DATA_DIR`, standard `data/`):
 | `uploads/` | Bilder som WebP, i full størrelse (maks 1600 piksler) og som miniatyrbilde. Filnavnene er tilfeldige. |
 | `secret_key` | Hemmelig nøkkel, opprettes automatisk hvis `FRITORG_SECRET_KEY` ikke er satt. Den trengs for å kjenne igjen mobilnumre, BankID-identiteter og lenker, så den må tas vare på. |
 
+Postnummerregisteret til Posten Bring AS (åpne data under NLOD 2.0) følger med koden i `fritorg/data/postnummer.tsv`, så postnummeret i en annonse kan fylle ut sted og fylke. Oppdater filen én gang i året fra [data.norge.no](https://data.norge.no/datasets/f7508db5-2167-3356-ab5e-aacffce2a9b6).
+
 Om brukerne lagres e-postadresse, visningsnavn og passord som en scrypt-hash. Mobilnummeret lagres aldri i klartekst, bare som en nøkkelbasert hash (så hvert nummer kan brukes på én konto) og de tre siste sifrene. Med BankID lagres navnet, men aldri fødselsnummeret.
 
 Én SQLite-fil holder lenge for en norsk markedsplass: søk i 50 000 annonser tar et par hundre millisekunder i verste fall. Appen kjører som én prosess. Skal den skaleres ut på flere servere, må databasen og fartsgrensene (som nå ligger i minnet) flyttes til en felles tjeneste.

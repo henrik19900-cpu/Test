@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, NamedTuple
 
-from . import fraud, taxonomy, users
+from . import fraud, postcodes, taxonomy, users
 from .db import transaction
 from .errors import Forbidden, NotFound, RateLimited, ValidationProblem
 from .taxonomy import (
@@ -504,6 +504,10 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
     postal_code = str(values.get("postal_code") or "").strip() or None
     if postal_code and not re.fullmatch(r"\d{4}", postal_code):
         error("postal_code", "Postnummeret må ha fire siffer.")
+    elif postal_code and (place := postcodes.lookup(postal_code)):
+        # A postal code is enough: the place and county come from the postal code register.
+        location = location or place.place
+        county = county or place.county
 
     try:
         attributes = validate_attributes(category, values.get("attributes"))

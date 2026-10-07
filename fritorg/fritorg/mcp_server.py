@@ -603,7 +603,11 @@ _LISTING_FIELDS: dict[str, Any] = {
     "price_unit": {"type": "string", "enum": list(taxonomy.PRICE_UNITS), "description": "Default 'total'."},
     "county": _COUNTY,
     "location": {"type": "string", "maxLength": 80, "description": "Place or municipality, e.g. 'Bergen'."},
-    "postal_code": {"type": "string", "pattern": "^\\d{4}$"},
+    "postal_code": {
+        "type": "string",
+        "pattern": "^\\d{4}$",
+        "description": "Norwegian postal code. Enough on its own: location and county are filled in from it.",
+    },
     "attributes": {
         "type": "object",
         "description": 'Category-specific fields, e.g. {"make": "Volvo", "year": 2019} for \'bil\'. '

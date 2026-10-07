@@ -64,7 +64,11 @@ class ListingCreate(BaseModel):
     )
     county: str | None = Field(None, description=_COUNTY_DOC, json_schema_extra={"examples": ["oslo"]})
     location: str | None = Field(None, max_length=80, description="Place or municipality, e.g. 'Bergen'.")
-    postal_code: str | None = Field(None, pattern=r"^\d{4}$", description="Norwegian postal code (4 digits).")
+    postal_code: str | None = Field(
+        None,
+        pattern=r"^\d{4}$",
+        description="Norwegian postal code (4 digits). Enough on its own: location and county are filled in from it.",
+    )
     attributes: dict[str, Any] = Field(default_factory=dict, description=_ATTRIBUTES_DOC)
     status: Literal["active", "inactive"] = Field(
         "active", description="'inactive' saves the listing hidden (a draft) until you activate it."

@@ -14,6 +14,7 @@ from .config import Settings
 from .db import Database
 from .mailer import Mail, Mailer
 from .util import iso_ago, now_iso
+from .views import ViewCounter
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +62,18 @@ def _tell_owner(mailer: Mailer, conn: sqlite3.Connection, base: str, listing: li
     )
 
 
-def run(db: Database, settings: Settings, mailer: Mailer | None = None, secret: str | None = None) -> Report:
+def run(
+    db: Database,
+    settings: Settings,
+    mailer: Mailer | None = None,
+    secret: str | None = None,
+    views: ViewCounter | None = None,
+) -> Report:
     report = Report()
     base = settings.base_url or "http://127.0.0.1:8000"
     with db.session() as conn:
+        if views is not None:
+            views.flush(conn)
         expired = listings.expire_listings(conn)
         report.expired = len(expired)
         if mailer is not None and mailer.enabled:
@@ -101,7 +110,11 @@ class Worker:
             try:
                 state = self.state
                 report = run(
-                    self.db, self.settings, getattr(state, "mailer", None), getattr(state, "secret_key", None)
+                    self.db,
+                    self.settings,
+                    getattr(state, "mailer", None),
+                    getattr(state, "secret_key", None),
+                    getattr(state, "views", None),
                 )
                 if report.expired:
                     logger.info("Hid %s expired listings", report.expired)

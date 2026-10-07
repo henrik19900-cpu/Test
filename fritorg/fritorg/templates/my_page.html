@@ -32,7 +32,7 @@
     <li>
       <a class="my-listing-title" href="/annonse/{{ item.id }}">{{ item.title }}</a>
       <span class="tag tag-status-{{ item.status }}">{{ item.shown_status }}</span>
-      <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.status == "active" and item.expires_at %} · aktiv til {{ item.expires_at|date_no }}{% endif %}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
+      <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.status == "active" and item.expires_at %} · aktiv til {{ item.expires_at|date_no }}{% endif %} · sett {{ views[item.id]|number }} {{ "gang" if views[item.id] == 1 else "ganger" }}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
       {% if item.status == "review" %}<span class="small status-note">Venter på godkjenning fra moderator.</span>{% elif item.status == "removed" %}<span class="small status-note status-note-danger">Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %}</span>{% endif %}
       <span class="my-listing-actions">
         <a href="/annonse/{{ item.id }}/rediger">Rediger</a>
@@ -141,6 +141,22 @@
       </div>
       <button type="submit" class="button">Bytt passord</button>
     </form>
+  </details>
+  {% endif %}
+  {% if blocked %}
+  <details id="blokkert">
+    <summary>Blokkerte brukere ({{ blocked|length }})</summary>
+    <ul class="blocked-list">
+      {% for person in blocked %}
+      <li>
+        <span>{{ person.name }} <span class="muted small">siden {{ person.created_at|date_no }}</span></span>
+        <form method="post" action="/min-side/blokkert/{{ person.id }}/opphev">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-button">Opphev blokkering</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
   </details>
   {% endif %}
   <details id="slett" class="danger-zone">

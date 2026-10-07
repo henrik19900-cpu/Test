@@ -10,6 +10,7 @@
 <link rel="alternate" type="text/markdown" href="/annonse/{{ listing.id }}.md">
 {% if not listing.is_public %}<meta name="robots" content="noindex">{% endif %}
 <script type="application/ld+json">{{ jsonld|safe }}</script>
+<script type="application/ld+json">{{ breadcrumbs_jsonld|safe }}</script>
 {% endblock %}
 {% block og %}
 <meta property="og:type" content="product">
@@ -147,6 +148,7 @@
         {% if listing.seller_verified %}<span class="tag tag-verified" title="{{ listing.seller_verification_title }}">{{ icon("shield", 14) }} {{ listing.seller_verification_label }}</span>{% endif %}
         {% if listing.seller_is_new %}<span class="tag tag-new" title="Kontoen er mindre enn en uke gammel">Ny bruker</span>{% endif %}
       </p>
+      {% if response_time %}<p class="small response-time">{{ icon("chat", 16) }} {{ response_time }}</p>{% endif %}
       <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} {{ "aktiv annonse" if listing.seller_active == 1 else "aktive annonser" }}{% endif %}</p>
     </div>
     {% endif %}
@@ -157,7 +159,7 @@
       <div class="panel owner-tools">
         <h2 class="panel-title">Din annonse</h2>
         {% if listing.status == "active" and listing.expires_at %}<p class="small">Aktiv til {{ listing.expires_at|date_no }}. Etter det skjules den, og du kan gjøre den aktiv igjen.</p>{% endif %}
-        {% if favorite_count %}<p class="small">{{ icon("heart", 16) }} {{ favorite_count }} har lagret annonsen.</p>{% endif %}
+        <p class="small owner-stats">Sett {{ views|number }} {{ "gang" if views == 1 else "ganger" }}{% if favorite_count %} · {{ favorite_count }} har lagret den{% endif %}</p>
         <a class="button button-block" href="/annonse/{{ listing.id }}/rediger">Rediger annonsen</a>
         <form method="post" action="/annonse/{{ listing.id }}/status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

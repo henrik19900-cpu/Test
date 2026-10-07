@@ -76,18 +76,24 @@ MAX_PRICE = 1_000_000_000
 
 class TypeWords(NamedTuple):
     """How a listing type is talked about: who posted it, how to contact them, a suggested first message,
-    what "sold" means for it, and the button that marks it so."""
+    what "sold" means for it, the button that marks it so, and quick replies for the poster."""
 
     role: str
     contact: str
     prefill: str
     done: str
     mark_done: str
+    replies: tuple[str, ...]
 
 
 TYPE_WORDS = {
     "sell": TypeWords(
-        "Selger", "Kontakt selger", "Hei! Er «{title}» fortsatt til salgs?", "Solgt", "Merk som solgt"
+        "Selger",
+        "Kontakt selger",
+        "Hei! Er «{title}» fortsatt til salgs?",
+        "Solgt",
+        "Merk som solgt",
+        ("Ja, den er fortsatt til salgs.", "Beklager, den er solgt."),
     ),
     "give": TypeWords(
         "Gis bort av",
@@ -95,6 +101,7 @@ TYPE_WORDS = {
         "Hei! Er «{title}» fortsatt ledig? Jeg henter gjerne.",
         "Gitt bort",
         "Merk som gitt bort",
+        ("Ja, den er fortsatt ledig. Når kan du hente?", "Beklager, den er gitt bort."),
     ),
     "wanted": TypeWords(
         "Ønskes av",
@@ -102,9 +109,15 @@ TYPE_WORDS = {
         "Hei! Jeg så at du ønsker «{title}». Jeg har noe som kan passe.",
         "Funnet",
         "Merk som funnet",
+        ("Så bra! Har du bilder?", "Takk, men jeg har allerede funnet det jeg lette etter."),
     ),
     "rent": TypeWords(
-        "Utleier", "Kontakt utleier", "Hei! Er «{title}» fortsatt ledig?", "Utleid", "Merk som utleid"
+        "Utleier",
+        "Kontakt utleier",
+        "Hei! Er «{title}» fortsatt ledig?",
+        "Utleid",
+        "Merk som utleid",
+        ("Ja, den er fortsatt ledig.", "Beklager, den er utleid."),
     ),
     "job": TypeWords(
         "Arbeidsgiver",
@@ -112,6 +125,7 @@ TYPE_WORDS = {
         "Hei! Jeg er interessert i stillingen «{title}».",
         "Besatt",
         "Merk som besatt",
+        ("Takk for interessen! Fortell gjerne litt om deg selv.", "Beklager, stillingen er besatt."),
     ),
     "service": TypeWords(
         "Tilbys av",
@@ -119,6 +133,7 @@ TYPE_WORDS = {
         "Hei! Jeg er interessert i «{title}». Når har du tid?",
         "Avsluttet",
         "Merk som avsluttet",
+        ("Ja, jeg har ledig kapasitet. Når passer det?", "Beklager, jeg har ikke kapasitet nå."),
     ),
 }
 
@@ -187,6 +202,7 @@ class Listing:
     seller_sold: int | None = None
     # Favourites: the price when the person saved it (only loaded for their favourites).
     saved_price: int | None = None
+    views: int = 0  # how many times people looked at it (see views.py)
     # Imported listings (see SOURCES): where they come from and where to apply.
     source: str | None = None
     source_id: str | None = None
@@ -553,6 +569,7 @@ def _listing(row: sqlite3.Row) -> Listing:
         seller_verified_via=row["seller_verified_via"] if row["seller_verified_at"] else None,
         rank=row["rank"] if "rank" in keys else None,
         saved_price=row["saved_price"] if "saved_price" in keys else None,
+        views=row["views"] if "views" in keys else 0,
         source=row["source"],
         source_id=row["source_id"],
         source_url=row["source_url"],

@@ -30,7 +30,7 @@ from . import (
     users,
 )
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
-from .errors import AppError, Conflict, NotFound, RateLimited, ValidationProblem
+from .errors import AppError, Conflict, Forbidden, NotFound, RateLimited, ValidationProblem
 from .listings import SearchParams
 from .mailer import notify_moderation, notify_new_message, send_verification, verify_email
 from .templating import (
@@ -361,17 +361,26 @@ def listing_page(listing_id: int, request: Request, conn: Conn) -> Response:
         if listing.is_imported
         else listings.search(conn, SearchParams(user_id=listing.user_id, limit=5)).items
     )
+    is_owner = viewer == listing.user_id
+    counter = request.app.state.views
+    if not is_owner and listing.is_public:
+        counter.add(listing.id, client_ip(request), request.headers.get("user-agent", ""))
     return render(
         request,
         conn,
         "listing.html",
         {
             "listing": listing,
-            "is_owner": viewer == listing.user_id,
+            "is_owner": is_owner,
             "is_admin": admin,
             "conversation_id": conversation_id,
-            "favorite_count": favorites.count_for(conn, listing.id) if viewer == listing.user_id else 0,
+            "favorite_count": favorites.count_for(conn, listing.id) if is_owner else 0,
+            "views": listing.views + counter.pending(listing.id) if is_owner else 0,
+            "response_time": None
+            if listing.is_imported
+            else messages.response_time_text(messages.response_time_hours(conn, listing.user_id)),
             "jsonld": serializers.jsonld_script(serializers.listing_jsonld(listing, base)),
+            "breadcrumbs_jsonld": serializers.jsonld_script(serializers.breadcrumbs_jsonld(listing, base)),
             "more_from_seller": [item for item in more if item.id != listing.id][:4],
             "similar": _similar(conn, listing),
         },
@@ -415,7 +424,7 @@ def contact_seller(listing_id: int, request: Request, conn: Conn, form: Form) ->
             max_per_day=settings.max_messages_per_day,
             new_account_max_per_day=settings.new_account_max_messages_per_day,
         )
-    except (ValidationProblem, RateLimited) as exc:
+    except (ValidationProblem, RateLimited, Forbidden) as exc:
         return redirect(f"/annonse/{listing_id}#kontakt", flash=exc.message)
     notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     return redirect(f"/meldinger/{conversation_id}", flash="Meldingen er sendt.")
@@ -685,6 +694,16 @@ def upload_images(listing_id: int, request: Request, conn: Conn, form: Form) -> 
     return redirect(f"/annonse/{listing_id}/rediger#bilder", flash=flash)
 
 
+@router.post("/annonse/{listing_id:int}/bilder/{image_id:int}/hovedbilde")
+def make_main_image(listing_id: int, image_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    images.make_main(conn, user.id, listing_id, image_id, is_admin=user.is_admin)
+    return redirect(f"/annonse/{listing_id}/rediger#bilder", flash="Hovedbildet er byttet.")
+
+
 @router.post("/annonse/{listing_id:int}/bilder/{image_id:int}/slett")
 def delete_image(listing_id: int, image_id: int, request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)
@@ -714,7 +733,61 @@ def conversation_page(conversation_id: int, request: Request, conn: Conn) -> Res
     if user is None:
         return login_redirect(request)
     conversation = messages.get_conversation(conn, conversation_id, user.id)
-    return render(request, conn, "conversation.html", {"conversation": conversation})
+    other = conversation.other_id(user.id)
+    quick_replies: tuple[str, ...] = ()
+    if conversation.role(user.id) == "seller" and conversation.listing_id:
+        listing = conn.execute(
+            "SELECT type, status FROM listings WHERE id = ?", (conversation.listing_id,)
+        ).fetchone()
+        if listing and listing["status"] in ("active", "sold", "inactive"):
+            quick_replies = listings.TYPE_WORDS.get(listing["type"], listings.TYPE_WORDS["sell"]).replies
+    return render(
+        request,
+        conn,
+        "conversation.html",
+        {
+            "conversation": conversation,
+            "blocked_by_me": messages.has_blocked(conn, user.id, other),
+            "blocked_me": messages.has_blocked(conn, other, user.id),
+            "quick_replies": quick_replies,
+        },
+    )
+
+
+@router.post("/meldinger/{conversation_id:int}/blokker")
+def block_in_conversation(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    conversation = messages.get_conversation(conn, conversation_id, user.id, mark_read=False)
+    messages.block(conn, user.id, conversation.other_id(user.id))
+    name = conversation.other_name(user.id)
+    return redirect(
+        f"/meldinger/{conversation_id}",
+        flash=f"{name} er blokkert. Dere kan ikke sende meldinger til hverandre. Svindel? Rapporter også gjerne.",
+    )
+
+
+@router.post("/meldinger/{conversation_id:int}/opphev-blokkering")
+def unblock_in_conversation(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    conversation = messages.get_conversation(conn, conversation_id, user.id, mark_read=False)
+    messages.unblock(conn, user.id, conversation.other_id(user.id))
+    return redirect(f"/meldinger/{conversation_id}", flash="Blokkeringen er opphevet.")
+
+
+@router.post("/min-side/blokkert/{blocked_id:int}/opphev")
+def unblock_user(blocked_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    messages.unblock(conn, user.id, blocked_id)
+    return redirect("/min-side#blokkert", flash="Blokkeringen er opphevet.")
 
 
 @router.post("/meldinger/{conversation_id:int}")
@@ -735,7 +808,7 @@ def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Res
             max_per_day=settings.max_messages_per_day,
             new_account_max_per_day=settings.new_account_max_messages_per_day,
         )
-    except (ValidationProblem, RateLimited) as exc:
+    except (ValidationProblem, RateLimited, Forbidden) as exc:
         return redirect(f"/meldinger/{conversation_id}", flash=exc.message)
     notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     return redirect(f"/meldinger/{conversation_id}#siste")
@@ -932,12 +1005,15 @@ def _my_page(
     request: Request, conn: sqlite3.Connection, user: users.User, new_token: str | None = None
 ) -> Response:
     mine = listings.search(conn, SearchParams(user_id=user.id, status="all", include_hidden=True, limit=100))
+    counter = request.app.state.views
     return render(
         request,
         conn,
         "my_page.html",
         {
             "my_listings": mine.items,
+            "views": {item.id: item.views + counter.pending(item.id) for item in mine.items},
+            "blocked": messages.blocked_users(conn, user.id),
             "tokens": users.list_api_tokens(conn, user.id),
             "new_token": new_token,
             "mail_enabled": request.app.state.mailer.enabled,
@@ -1418,7 +1494,10 @@ def user_page(user_id: int, request: Request, conn: Conn) -> Response:
     if seller is None:
         raise NotFound(f"Bruker {user_id} finnes ikke.")
     result = listings.search(conn, SearchParams(user_id=user_id, status="any", limit=60))
-    return render(request, conn, "user.html", {"seller": seller, "result": result})
+    response_time = messages.response_time_text(messages.response_time_hours(conn, user_id))
+    return render(
+        request, conn, "user.html", {"seller": seller, "result": result, "response_time": response_time}
+    )
 
 
 # --- Moderation ------------------------------------------------------------------------------

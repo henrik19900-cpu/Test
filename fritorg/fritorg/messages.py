@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import dataclass, field
+from statistics import median
 
 from . import fraud
 from .db import transaction
-from .errors import NotFound, RateLimited, ValidationProblem
+from .errors import Forbidden, NotFound, RateLimited, ValidationProblem
 from .listings import CHANNELS, get_listing
-from .util import iso_ago, now_iso
+from .util import iso_ago, now_iso, parse_iso
 
 MAX_BODY = 5000
 
@@ -134,6 +135,91 @@ def _insert_message(
     return cursor.lastrowid  # type: ignore[return-value]
 
 
+# --- Blocking ------------------------------------------------------------------------------------
+
+
+def block(conn: sqlite3.Connection, user_id: int, blocked_id: int) -> None:
+    """Stop messages between two people, in both directions. Only the person who blocked can undo it."""
+    if user_id == blocked_id:
+        raise ValidationProblem.field("user_id", "Du kan ikke blokkere deg selv.")
+    if conn.execute("SELECT 1 FROM users WHERE id = ?", (blocked_id,)).fetchone() is None:
+        raise NotFound(f"Bruker {blocked_id} finnes ikke.")
+    conn.execute(
+        "INSERT OR IGNORE INTO blocks (user_id, blocked_id, created_at) VALUES (?, ?, ?)",
+        (user_id, blocked_id, now_iso()),
+    )
+
+
+def unblock(conn: sqlite3.Connection, user_id: int, blocked_id: int) -> None:
+    conn.execute("DELETE FROM blocks WHERE user_id = ? AND blocked_id = ?", (user_id, blocked_id))
+
+
+def has_blocked(conn: sqlite3.Connection, user_id: int, other_id: int) -> bool:
+    return (
+        conn.execute(
+            "SELECT 1 FROM blocks WHERE user_id = ? AND blocked_id = ?", (user_id, other_id)
+        ).fetchone()
+        is not None
+    )
+
+
+def blocked_users(conn: sqlite3.Connection, user_id: int) -> list[dict]:
+    return [
+        dict(row)
+        for row in conn.execute(
+            "SELECT u.id, u.name, b.created_at FROM blocks b JOIN users u ON u.id = b.blocked_id "
+            "WHERE b.user_id = ? ORDER BY b.created_at DESC",
+            (user_id,),
+        )
+    ]
+
+
+def _check_not_blocked(conn: sqlite3.Connection, sender_id: int, recipient_id: int) -> None:
+    if has_blocked(conn, sender_id, recipient_id):
+        raise Forbidden(
+            "Du har blokkert denne brukeren. Opphev blokkeringen hvis du vil sende melding.",
+            hint="The user blocked this person: unblock with DELETE /api/v1/me/blocks/{user_id} first.",
+        )
+    if has_blocked(conn, recipient_id, sender_id):
+        raise Forbidden(
+            "Du kan ikke sende meldinger til denne brukeren.",
+            hint="The recipient does not accept messages from this account.",
+        )
+
+
+# --- Response time --------------------------------------------------------------------------------
+
+
+def response_time_hours(conn: sqlite3.Connection, seller_id: int) -> float | None:
+    """Median hours until the seller first answered a new conversation, over the last 50 in half a
+    year. Unanswered ones older than a day count as slow. None with fewer than 3 to go by."""
+    rows = conn.execute(
+        "SELECT c.created_at AS asked, (SELECT MIN(m.created_at) FROM messages m "
+        "WHERE m.conversation_id = c.id AND m.sender_id = c.seller_id) AS answered "
+        "FROM conversations c WHERE c.seller_id = ? AND c.created_at > ? ORDER BY c.id DESC LIMIT 50",
+        (seller_id, iso_ago(days=180)),
+    ).fetchall()
+    day_ago = iso_ago(days=1)
+    hours = []
+    for row in rows:
+        if row["answered"]:
+            hours.append((parse_iso(row["answered"]) - parse_iso(row["asked"])).total_seconds() / 3600)
+        elif row["asked"] < day_ago:
+            hours.append(float("inf"))
+    return median(hours) if len(hours) >= 3 else None
+
+
+def response_time_text(hours: float | None) -> str | None:
+    """Shown to buyers when the seller usually answers within a day."""
+    if hours is None or hours > 24:
+        return None
+    if hours <= 1:
+        return "Svarer vanligvis innen en time"
+    if hours <= 4:
+        return "Svarer vanligvis innen noen timer"
+    return "Svarer vanligvis innen et døgn"
+
+
 def contact_seller(
     conn: sqlite3.Connection,
     listing_id: int,
@@ -157,6 +243,7 @@ def contact_seller(
         )
     if listing.user_id == buyer_id:
         raise ValidationProblem.field("listing_id", "Du kan ikke sende melding om din egen annonse.")
+    _check_not_blocked(conn, buyer_id, listing.user_id)
     with transaction(conn):
         _check_quota(conn, buyer_id, max_per_day, new_account_max_per_day)
         row = conn.execute(
@@ -188,6 +275,7 @@ def reply(
 ) -> int:
     text = _clean_body(body)
     conversation = _get(conn, conversation_id, sender_id)
+    _check_not_blocked(conn, sender_id, conversation.other_id(sender_id))
     with transaction(conn):
         _check_quota(conn, sender_id, max_per_day, new_account_max_per_day)
         message_id = _insert_message(conn, conversation.id, sender_id, text, via)

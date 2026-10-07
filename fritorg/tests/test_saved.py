@@ -183,7 +183,7 @@ def test_owner_sees_how_many_saved_the_listing(client, auth, other_auth):
     listing = make_listing(client, auth)
     client.put(f"/api/v1/me/favorites/{listing['id']}", headers=other_auth)
     web_login(client)
-    assert "1 har lagret annonsen" in client.get(f"/annonse/{listing['id']}").text
+    assert "1 har lagret den" in client.get(f"/annonse/{listing['id']}").text
 
 
 def test_alert_emails(app, client, auth, other_auth, settings):

@@ -284,8 +284,23 @@ ALTER TABLE users ADD COLUMN price_alerts INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE users ADD COLUMN price_alerted_at TEXT;
 """
 
+# Blocking in messages, and view counts for sellers.
+SCHEMA_V3 = """
+-- People someone does not want messages from (in either direction).
+CREATE TABLE blocks (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, blocked_id)
+) WITHOUT ROWID;
+CREATE INDEX idx_blocks_blocked ON blocks(blocked_id);
+
+-- How many times people have looked at a listing (counted in memory, written every few minutes).
+ALTER TABLE listings ADD COLUMN views INTEGER NOT NULL DEFAULT 0;
+"""
+
 # Append new migrations to the end; never edit one that has shipped.
-MIGRATIONS: list[str] = [SCHEMA_V1, SCHEMA_V2]
+MIGRATIONS: list[str] = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3]
 
 
 def _casefold(value: object) -> object:

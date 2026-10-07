@@ -115,6 +115,7 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
             }
             if owner_view
             else None,
+            "views": listing.views if owner_view else None,
             "created_via": listing.created_via,
             "expires_at": listing.expires_at,
             "source": source_dict(listing),
@@ -509,6 +510,26 @@ def listing_jsonld(listing: Listing, base: str) -> dict[str, Any]:
             offer["businessFunction"] = "http://purl.org/goodrelations/v1#LeaseOut"
         data["offers"] = offer
     return data
+
+
+def breadcrumbs_jsonld(listing: Listing, base: str) -> dict[str, Any]:
+    """schema.org BreadcrumbList: search engines show the path (Torget › Sykler) instead of the URL."""
+    steps = [
+        ("Forside", f"{base}/"),
+        (listing.group.name, f"{base}/sok?category={listing.group.slug}"),
+        (listing.category_obj.name, f"{base}/sok?category={listing.category}"),
+        (listing.title, listing_url(base, listing.id)),
+    ]
+    if listing.group.slug == listing.category:
+        del steps[2]
+    return {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": number, "name": name, "item": url}
+            for number, (name, url) in enumerate(steps, start=1)
+        ],
+    }
 
 
 def jsonld_script(data: dict[str, Any]) -> str:

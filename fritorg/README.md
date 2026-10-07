@@ -24,7 +24,8 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
 - **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk, så gamle annonser ikke hoper seg opp. Selgeren får e-post når en annonse går ut.
-- **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser.
+- **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser, hurtigsvar for selgeren («Ja, den er fortsatt til salgs») og blokkering av brukere man ikke vil høre fra. Selgerens svartid vises på annonsen («Svarer vanligvis innen en time»).
+- **For selgere:** hvor mange som har sett annonsen og lagret den, og valg av hovedbilde.
 - **Favoritter og lagrede søk:** lagre annonser med hjertet, og lagre et søk for å se hvor mange nye treff som har kommet siden sist. Med bekreftet e-post kommer nye treff på e-post, høyst én gang i timen per søk, med lenke for å melde seg av uten å logge inn. Selgeren ser hvor mange som har lagret annonsen, men ikke hvem.
 - **Prisvarsel:** settes prisen på en favoritt ned med minst 5 %, vises den gamle prisen på favorittsiden, og man får e-post om det (høyst to ganger i døgnet, kan slås av).
 - **Deling:** «Del»-knappen åpner mobilens delemeny (eller kopierer lenken), og hver annonse har forhåndsvisning med bilde, tittel og pris når den deles i meldinger og sosiale medier (Open Graph). Annonsesiden viser også lignende annonser. Siden kan legges på hjemskjermen på mobilen med eget ikon.

@@ -29,9 +29,27 @@
   {% endfor %}
 </ol>
 
-{% if needs_verification %}
+{% set other = conversation.other_name(user.id) %}
+{% if blocked_by_me %}
+<div class="notice" role="status">
+  <p>Du har blokkert {{ other }}. Dere kan ikke sende meldinger til hverandre.</p>
+  <form method="post" action="/meldinger/{{ conversation.id }}/opphev-blokkering">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="link-button">Opphev blokkeringen</button>
+  </form>
+</div>
+{% elif blocked_me %}
+<p class="notice">Du kan ikke sende flere meldinger til {{ other }}.</p>
+{% elif needs_verification %}
 <p class="notice">Bekreft mobilnummeret ditt for å svare. <a href="/verifiser-telefon?neste=/meldinger/{{ conversation.id }}">Bekreft nå</a> – det tar under ett minutt.</p>
 {% else %}
+{% if quick_replies %}
+<form method="post" action="/meldinger/{{ conversation.id }}" class="quick-replies">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <span class="small muted">Hurtigsvar:</span>
+  {% for text in quick_replies %}<button type="submit" class="button button-small" name="message" value="{{ text }}">{{ text }}</button>{% endfor %}
+</form>
+{% endif %}
 <form method="post" action="/meldinger/{{ conversation.id }}" class="reply-form">
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <label for="reply">Svar</label>
@@ -41,8 +59,19 @@
 {% endif %}
 <p class="small muted">Tips: Avtal gjerne henting og betaling ansikt til ansikt. Send aldri penger til ukjente før du har sett varen, og oppgi aldri kortnummer eller BankID for å motta penger. <a href="/trygg-handel">Les mer om trygg handel</a>.</p>
 
+{% if not blocked_by_me %}
 <details class="report">
-  <summary>Rapporter {{ conversation.other_name(user.id) }}</summary>
+  <summary>Blokker {{ other }}</summary>
+  <form method="post" action="/meldinger/{{ conversation.id }}/blokker">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <p class="small">Dere kan ikke sende meldinger til hverandre etterpå. {{ other }} får ikke beskjed. Du kan oppheve blokkeringen når som helst.</p>
+    <button type="submit" class="button">Blokker {{ other }}</button>
+  </form>
+</details>
+{% endif %}
+
+<details class="report">
+  <summary>Rapporter {{ other }}</summary>
   <form method="post" action="/meldinger/{{ conversation.id }}/rapporter">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="field">

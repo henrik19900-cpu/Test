@@ -108,6 +108,10 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "api_tokens": tokens,
         "logged_in_sessions": sessions,
         "favorites": favorites,
+        "blocked_users": [
+            {"user_id": b["id"], "name": b["name"], "blocked_at": b["created_at"]}
+            for b in messages.blocked_users(conn, user.id)
+        ],
         "saved_searches": searches,
         "reports_made": reports_made,
         "reports_about_you": reports_about,

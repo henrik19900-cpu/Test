@@ -250,6 +250,10 @@ class ListingOut(ListingSummaryOut):
         description="Neutral warnings for buyers (e.g. the listing asks for contact outside Fritorg). Show them to your user."
     )
     moderation: ModerationOut | None = None
+    views: int | None = Field(
+        None,
+        description="How many times people have looked at the listing (only for its owner; a few minutes behind).",
+    )
     created_via: str = Field(
         description="'web', 'api', 'mcp' (MCP means an AI agent created it) or 'import' (see `source`)."
     )
@@ -436,6 +440,12 @@ class PhoneCodeIn(BaseModel):
 
 class TokenCreateIn(BaseModel):
     name: str = Field("API", max_length=60)
+
+
+class BlockedOut(BaseModel):
+    user_id: int
+    name: str
+    blocked_at: str
 
 
 class FavoritesOut(BaseModel):

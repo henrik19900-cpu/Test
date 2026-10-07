@@ -232,6 +232,22 @@ def delete_image(
     remove_files(uploads_dir, [image.filename])
 
 
+def make_main(
+    conn: sqlite3.Connection, user_id: int, listing_id: int, image_id: int, is_admin: bool = False
+) -> None:
+    """Move a photo first: it becomes the one shown in search results and previews."""
+    listing = get_listing(conn, listing_id)
+    check_owner(listing, user_id, is_admin)
+    if all(image.id != image_id for image in listing.images):
+        raise NotFound(f"Bilde {image_id} finnes ikke på annonse {listing_id}.")
+    order = [image_id] + [image.id for image in listing.images if image.id != image_id]
+    conn.executemany(
+        "UPDATE listing_images SET position = ? WHERE id = ?",
+        [(position, i) for position, i in enumerate(order)],
+    )
+    conn.execute("UPDATE listings SET updated_at = ? WHERE id = ?", (now_iso(), listing_id))
+
+
 def remove_files(uploads_dir: Path, filenames: list[str]) -> None:
     """Delete images and their thumbnails."""
     for name in filenames:

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import listing_grid with context %}
+{% from "icons.html" import icon %}
 
 {% block title %}{{ seller.name }} – {{ site_name }}{% endblock %}
 {% block head %}<link rel="alternate" type="application/json" href="/api/v1/listings?seller_id={{ seller.id }}&amp;status=any">{% endblock %}
@@ -7,6 +8,7 @@
 {% block content %}
 <h1>{{ seller.name }}</h1>
 {% if seller.is_verified %}<p><span class="tag tag-verified" title="{{ seller.verification_title }}">{{ seller.verification_label }}</span></p>{% endif %}
+{% if response_time %}<p class="small response-time">{{ icon("chat", 16) }} {{ response_time }}</p>{% endif %}
 <p class="muted">Medlem siden {{ seller.created_at|date_no }} · {{ result.total|number }} {{ "annonse" if result.total == 1 else "annonser" }}</p>
 {% if result.items %}
   {{ listing_grid(result.items, heading=2) }}

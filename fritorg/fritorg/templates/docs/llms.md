@@ -37,6 +37,7 @@ Key facts for agents:
 - [Counties]({{ base }}/api/v1/counties): slugs for the `county` filter.
 - [Bulk export as NDJSON]({{ base }}/api/v1/export/listings.ndjson): every public listing, one JSON object per line. Use it instead of crawling.
 - [Atom feeds]({{ base }}/feed.atom?q=sykkel): any search as a feed of new matches.
+- Blocking: `PUT`/`DELETE {{ base }}/api/v1/me/blocks/{user_id}` stops messages both ways (a blocked send returns 403). Owners also get `views` on their listings.
 - Following a search for your user: `POST {{ base }}/api/v1/me/saved-searches` (MCP `save_search`) with the same filters as a search. `GET {{ base }}/api/v1/me/saved-searches` (MCP `check_saved_searches`) returns `new_count` and `new_listings_url`; with `notify` the user also gets an e-mail about new matches, at most hourly. Favourites: `PUT`/`DELETE {{ base }}/api/v1/me/favorites/{id}` (MCP `save_favorite`).
 - [Sitemap]({{ base }}/sitemap.xml)
 

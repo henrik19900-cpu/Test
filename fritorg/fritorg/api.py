@@ -33,6 +33,7 @@ from .ratelimit import RateLimiter
 from .schemas import (
     AccountOut,
     AuthOut,
+    BlockedOut,
     CategoryOut,
     ContactIn,
     ConversationOut,
@@ -731,6 +732,30 @@ def create_token(body: TokenCreateIn, request: Request, conn: Conn, user: Curren
 @router.delete("/me/tokens/{token_id}", status_code=204, tags=["account"], summary="Revoke an API token")
 def revoke_token(token_id: int, conn: Conn, user: CurrentUser) -> Response:
     users.revoke_api_token(conn, user.id, token_id)
+    return Response(status_code=204)
+
+
+# --- Blocking ------------------------------------------------------------------------------------
+
+
+@router.get("/me/blocks", response_model=list[BlockedOut], tags=["messages"], summary="People you blocked")
+def list_blocks(conn: Conn, user: CurrentUser) -> list[dict]:
+    return [
+        {"user_id": b["id"], "name": b["name"], "blocked_at": b["created_at"]}
+        for b in messages.blocked_users(conn, user.id)
+    ]
+
+
+@router.put("/me/blocks/{user_id}", status_code=204, tags=["messages"], summary="Block someone")
+def block_user(user_id: int, conn: Conn, user: CurrentUser) -> Response:
+    """No messages either way until unblocked. The other person is not told."""
+    messages.block(conn, user.id, user_id)
+    return Response(status_code=204)
+
+
+@router.delete("/me/blocks/{user_id}", status_code=204, tags=["messages"], summary="Unblock someone")
+def unblock_user(user_id: int, conn: Conn, user: CurrentUser) -> Response:
+    messages.unblock(conn, user.id, user_id)
     return Response(status_code=204)
 
 

@@ -29,6 +29,7 @@ from . import (
     mcp_server,
     navjobs,
     phone,
+    views,
     web,
 )
 from .config import Settings
@@ -169,6 +170,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if importer is not None:
             importer.stop()
         worker.stop()
+        with db.session() as conn:  # views counted since the last round
+            app.state.views.flush(conn)
 
     app = FastAPI(
         lifespan=lifespan,
@@ -189,6 +192,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.secret_key = secret_key
     app.state.identity_provider = provider
     app.state.sms = sms
+    app.state.views = views.ViewCounter()
 
     app.include_router(api.router)
     app.include_router(mcp_server.router)

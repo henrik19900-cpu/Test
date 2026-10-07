@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from dataclasses import dataclass
 
-from . import listings, saved_searches
+from . import alerts, listings, saved_searches
 from .config import Settings
 from .db import Database
 from .mailer import Mail, Mailer
@@ -25,6 +25,7 @@ class Report:
     expired: int = 0
     purged: int = 0
     alerts: int = 0
+    price_drops: int = 0
 
 
 def purge(conn: sqlite3.Connection) -> int:
@@ -71,6 +72,7 @@ def run(db: Database, settings: Settings, mailer: Mailer | None = None, secret: 
                 _tell_owner(mailer, conn, base, listing)
             if secret:  # signs the unsubscribe links in the alerts
                 report.alerts = saved_searches.send_alerts(conn, mailer, base, secret)
+                report.price_drops = alerts.send_price_drops(conn, mailer, base, secret)
         report.purged = purge(conn)
     return report
 
@@ -103,7 +105,7 @@ class Worker:
                 )
                 if report.expired:
                     logger.info("Hid %s expired listings", report.expired)
-                if report.alerts:
-                    logger.info("Sent %s saved-search alerts", report.alerts)
+                if report.alerts or report.price_drops:
+                    logger.info("Sent %s saved-search and %s price alerts", report.alerts, report.price_drops)
             except Exception:
                 logger.exception("Maintenance failed; trying again later")

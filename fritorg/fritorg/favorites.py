@@ -20,7 +20,9 @@ _VISIBLE = "((l.status IN ('active', 'sold') AND u.banned_at IS NULL) OR l.user_
 
 def add(conn: sqlite3.Connection, user_id: int, listing_id: int) -> bool:
     """Save a listing. Returns False if it was already saved."""
-    listings.get_visible_listing(conn, listing_id, user_id)  # 404 for listings the person cannot see
+    listing = listings.get_visible_listing(
+        conn, listing_id, user_id
+    )  # 404 for listings the person cannot see
     if conn.execute(
         "SELECT 1 FROM favorites WHERE user_id = ? AND listing_id = ?", (user_id, listing_id)
     ).fetchone():
@@ -32,8 +34,9 @@ def add(conn: sqlite3.Connection, user_id: int, listing_id: int) -> bool:
             hint="Remove favourites with DELETE /api/v1/me/favorites/{listing_id} (MCP: save_favorite remove=true).",
         )
     conn.execute(
-        "INSERT OR IGNORE INTO favorites (user_id, listing_id, created_at) VALUES (?, ?, ?)",
-        (user_id, listing_id, now_iso()),
+        "INSERT OR IGNORE INTO favorites (user_id, listing_id, created_at, price, notified_price) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (user_id, listing_id, now_iso(), listing.price, listing.price),
     )
     return True
 
@@ -56,7 +59,10 @@ def saved_listings(
         f"SELECT COUNT(*) FROM listings l JOIN users u ON u.id = l.user_id {join}", (user_id,)
     ).fetchone()[0]
     items = listings.fetch(
-        conn, f"{join} ORDER BY f.created_at DESC, l.id DESC LIMIT ? OFFSET ?", (user_id, limit, offset)
+        conn,
+        f"{join} ORDER BY f.created_at DESC, l.id DESC LIMIT ? OFFSET ?",
+        (user_id, limit, offset),
+        columns="f.price AS saved_price",
     )
     return items, total
 

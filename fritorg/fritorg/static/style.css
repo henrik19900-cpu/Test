@@ -1561,6 +1561,24 @@ section.panel {
   margin-top: 0;
 }
 
+.card-drop {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.inline-setting {
+  margin: 0 0 1rem;
+}
+
+.inline-setting p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+}
+
 .card-new {
   display: inline-block;
   padding: 0 0.4em;

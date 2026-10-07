@@ -53,6 +53,7 @@ class User:
     has_password: bool = True
     email_verified_at: str | None = None
     phone_hint: str | None = None
+    price_alerts: bool = True  # e-mail when a favourite gets cheaper
 
     @property
     def is_new(self) -> bool:
@@ -99,6 +100,7 @@ def _user(row: sqlite3.Row) -> User:
         has_password=row["password_hash"] != UNUSABLE_PASSWORD,
         email_verified_at=row["email_verified_at"],
         phone_hint=row["phone_hint"],
+        price_alerts=bool(row["price_alerts"]),
     )
 
 

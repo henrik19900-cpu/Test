@@ -8,14 +8,11 @@ new. (A listing that waited for moderation is approved with its original id, so 
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
 import sqlite3
 from dataclasses import dataclass
 from urllib.parse import parse_qsl, urlencode
 
-from . import listings, taxonomy
+from . import alerts, listings, taxonomy
 from .errors import NotFound, ValidationProblem
 from .listings import SearchParams, SearchResult
 from .mailer import Mail, Mailer
@@ -24,7 +21,7 @@ from .util import format_number, iso_ago, now_iso
 MAX_SAVED = 50
 ALERT_INTERVAL_HOURS = 1  # at most one e-mail per saved search per hour; matches wait for the next one
 ALERT_ITEMS = 10  # listings named per search in an e-mail
-NBSP = " "
+NBSP = "\u00a0"
 
 
 @dataclass
@@ -225,46 +222,6 @@ def delete(conn: sqlite3.Connection, user_id: int, search_id: int) -> None:
         raise NotFound(f"Lagret søk {search_id} finnes ikke.")
 
 
-# --- Unsubscribe links ------------------------------------------------------------------------
-# A link in every alert turns alerts off without logging in: "s<id>" for one search, "u<id>" for all
-# of a person's. The token only allows that, so it does not expire.
-
-
-def _signature(secret: str, subject: str) -> str:
-    digest = hmac.new(secret.encode(), f"alerts-off:{subject}".encode(), hashlib.sha256).digest()
-    return base64.urlsafe_b64encode(digest[:18]).decode()
-
-
-def unsubscribe_token(secret: str, *, search_id: int | None = None, user_id: int | None = None) -> str:
-    subject = f"s{search_id}" if search_id is not None else f"u{user_id}"
-    return f"{subject}.{_signature(secret, subject)}"
-
-
-def unsubscribe_target(conn: sqlite3.Connection, secret: str, token: str) -> tuple[str, int, str] | None:
-    """("search" | "user", id, description) for a valid token, else None."""
-    subject, _, signature = (token or "").partition(".")
-    if not subject[1:].isdigit() or not hmac.compare_digest(signature, _signature(secret, subject)):
-        return None
-    number = int(subject[1:])
-    if subject[0] == "s":
-        row = conn.execute("SELECT name FROM saved_searches WHERE id = ?", (number,)).fetchone()
-        return ("search", number, f"søket «{row['name']}»") if row else None
-    if subject[0] == "u":
-        return "user", number, "alle de lagrede søkene dine"
-    return None
-
-
-def unsubscribe(conn: sqlite3.Connection, secret: str, token: str) -> str | None:
-    """Turn alerts off for a token. Returns what was turned off, or None for an invalid token."""
-    target = unsubscribe_target(conn, secret, token)
-    if target is None:
-        return None
-    kind, number, description = target
-    column = "id" if kind == "search" else "user_id"
-    conn.execute(f"UPDATE saved_searches SET notify = 0 WHERE {column} = ?", (number,))
-    return description
-
-
 # --- E-mail alerts ------------------------------------------------------------------------------
 
 
@@ -295,18 +252,17 @@ def _alert_mail(
         lines += [
             "",
             (f"Se alle, også {rest} til: " if rest > 0 else "Se søket: ") + f"{base}/lagrede-sok/{saved.id}",
-            f"Slå av varsel for dette søket: {base}/lagrede-sok/av?token={unsubscribe_token(secret, search_id=saved.id)}",
+            f"Slå av varsel for dette søket: {alerts.unsubscribe_url(base, secret, 'search', saved.id)}",
             "",
         ]
-    off = f"{base}/lagrede-sok/av?token={unsubscribe_token(secret, user_id=user_id)}"
+    off = alerts.unsubscribe_url(base, secret, "searches", user_id)
     lines += [
         f"Du får denne e-posten fordi du har lagret søk med e-postvarsel på {site}. "
         f"Endre varslene på {base}/lagrede-sok, eller slå av alle: {off}",
         "",
         f"Husk: {site} sender aldri betalingslenker. Se varen før du betaler.",
     ]
-    headers = {"List-Unsubscribe": f"<{off}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
-    return Mail(email, subject, "\n".join(lines) + "\n", headers=headers)
+    return Mail(email, subject, "\n".join(lines) + "\n", headers=alerts.one_click_headers(off))
 
 
 def send_alerts(conn: sqlite3.Connection, mailer: Mailer, base: str, secret: str) -> int:

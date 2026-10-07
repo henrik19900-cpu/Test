@@ -136,6 +136,8 @@ class Listing:
     # Seller statistics, only loaded for single-listing views (get_listing).
     seller_active: int | None = None
     seller_sold: int | None = None
+    # Favourites: the price when the person saved it (only loaded for their favourites).
+    saved_price: int | None = None
     # Imported listings (see SOURCES): where they come from and where to apply.
     source: str | None = None
     source_id: str | None = None
@@ -185,6 +187,13 @@ class Listing:
     @property
     def is_imported(self) -> bool:
         return self.source is not None
+
+    @property
+    def price_drop(self) -> int | None:
+        """For a favourite whose price was lowered since it was saved: the price then."""
+        if self.saved_price is not None and self.price is not None and self.price < self.saved_price:
+            return self.saved_price
+        return None
 
     @property
     def expires_soon(self) -> bool:
@@ -473,6 +482,7 @@ def _listing(row: sqlite3.Row) -> Listing:
         seller_verified=bool(row["seller_verified_at"]),
         seller_verified_via=row["seller_verified_via"] if row["seller_verified_at"] else None,
         rank=row["rank"] if "rank" in keys else None,
+        saved_price=row["saved_price"] if "saved_price" in keys else None,
         source=row["source"],
         source_id=row["source_id"],
         source_url=row["source_url"],
@@ -538,10 +548,13 @@ def _index(conn: sqlite3.Connection, listing_id: int, values: dict[str, Any]) ->
 index_listing = _index  # for importers that write listings themselves
 
 
-def fetch(conn: sqlite3.Connection, tail: str, args: Iterable[Any] = ()) -> list[Listing]:
+def fetch(
+    conn: sqlite3.Connection, tail: str, args: Iterable[Any] = (), *, columns: str = ""
+) -> list[Listing]:
     """Listings with seller fields and images: `SELECT ... FROM listings l JOIN users u` + tail
-    (further joins, WHERE, ORDER BY, LIMIT)."""
-    items = [_listing(row) for row in conn.execute(f"{_SELECT} {tail}", list(args))]
+    (further joins, WHERE, ORDER BY, LIMIT). `columns` adds columns from those joins."""
+    select = f"SELECT l.*, {_SELLER_COLUMNS}{', ' + columns if columns else ''} FROM listings l JOIN users u ON u.id = l.user_id"
+    items = [_listing(row) for row in conn.execute(f"{select} {tail}", list(args))]
     _attach_images(conn, items)
     return items
 

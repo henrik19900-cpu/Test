@@ -102,6 +102,9 @@ def robots_txt(request: Request) -> PlainTextResponse:
         "Allow: /",
         "Disallow: /min-side",
         "Disallow: /meldinger",
+        "Disallow: /favoritter",
+        "Disallow: /lagrede-sok",
+        "Disallow: /varsler/",
         "Disallow: /logg-inn",
         "Disallow: /registrer",
         "Disallow: /ny-annonse",
@@ -207,6 +210,38 @@ def security_txt(request: Request) -> PlainTextResponse:
     return PlainTextResponse(
         f"Contact: mailto:{contact}\nExpires: {expires}\nPreferred-Languages: no, en\n"
         f"Canonical: {base}/.well-known/security.txt\n"
+    )
+
+
+@router.get("/manifest.webmanifest")
+def web_manifest(request: Request) -> JSONResponse:
+    """Lets people add the site to their phone's home screen, with its name and icon."""
+    name = request.app.state.settings.site_name
+    icons = [
+        {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        {
+            "src": "/static/icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable",
+        },
+    ]
+    return JSONResponse(
+        {
+            "name": f"{name} – gratis markedsplass",
+            "short_name": name,
+            "description": "Kjøp, selg og gi bort gratis i hele Norge.",
+            "lang": "nb",
+            "start_url": "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#f5f6f2",
+            "theme_color": "#0b6b4f",
+            "icons": icons,
+        },
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 

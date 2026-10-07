@@ -19,6 +19,7 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "created_at": row["created_at"],
         "created_via": row["created_via"],
         "moderator": bool(row["is_admin"]),
+        "price_drop_emails": bool(row["price_alerts"]),
         "verification": user.verification,
         "verified_at": row["verified_at"],
         "verified_name": row["verified_name"],
@@ -79,9 +80,11 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
             "listing_id": r["listing_id"],
             "url": serializers.listing_url(base, r["listing_id"]),
             "saved_at": r["created_at"],
+            "price_when_saved": r["price"],
         }
         for r in conn.execute(
-            "SELECT listing_id, created_at FROM favorites WHERE user_id = ? ORDER BY created_at", (user.id,)
+            "SELECT listing_id, created_at, price FROM favorites WHERE user_id = ? ORDER BY created_at",
+            (user.id,),
         )
     ]
     searches = [

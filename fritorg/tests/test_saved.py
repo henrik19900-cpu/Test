@@ -219,14 +219,14 @@ def test_alert_emails(app, client, auth, other_auth, settings):
 
     # The one-click unsubscribe link in the header turns all alerts off, without logging in.
     link = mail.headers["List-Unsubscribe"].strip("<>")
-    path = link[link.index("/lagrede-sok") :]
+    path = link[link.index("/varsler/av") :]
     confirm = client.get(path)
     assert confirm.status_code == 200 and "alle de lagrede søkene dine" in confirm.text
     response = client.post(path, data={"List-Unsubscribe": "One-Click"})
     assert response.status_code == 200 and response.text == "ok"
     with app.state.db.session() as conn:
         assert {s.notify for s in saved_searches.list_for(conn, 2)} == {False}
-    assert client.get("/lagrede-sok/av?token=s1.feil").status_code == 404
+    assert client.get("/varsler/av?token=s1.feil").status_code == 404
 
     # Unverified addresses get nothing.
     with app.state.db.session() as conn:
@@ -253,3 +253,87 @@ def test_canonical_query_and_names():
     assert saved_searches.canonical_query(params) == "q=Sofa&category=mobler&price_min=100&price_max=2000"
     assert saved_searches.describe(params) == "«Sofa», Møbler og interiør, 100–2\u00a0000\u00a0kr"
     assert saved_searches.canonical_query(params_from_query([("sort", "newest")])) == ""
+
+
+def test_price_drop_alerts(app, client, auth, other_auth, settings):
+    memory = MemoryMailer(settings)
+    app.state.mailer = memory
+    secret = app.state.secret_key
+    listing = make_listing(client, auth)  # 6 500 kr
+    lid = listing["id"]
+    client.put(f"/api/v1/me/favorites/{lid}", headers=other_auth)
+    with app.state.db.session() as conn:
+        conn.execute(
+            "UPDATE users SET email_verified_at = '2026-01-01T00:00:00Z' WHERE email = 'ola@example.no'"
+        )
+
+    def run():
+        return maintenance.run(app.state.db, settings, memory, secret).price_drops
+
+    client.patch(f"/api/v1/listings/{lid}", json={"price": 6400}, headers=auth)
+    assert run() == 0  # a small change is not worth an e-mail
+    client.patch(f"/api/v1/listings/{lid}", json={"price": 5000}, headers=auth)
+    assert run() == 1
+    mail = memory.outbox[-1]
+    assert mail.subject == "Prisen er satt ned: «Terrengsykkel Trek Marlin 7»"
+    assert "5 000 kr (før 6 500 kr)" in mail.body and f"/annonse/{lid}" in mail.body
+    assert run() == 0  # each drop once
+
+    client.patch(f"/api/v1/listings/{lid}", json={"price": 4000}, headers=auth)
+    assert run() == 0  # at most one e-mail every 12 hours
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE users SET price_alerted_at = '2001-01-01T00:00:00Z'")
+    assert run() == 1 and "4 000 kr (før 5 000 kr)" in memory.outbox[-1].body
+
+    # The favourites page shows the price when it was saved.
+    web_login(client, email="ola@example.no")
+    page = client.get("/favoritter").text
+    assert "<s>6 500 kr</s>" in page and "Du får e-post når prisen settes ned" in page
+
+    # The link in the e-mail turns price alerts off.
+    link = mail.headers["List-Unsubscribe"].strip("<>")
+    assert client.post(link[link.index("/varsler/av") :], data={"List-Unsubscribe": "One-Click"}).text == "ok"
+    assert "E-post når prisen settes ned er slått av" in client.get("/favoritter").text
+    client.patch(f"/api/v1/listings/{lid}", json={"price": 2000}, headers=auth)
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE users SET price_alerted_at = NULL")
+    assert run() == 0
+    client.post("/favoritter/varsel", data={"csrf_token": csrf(client), "price_alerts": "1"})
+    assert run() == 1
+
+
+def test_databases_from_earlier_versions_are_upgraded(tmp_path):
+    import sqlite3
+
+    from fritorg.db import MIGRATIONS, SCHEMA_V1, Database
+
+    # The first schema, and the first schema as it was for a while: with favourites and saved
+    # searches, but without the price columns.
+    briefly = """
+    CREATE TABLE favorites (
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, listing_id)
+    ) WITHOUT ROWID;
+    CREATE INDEX idx_favorites_listing ON favorites(listing_id);
+    CREATE TABLE saved_searches (
+        id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, query TEXT NOT NULL, notify INTEGER NOT NULL DEFAULT 1,
+        seen_id INTEGER NOT NULL DEFAULT 0, alerted_id INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL, alerted_at TEXT
+    );
+    CREATE UNIQUE INDEX idx_saved_searches_user_query ON saved_searches(user_id, query);
+    """
+    for name, extra in (("first", ""), ("briefly", briefly)):
+        path = tmp_path / f"{name}.sqlite3"
+        conn = sqlite3.connect(path)
+        conn.executescript(f"BEGIN;\n{SCHEMA_V1}\n{extra}\nPRAGMA user_version = 1;\nCOMMIT;")
+        conn.close()
+        db = Database(path)
+        db.init()
+        with db.session() as conn:
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
+            assert {"price", "notified_price"} <= {r[1] for r in conn.execute("PRAGMA table_info(favorites)")}
+            assert "price_alerts" in {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+            assert conn.execute("SELECT COUNT(*) FROM saved_searches").fetchone()[0] == 0

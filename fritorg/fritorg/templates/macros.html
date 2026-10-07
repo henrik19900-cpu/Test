@@ -21,7 +21,7 @@
       <p class="card-meta">{% if new_after and item.id > new_after %}<span class="card-new">Ny</span> {% endif %}{{ item.place or item.category_obj.name }}</p>
       <h3 class="card-title">{{ item.title }}</h3>
       {% set price = item.price_text(NBSP) %}
-      {% if price %}<p class="card-price">{{ price }}</p>{% elif item.type == "job" %}<p class="card-price card-price-muted">{{ item.attributes.get("employer") or "Ledig stilling" }}</p>{% endif %}
+      {% if price %}<p class="card-price">{{ price }}{% if item.price_drop %} <span class="card-drop"><span class="visually-hidden">Satt ned fra </span><s>{{ item.price_drop|nok }}</s></span>{% endif %}</p>{% elif item.type == "job" %}<p class="card-price card-price-muted">{{ item.attributes.get("employer") or "Ledig stilling" }}</p>{% endif %}
       {% if item.is_imported %}<p class="card-source">Fra {{ item.source_name }}</p>{% endif %}
     </div>
   </a>

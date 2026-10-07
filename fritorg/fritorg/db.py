@@ -236,31 +236,6 @@ CREATE TABLE import_queue (
     PRIMARY KEY (source, item_id)
 );
 
--- Listings a person has saved to look at again ("favoritter").
-CREATE TABLE favorites (
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (user_id, listing_id)
-) WITHOUT ROWID;
-CREATE INDEX idx_favorites_listing ON favorites(listing_id);
-
--- Saved searches, as /sok query parameters. Listing ids only grow, so the new matches are those with
--- a higher id than the newest listing when the person last looked (seen_id) or was e-mailed (alerted_id).
-CREATE TABLE saved_searches (
-    id INTEGER PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    query TEXT NOT NULL,
-    notify INTEGER NOT NULL DEFAULT 1,
-    seen_id INTEGER NOT NULL DEFAULT 0,
-    alerted_id INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    alerted_at TEXT
-);
-CREATE UNIQUE INDEX idx_saved_searches_user_query ON saved_searches(user_id, query);
-CREATE INDEX idx_saved_searches_notify ON saved_searches(notify, alerted_id);
-
 -- Every moderator decision, kept for accountability.
 CREATE TABLE moderation_log (
     id INTEGER PRIMARY KEY,
@@ -273,8 +248,44 @@ CREATE TABLE moderation_log (
 );
 """
 
+# Favourites, saved searches and price-drop alerts. Written so it also applies to a database that
+# already has the first version of the two tables (they were briefly part of SCHEMA_V1).
+SCHEMA_V2 = """
+-- Listings a person has saved to look at again ("favoritter").
+CREATE TABLE IF NOT EXISTS favorites (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, listing_id)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_favorites_listing ON favorites(listing_id);
+-- The price when saved (shown as "satt ned fra ..."), and the price the person last heard about.
+ALTER TABLE favorites ADD COLUMN price INTEGER;
+ALTER TABLE favorites ADD COLUMN notified_price INTEGER;
+
+-- Saved searches, as /sok query parameters. Listing ids only grow, so the new matches are those with
+-- a higher id than the newest listing when the person last looked (seen_id) or was e-mailed (alerted_id).
+CREATE TABLE IF NOT EXISTS saved_searches (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    query TEXT NOT NULL,
+    notify INTEGER NOT NULL DEFAULT 1,
+    seen_id INTEGER NOT NULL DEFAULT 0,
+    alerted_id INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    alerted_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_searches_user_query ON saved_searches(user_id, query);
+CREATE INDEX IF NOT EXISTS idx_saved_searches_notify ON saved_searches(notify, alerted_id);
+
+-- E-mail when the price of a favourite is lowered (on unless turned off), at most twice a day.
+ALTER TABLE users ADD COLUMN price_alerts INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE users ADD COLUMN price_alerted_at TEXT;
+"""
+
 # Append new migrations to the end; never edit one that has shipped.
-MIGRATIONS: list[str] = [SCHEMA_V1]
+MIGRATIONS: list[str] = [SCHEMA_V1, SCHEMA_V2]
 
 
 def _casefold(value: object) -> object:

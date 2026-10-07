@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from starlette.datastructures import FormData, UploadFile
 
 from . import (
+    alerts,
     discovery,
     favorites,
     images,
@@ -778,12 +779,27 @@ def favorites_page(request: Request, conn: Conn) -> Response:
         conn,
         "favorites.html",
         {
+            "mail_enabled": request.app.state.mailer.enabled,
             "items": items,
             "total": total,
             "page": page,
             "pages": max(1, -(-total // (PAGE_SIZE * 2))),
             "page_url": lambda n: "/favoritter" + (f"?side={n}" if n > 1 else ""),
         },
+    )
+
+
+@router.post("/favoritter/varsel")
+def favorite_price_alerts(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    on = form.get("price_alerts") == "1"
+    conn.execute("UPDATE users SET price_alerts = ? WHERE id = ?", (int(on), user.id))
+    return redirect(
+        "/favoritter",
+        flash="Du får e-post når prisen settes ned." if on else "E-post om prisendringer er slått av.",
     )
 
 
@@ -831,11 +847,11 @@ def saved_searches_page(request: Request, conn: Conn) -> Response:
     )
 
 
-@router.get("/lagrede-sok/av")
+@router.get("/varsler/av")
 def unsubscribe_page(request: Request, conn: Conn) -> Response:
     """From the link in an alert e-mail: confirm turning alerts off (works without logging in)."""
     token = request.query_params.get("token", "")
-    target = saved_searches.unsubscribe_target(conn, request.app.state.secret_key, token)
+    target = alerts.unsubscribe_target(conn, request.app.state.secret_key, token)
     return render(
         request,
         conn,
@@ -846,12 +862,12 @@ def unsubscribe_page(request: Request, conn: Conn) -> Response:
     )
 
 
-@router.post("/lagrede-sok/av")
+@router.post("/varsler/av")
 def unsubscribe(request: Request, conn: Conn, form: Form) -> Response:
     """Turn alerts off. Also the one-click target of the List-Unsubscribe header (RFC 8058), so it needs
     no form token: the signed link is the permission."""
     token = request.query_params.get("token", "") or str(form.get("token") or "")
-    target = saved_searches.unsubscribe(conn, request.app.state.secret_key, token)
+    target = alerts.unsubscribe(conn, request.app.state.secret_key, token)
     if form.get("List-Unsubscribe") == "One-Click":
         return PlainTextResponse("ok" if target else "invalid", status_code=200 if target else 404)
     return render(

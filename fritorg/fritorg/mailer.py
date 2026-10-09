@@ -220,6 +220,10 @@ def notify_trade(
     """Ask the buyer to rate the seller, now that the seller has recorded the trade (ratings.py)."""
     if not mailer.enabled:
         return
+    if conn.execute(
+        "SELECT 1 FROM blocks WHERE user_id = ? AND blocked_id = ?", (buyer_id, seller_id)
+    ).fetchone():
+        return  # the buyer does not want to hear from the seller
     address = _verified_address(conn, buyer_id)
     seller = conn.execute("SELECT name FROM users WHERE id = ?", (seller_id,)).fetchone()
     if address is None or seller is None:
@@ -231,7 +235,7 @@ def notify_trade(
             f"Hvordan gikk handelen med {seller['name']}?",
             f"Hei {name}!\n\n{seller['name']} har registrert at dere har gjort en handel: «{title}». Gi gjerne "
             f"{seller['name']} en vurdering innen {rate_days} dager:\n\n{base}/meldinger/{conversation_id}#vurdering"
-            "\n\nVurderingene vises når dere begge har vurdert hverandre, eller etter 14 dager. Var det ingen "
+            "\n\nVurderingene vises når dere begge har vurdert hverandre, eller når fristen er ute. Var det ingen "
             "handel, kan du se bort fra denne e-posten.\n",
         )
     )

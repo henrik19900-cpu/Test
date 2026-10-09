@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
 
-from . import alerts, images, listings, saved_searches
+from . import alerts, images, listings, messages, saved_searches
 from .config import Settings
 from .db import Database, analyze
 from .mailer import Mail, Mailer
@@ -170,6 +170,7 @@ def run(
                 )
         _delete_old_listings(conn, settings, mailer, base, report, step)
         report.purged = step("purge", lambda: purge(conn)) or 0
+        report.purged += step("deleted conversations", lambda: messages.purge_deleted(conn)) or 0
         key = str(db.path)
         if time.monotonic() - _analyzed.get(key, -STATISTICS_SECONDS) >= STATISTICS_SECONDS:
             step("statistics", lambda: analyze(conn))

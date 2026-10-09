@@ -277,9 +277,9 @@ def search_listings(
         ),
     ] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=listings.MAX_OFFSET)] = 0,
 ) -> dict:
-    """Search active listings. All filters combine with AND."""
+    """Search active listings. All filters combine with AND. For more than the first 25 000, use the export."""
     params = SearchParams(
         q=q,
         category=category,
@@ -497,7 +497,7 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
 )
 def user_ratings(user_id: int, conn: Conn) -> dict:
     """Ratings from people who traded with the user, newest first. A rating is shown when both in the trade
-    have rated, or 14 days after the trade."""
+    have rated, or when the 14 days for rating are over."""
     if users.get_user(conn, user_id) is None:
         raise NotFound(f"Bruker {user_id} finnes ikke.")
     return {
@@ -770,7 +770,7 @@ def my_listings(
     user: CurrentUser,
     status: Annotated[Literal["active", "sold", "inactive", "all"], Query()] = "all",
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    offset: Annotated[int, Query(ge=0, le=listings.MAX_OFFSET)] = 0,
 ) -> dict:
     """All your listings, including hidden ones. `deletes_at` marks old listings about to be deleted automatically."""
     params = SearchParams(
@@ -1082,8 +1082,7 @@ def record_trade(
     """The seller records that the listing went to the other person in the conversation (both must have
     written in it). The listing is marked as sold, and both may rate each other with POST /trades/{id}/rating.
     Recording it again returns the same trade."""
-    new = ratings.trade_for_conversation(conn, conversation_id, user.id) is None
-    trade = ratings.record_trade(conn, conversation_id, user.id, active_days=settings.listing_days)
+    trade, new = ratings.record_trade(conn, conversation_id, user.id, active_days=settings.listing_days)
     if new:
         notify_trade(
             request.app.state.mailer,
@@ -1112,8 +1111,8 @@ def my_trades(conn: Conn, user: CurrentUser) -> list[dict]:
     summary="Rate a trade",
 )
 def rate_trade(trade_id: int, body: RatingIn, request: Request, conn: Conn, user: CurrentUser) -> dict:
-    """Rate the other person in a trade, once, within 30 days. The rating can't be changed. It is shown when
-    both have rated, or 14 days after the trade, so neither answers a rating they have read."""
+    """Rate the other person in a trade, once, within 14 days. The rating can't be changed. It is shown when
+    both have rated, or when the 14 days are over, so neither answers a rating they have read."""
     trade = ratings.rate(conn, trade_id, user.id, body.score, body.comment, via=_channel(request))
     if not trade.they_rated:
         notify_rating(

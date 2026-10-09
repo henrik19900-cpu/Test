@@ -637,7 +637,7 @@ class TradeOut(BaseModel):
     other_party: PartyOut
     created_at: str
     can_rate: bool = Field(
-        description="You may still rate the other person: once, within 30 days of the trade."
+        description="You may still rate the other person: once, within 14 days of the trade."
     )
     rate_until: str
     reveal_at: str = Field(

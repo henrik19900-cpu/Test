@@ -226,8 +226,10 @@ def start(
     recent_user = conn.execute(
         "SELECT COUNT(*) FROM phone_codes WHERE user_id = ? AND created_at > ?", (user_id, iso_ago(hours=1))
     ).fetchone()[0]
+    # Per purpose: others trying to verify an account with the number must not use up its owner's reset codes.
     recent_number = conn.execute(
-        "SELECT COUNT(*) FROM phone_codes WHERE phone_hash = ? AND created_at > ?", (hashed, iso_ago(days=1))
+        "SELECT COUNT(*) FROM phone_codes WHERE phone_hash = ? AND purpose = ? AND created_at > ?",
+        (hashed, purpose, iso_ago(days=1)),
     ).fetchone()[0]
     if recent_user >= CODES_PER_HOUR_PER_USER or recent_number >= CODES_PER_DAY_PER_NUMBER:
         raise RateLimited("Du har bedt om mange koder. Vent litt før du prøver igjen.", retry_after=3600)

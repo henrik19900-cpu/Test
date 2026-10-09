@@ -3,7 +3,7 @@
 A rating belongs to a trade. The seller records, from a conversation in which both have written, that the
 listing went to that person (record_trade); the listing is then marked as sold. Each of the two may rate the
 other once, from 1 to 5 with an optional comment, within RATE_DAYS. A rating is shown when both have rated,
-or REVEAL_DAYS after the trade, so nobody answers a rating they have read. Ratings by closed accounts and
+or when that time is up, so nobody answers a rating they have read. Ratings by closed accounts and
 ratings a moderator has removed are not shown or counted. Deleting an account deletes the trades and ratings
 it took part in; deleting the listing does not.
 """
@@ -21,8 +21,8 @@ from .errors import Forbidden, NotFound, ValidationProblem
 from .listings import CHANNELS, REPORT_REASONS
 from .util import iso_ago, now_iso, parse_iso, to_iso
 
-RATE_DAYS = 30
-REVEAL_DAYS = 14
+RATE_DAYS = 14
+REVEAL_DAYS = RATE_DAYS  # never sooner: whoever could still rate would see what the other wrote
 MAX_COMMENT = 500
 SCORE_LABELS = {5: "Veldig bra", 4: "Bra", 3: "Helt greit", 2: "Dårlig", 1: "Veldig dårlig"}
 # Comments are about the trade: no links or contact details (that would make them adverts or spam).
@@ -187,13 +187,14 @@ def tradeable(conn: sqlite3.Connection, conversation: messages.Conversation, use
 
 def record_trade(
     conn: sqlite3.Connection, conversation_id: int, seller_id: int, *, active_days: int = 60
-) -> Trade:
+) -> tuple[Trade, bool]:
     """The seller records that the listing went to the other person in the conversation, and it is marked as
-    sold. Both may then rate each other. Recording it again changes nothing."""
+    sold. Both may then rate each other. Recording it again changes nothing. Returns the trade and whether it
+    was recorded now (only then is the buyer told)."""
     conversation = messages.get_conversation(conn, conversation_id, seller_id, mark_read=False)
     existing = trade_for_conversation(conn, conversation_id, seller_id)
     if existing is not None:
-        return existing
+        return existing, False
     if seller_id != conversation.seller_id:
         raise Forbidden(
             "Bare den som la ut annonsen, kan registrere handelen.",
@@ -212,7 +213,7 @@ def record_trade(
     if listing.status != "sold":
         listings.set_status(conn, seller_id, listing.id, "sold", active_days=active_days)
     with transaction(conn):
-        conn.execute(
+        inserted = conn.execute(
             "INSERT OR IGNORE INTO trades (conversation_id, listing_id, listing_title, seller_id, buyer_id, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (
@@ -226,7 +227,7 @@ def record_trade(
         )
     trade = trade_for_conversation(conn, conversation_id, seller_id)
     assert trade is not None
-    return trade
+    return trade, inserted.rowcount == 1  # two requests at once: only one of them inserts
 
 
 def trade_for_conversation(conn: sqlite3.Connection, conversation_id: int, viewer_id: int) -> Trade | None:

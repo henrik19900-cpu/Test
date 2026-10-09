@@ -1920,6 +1920,9 @@ def search(conn: sqlite3.Connection, params: SearchParams, *, count: bool = True
         total, exact = params.offset + len(ids), True
     if not count:
         total, exact = 0, True
+    more = (
+        more and params.offset + params.limit <= MAX_OFFSET
+    )  # no page after the last one that can be asked for
     return SearchResult(
         items=_by_ids(conn, ids), total=total, params=params, total_exact=exact, has_more=more
     )

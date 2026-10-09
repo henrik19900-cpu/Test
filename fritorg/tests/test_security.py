@@ -110,8 +110,18 @@ def test_search_pages_stop_at_the_offset_limit(client, auth):
     result = call(client, "search_listings", {"offset": listings.MAX_OFFSET + 1})
     assert result["isError"] is True and "offset" in result["content"][0]["text"]
     assert call(client, "search_listings", {"offset": listings.MAX_OFFSET})["isError"] is False
-    deep = client.get("/api/v1/listings", params={"offset": 10**9}).json()
-    assert deep["items"] == [] and deep["offset"] == listings.MAX_OFFSET
+    assert client.get("/api/v1/listings", params={"offset": listings.MAX_OFFSET + 1}).status_code == 422
+    assert client.get("/api/v1/me/listings", params={"offset": 10**9}, headers=auth).status_code == 422
+
+
+def test_the_last_page_that_can_be_asked_for_has_no_next_link(app, client, auth, monkeypatch):
+    monkeypatch.setattr(listings, "MAX_OFFSET", 2)
+    for i in range(5):
+        make_listing(client, auth, title=f"Sykkel nummer {i} til salgs")
+    first = client.get("/api/v1/listings", params={"limit": 2})
+    assert first.json()["next"] and 'rel="next"' in first.headers["link"]
+    last = client.get("/api/v1/listings", params={"limit": 2, "offset": 2})
+    assert last.json()["next"] is None and 'rel="next"' not in last.headers["link"]
 
 
 def test_reports_from_unverified_accounts_cannot_hide_a_listing(app, client, auth, settings):

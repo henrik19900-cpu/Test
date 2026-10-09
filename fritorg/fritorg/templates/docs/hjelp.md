@@ -57,7 +57,7 @@ Se varen før du betaler, hold samtalen på {{ site_name }}, og oppgi aldri kort
 
 ### Hvordan fungerer vurderinger?
 
-Når dere er enige om en handel, trykker selgeren **Solgt til …** i samtalen. Da blir annonsen merket som solgt, og dere kan gi hverandre en vurdering fra 1 til 5 med en kort kommentar, innen 30 dager. Vurderingene vises på profilen når dere begge har vurdert, eller etter 14 dager, så ingen kan svare på en vurdering de har lest. En vurdering kan ikke endres. Er en vurdering usann eller krenkende, kan du rapportere den på profilen.
+Når dere er enige om en handel, trykker selgeren **Solgt til …** i samtalen. Da blir annonsen merket som solgt, og dere kan gi hverandre en vurdering fra 1 til 5 med en kort kommentar, innen 14 dager. Vurderingene vises på profilen når dere begge har vurdert, eller når fristen er ute, så ingen kan svare på en vurdering de har lest. En vurdering kan ikke endres. Er en vurdering usann eller krenkende, kan du rapportere den på profilen.
 
 ### Hvorfor er annonsen min «til kontroll»?
 

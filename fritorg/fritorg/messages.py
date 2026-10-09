@@ -347,11 +347,37 @@ def list_conversations(
     return [c for c in conversations if c.unread] if unread_only else conversations
 
 
+def _kept(conversation: str) -> str:
+    """SQL: a conversation both people have deleted is still stored while a report about it is open or a
+    message in it has strong fraud signals (moderators may need those), and while the trade made in it can
+    still be rated (the rating form and the e-mail about it link to the conversation). Needs _kept_params()."""
+    return (
+        f"EXISTS (SELECT 1 FROM reports r WHERE r.conversation_id = {conversation} AND r.resolved_at IS NULL) "
+        f"OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = {conversation} "
+        "AND m.risk_score >= :flagged) "
+        f"OR EXISTS (SELECT 1 FROM trades t WHERE t.conversation_id = {conversation} AND t.created_at > :open)"
+    )
+
+
+def _kept_params() -> dict[str, object]:
+    from .ratings import RATE_DAYS  # ratings builds on this module
+
+    return {"flagged": fraud.REVIEW_THRESHOLD, "open": iso_ago(days=RATE_DAYS)}
+
+
+def purge_deleted(conn: sqlite3.Connection) -> int:
+    """Delete for good the conversations both people deleted, once nothing keeps them (see _kept)."""
+    return conn.execute(
+        "DELETE FROM conversations WHERE id IN (SELECT c.id FROM conversations c WHERE "
+        f"c.buyer_hidden_at IS NOT NULL AND c.seller_hidden_at IS NOT NULL AND NOT ({_kept('c.id')}))",
+        _kept_params(),
+    ).rowcount
+
+
 def hide_conversation(conn: sqlite3.Connection, conversation_id: int, user_id: int) -> bool:
     """Delete a conversation from the person's inbox. The other person keeps theirs, and a new message from
-    either brings it back. Once both have deleted it, it is deleted for good, unless moderators may need it:
-    a report about it is still open, or a message in it has strong fraud signals. Returns True when it was
-    deleted for good."""
+    either brings it back. Once both have deleted it, it is deleted for good, unless something still needs it
+    (see _kept; it is deleted later then). Returns True when it was deleted for good."""
     conversation = _get(conn, conversation_id, user_id)
     column = "seller_hidden_at" if conversation.role(user_id) == "seller" else "buyer_hidden_at"
     other = "buyer_hidden_at" if column == "seller_hidden_at" else "seller_hidden_at"
@@ -361,18 +387,11 @@ def hide_conversation(conn: sqlite3.Connection, conversation_id: int, user_id: i
             "UPDATE messages SET read_at = ? WHERE conversation_id = ? AND sender_id != ? AND read_at IS NULL",
             (now_iso(), conversation_id, user_id),
         )
-        both = conn.execute(
-            f"SELECT {other} IS NOT NULL FROM conversations WHERE id = ?", (conversation_id,)
-        ).fetchone()[0]
-        evidence = conn.execute(
-            "SELECT 1 FROM reports WHERE conversation_id = :id AND resolved_at IS NULL UNION ALL "
-            "SELECT 1 FROM messages WHERE conversation_id = :id AND risk_score >= :flagged LIMIT 1",
-            {"id": conversation_id, "flagged": fraud.REVIEW_THRESHOLD},
-        ).fetchone()
-        if both and evidence is None:
-            conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))  # messages go with it
-            return True
-    return False
+        gone = conn.execute(  # messages go with it
+            f"DELETE FROM conversations WHERE id = :id AND {other} IS NOT NULL AND NOT ({_kept(':id')})",
+            {"id": conversation_id, **_kept_params()},
+        ).rowcount
+    return gone == 1
 
 
 def unread_count(conn: sqlite3.Connection, user_id: int) -> int:

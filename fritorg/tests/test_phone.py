@@ -141,6 +141,19 @@ def test_one_account_per_number(app, client):
     assert client.get("/api/v1/me", headers=bearer(other)).json()["verified"] is False
 
 
+def test_others_trying_a_number_do_not_use_up_its_owners_reset_codes(client):
+    verify(client, bearer(register(client)))
+    for i in range(phone.CODES_PER_DAY_PER_NUMBER - 1):  # each gets the usual answer; the owner gets SMS
+        other = register(client, email=f"x{i}@example.no", name="Per Hansen")
+        assert send_code(client, bearer(other)).status_code == 202
+    reset = client.post(
+        "/glemt-passord",
+        data={"email": "kari@example.no", "phone": NUMBER, "csrf_token": csrf(client)},
+        follow_redirects=False,
+    )
+    assert reset.status_code != 429 and "mange koder" not in reset.text
+
+
 def test_code_requests_are_rate_limited(client):
     data = register(client)
     for _ in range(phone.CODES_PER_HOUR_PER_USER):

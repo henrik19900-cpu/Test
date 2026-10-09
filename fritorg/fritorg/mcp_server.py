@@ -605,8 +605,7 @@ def _record_sale(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     assert ctx.user is not None
     conversation_id = _int(args, "conversation_id", required=True)
     assert conversation_id is not None
-    new = ratings.trade_for_conversation(ctx.conn, conversation_id, ctx.user.id) is None
-    trade = ratings.record_trade(
+    trade, new = ratings.record_trade(
         ctx.conn, conversation_id, ctx.user.id, active_days=ctx.settings.listing_days
     )
     if new and ctx.mailer is not None:
@@ -1064,7 +1063,7 @@ TOOLS: list[Tool] = [
         "rate_trade",
         "Rate a trade",
         "Rate the other person in a trade from 1 (very bad) to 5 (very good), with an optional comment that is "
-        "shown on their profile with the user's name. Once only, within 30 days, and it can't be changed: ask "
+        "shown on their profile with the user's name. Once only, within 14 days, and it can't be changed: ask "
         "your user for the score and the words.",
         {
             "trade_id": {"type": "integer", "description": "From list_trades or record_sale."},

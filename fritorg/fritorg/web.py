@@ -261,7 +261,7 @@ def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
     base = base_url(request)
     page = params.offset // params.limit + 1
     next_url = None
-    if result.has_more:
+    if result.has_more and page < MAX_PAGE:
         next_url = url_with_query(base, request.url.path, replace_params(request, side=page + 1))
     title = _search_title(params)
     if fmt == "json":
@@ -281,7 +281,7 @@ def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
             selected_attrs[f"{flt.key}.min"] = flt.min
         if flt.max is not None:
             selected_attrs[f"{flt.key}.max"] = flt.max
-    pages = max(1, -(-result.total // params.limit), page + 1 if result.has_more else page)
+    pages = max(1, -(-result.total // params.limit), page + 1 if next_url else page)
     user = current_user(request, conn)
     save_query = saved_searches.canonical_query(params)
     return render(
@@ -805,19 +805,20 @@ def record_trade(conversation_id: int, request: Request, conn: Conn, form: Form)
         return login_redirect(request)
     settings = request.app.state.settings
     try:
-        trade = ratings.record_trade(conn, conversation_id, user.id, active_days=settings.listing_days)
+        trade, new = ratings.record_trade(conn, conversation_id, user.id, active_days=settings.listing_days)
     except (ValidationProblem, Forbidden) as exc:
         return redirect(f"/meldinger/{conversation_id}", flash=exc.message)
-    notify_trade(
-        request.app.state.mailer,
-        base_url(request),
-        conn,
-        conversation_id,
-        trade.seller_id,
-        trade.buyer_id,
-        trade.listing_title,
-        ratings.RATE_DAYS,
-    )
+    if new:
+        notify_trade(
+            request.app.state.mailer,
+            base_url(request),
+            conn,
+            conversation_id,
+            trade.seller_id,
+            trade.buyer_id,
+            trade.listing_title,
+            ratings.RATE_DAYS,
+        )
     return redirect(
         f"/meldinger/{conversation_id}#vurdering",
         flash="Handelen er registrert. Nå kan dere gi hverandre en vurdering.",
@@ -836,7 +837,7 @@ def rate_trade(conversation_id: int, request: Request, conn: Conn, form: Form) -
     score = str(form.get("score") or "")
     try:
         trade = ratings.rate(
-            conn, trade.id, user.id, int(score) if score.isdigit() else 0, str(form.get("comment") or "")
+            conn, trade.id, user.id, int(score) if score.isdecimal() else 0, str(form.get("comment") or "")
         )
     except ValidationProblem as exc:
         return redirect(f"/meldinger/{conversation_id}#vurdering", flash=exc.message)

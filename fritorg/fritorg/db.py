@@ -492,6 +492,13 @@ CREATE INDEX idx_appeals_open ON appeals(created_at) WHERE decided_at IS NULL;
 """
 
 
+# Conversations both people have deleted, kept while something needs them (messages.purge_deleted).
+SCHEMA_V10 = """
+CREATE INDEX idx_conversations_deleted ON conversations(id)
+    WHERE buyer_hidden_at IS NOT NULL AND seller_hidden_at IS NOT NULL;
+"""
+
+
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
     conn.execute("PRAGMA analysis_limit = 1000")
@@ -510,6 +517,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V7,
     SCHEMA_V8,
     SCHEMA_V9,
+    SCHEMA_V10,
 ]
 
 

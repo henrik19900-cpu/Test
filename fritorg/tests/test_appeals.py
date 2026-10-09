@@ -141,3 +141,15 @@ def test_closed_accounts_are_told_where_to_complain(app, client, settings):
         },
     )
     assert "stengt" in response.text and "hjelp@fritorg.no" in response.text
+
+
+def test_the_export_keeps_appeals_after_they_are_decided(app, client, auth):
+    listing = _removed(app, client, auth)
+    appeal = client.post(
+        f"/api/v1/listings/{listing['id']}/appeal",
+        json={"text": "Min egen sykkel, med kvittering."},
+        headers=auth,
+    ).json()
+    client.post(f"/moderering/klage/{appeal['id']}", data={"csrf_token": csrf(client), "decision": "reverse"})
+    appeals = client.get("/api/v1/me/export", headers=auth).json()["appeals"]
+    assert appeals[0]["text"] == "Min egen sykkel, med kvittering." and appeals[0]["decision"] == "reversed"

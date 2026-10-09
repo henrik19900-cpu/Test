@@ -43,6 +43,24 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         {"name": t.name, "hint": t.hint, "created_at": t.created_at, "last_used_at": t.last_used_at}
         for t in users.list_api_tokens(conn, user.id)
     ]
+    # Everything you rated, also ratings a moderator removed (the trades show the other person's rating).
+    ratings_given = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT r.trade_id, t.listing_title, r.rated_id AS rated_user_id, r.score, r.comment, r.created_at, "
+            "r.removed_at, r.removal_note FROM ratings r JOIN trades t ON t.id = r.trade_id "
+            "WHERE r.rater_id = ? ORDER BY r.id",
+            (user.id,),
+        )
+    ]
+    appeals = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT listing_id, text, created_at, decided_at, decision, decision_note AS answer FROM appeals "
+            "WHERE user_id = ? ORDER BY id",
+            (user.id,),
+        )
+    ]
     reports_made = [
         dict(r)
         for r in conn.execute(
@@ -109,6 +127,8 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "trades": [
             serializers.trade_dict(t, user.id) for t in ratings.trades_for_user(conn, user.id, limit=10_000)
         ],
+        "ratings_given": ratings_given,
+        "appeals": appeals,
         "api_tokens": tokens,
         "logged_in_sessions": sessions,
         "favorites": favorites,

@@ -134,9 +134,9 @@ def test_help_page(client):
 
 
 def test_cards_say_how_new_a_listing_is(client, auth):
-    from fritorg.util import format_ago_no, iso_ago
+    from fritorg.util import format_ago_no, iso_ago, now_iso
 
-    assert format_ago_no(iso_ago(minutes=5)) == "i dag"
+    assert format_ago_no(now_iso()) == "i dag"  # (five minutes ago is yesterday just after midnight)
     assert format_ago_no(iso_ago(days=1)) == "i går"
     assert format_ago_no(iso_ago(days=3)) == "3 dager siden"
     assert format_ago_no("2001-03-05T12:00:00Z") == "5. mars 2001"
@@ -179,3 +179,8 @@ def test_postal_code_fills_in_place_and_county(client, auth):
     )
     assert (listing["location"], listing["county"]) == ("Grünerløkka", "oslo")
     assert "Bergen" in client.get("/sok?county=vestland").text
+
+
+def test_the_terms_explain_deleting_conversations_without_automatic_deletion_too(client, settings):
+    settings.delete_after_days = 0
+    assert "slette en samtale" in client.get("/vilkar").text

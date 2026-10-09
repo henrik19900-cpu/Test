@@ -109,8 +109,11 @@ def test_one_rating_is_shown_after_two_weeks(app, client, auth, other_auth):
     with app.state.db.session() as conn:
         conn.execute("UPDATE trades SET created_at = ?", (iso_ago(days=ratings.REVEAL_DAYS + 1),))
     assert _ratings_of(client, listing["seller_id"])["summary"] == {"count": 1, "average": 2.0}
-    # The seller sees it now too, without rating back.
-    assert client.get("/api/v1/me/trades", headers=auth).json()[0]["their_rating"]["score"] == 2
+    # The seller sees it now too, and can no longer answer it.
+    seen = client.get("/api/v1/me/trades", headers=auth).json()[0]
+    assert seen["their_rating"]["score"] == 2 and seen["can_rate"] is False
+    answer = client.post(f"/api/v1/trades/{trade['id']}/rating", json={"score": 1}, headers=auth)
+    assert answer.status_code == 422
 
 
 def test_rules_for_scores_comments_and_the_deadline(app, client, auth, other_auth):
@@ -281,3 +284,82 @@ def test_people_are_asked_to_rate_by_email(app, client, auth, other_auth, settin
     count = len(memory.outbox)
     client.post(f"/api/v1/trades/{trade['id']}/rating", json={"score": 5}, headers=auth)
     assert len(memory.outbox) == count  # both have rated: nobody needs a reminder
+
+
+def test_the_buyer_is_asked_to_rate_once_however_often_the_form_is_sent(
+    app, client, auth, other_auth, settings
+):
+    memory = MemoryMailer(settings)
+    app.state.mailer = memory
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE users SET email_verified_at = '2026-01-01T00:00:00Z'")
+    _, conversation = _talk(client, auth, other_auth)
+    memory.outbox.clear()
+    web_login(client)  # the seller
+    for _ in range(3):
+        client.post(f"/meldinger/{conversation['id']}/handel", data={"csrf_token": csrf(client)})
+    client.post(f"/api/v1/conversations/{conversation['id']}/trade", headers=auth)
+    with TestClient(app) as buyer:  # the buyer cannot record it, nor have the e-mail sent again
+        web_login(buyer, email="ola@example.no")
+        buyer.post(f"/meldinger/{conversation['id']}/handel", data={"csrf_token": csrf(buyer)})
+    assert [m.subject for m in memory.outbox] == ["Hvordan gikk handelen med Kari Nordmann?"]
+
+
+def test_no_rating_e_mail_from_someone_the_buyer_blocked(app, client, auth, other_auth, settings):
+    memory = MemoryMailer(settings)
+    app.state.mailer = memory
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE users SET email_verified_at = '2026-01-01T00:00:00Z'")
+    listing, conversation = _talk(client, auth, other_auth)
+    client.put(f"/api/v1/me/blocks/{listing['seller_id']}", headers=other_auth)
+    memory.outbox.clear()
+    client.post(f"/api/v1/conversations/{conversation['id']}/trade", headers=auth)
+    assert memory.outbox == []
+
+
+def test_odd_scores_on_the_web_are_refused_politely(app, client, auth, other_auth):
+    _, conversation = _talk(client, auth, other_auth)
+    client.post(f"/api/v1/conversations/{conversation['id']}/trade", headers=auth)
+    with TestClient(app, raise_server_exceptions=False) as buyer:
+        web_login(buyer, email="ola@example.no")
+        for score in ("²", "٣٣", "-1", ""):
+            response = buyer.post(
+                f"/meldinger/{conversation['id']}/vurdering",
+                data={"csrf_token": csrf(buyer), "score": score},
+                follow_redirects=False,
+            )
+            assert response.status_code == 303, score
+
+
+def test_a_deleted_conversation_is_kept_while_its_trade_can_be_rated(app, client, auth, other_auth, settings):
+    _, conversation = _talk(client, auth, other_auth)
+    client.post(f"/api/v1/conversations/{conversation['id']}/trade", headers=auth)
+    client.delete(f"/api/v1/conversations/{conversation['id']}", headers=auth)
+    client.delete(f"/api/v1/conversations/{conversation['id']}", headers=other_auth)
+    assert client.get("/api/v1/conversations", headers=other_auth).json() == []  # gone from both inboxes
+    with TestClient(app) as buyer:  # but the link in the e-mail still leads to the rating form
+        web_login(buyer, email="ola@example.no")
+        assert "Send vurderingen" in buyer.get(f"/meldinger/{conversation['id']}").text
+        rated = buyer.post(
+            f"/meldinger/{conversation['id']}/vurdering", data={"csrf_token": csrf(buyer), "score": "5"}
+        )
+        assert rated.status_code == 200
+    maintenance.run(app.state.db, settings)
+    assert client.get(f"/api/v1/conversations/{conversation['id']}", headers=auth).status_code == 200
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE trades SET created_at = ?", (iso_ago(days=ratings.RATE_DAYS + 1),))
+    maintenance.run(app.state.db, settings)  # the rating time is over: now it is deleted for good
+    assert client.get(f"/api/v1/conversations/{conversation['id']}", headers=auth).status_code == 404
+    assert client.get("/api/v1/me/trades", headers=other_auth).json()[0]["my_rating"]["score"] == 5
+
+
+def test_the_export_has_every_rating_you_gave(app, client, auth, other_auth):
+    _, conversation = _talk(client, auth, other_auth)
+    trade = client.post(f"/api/v1/conversations/{conversation['id']}/trade", headers=auth).json()
+    client.post(
+        f"/api/v1/trades/{trade['id']}/rating", json={"score": 1, "comment": "Kom aldri."}, headers=other_auth
+    )
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE ratings SET removed_at = '2026-01-01T00:00:00Z', removal_note = 'Usaklig'")
+    given = client.get("/api/v1/me/export", headers=other_auth).json()["ratings_given"]
+    assert given[0]["comment"] == "Kom aldri." and given[0]["removal_note"] == "Usaklig"

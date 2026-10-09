@@ -240,6 +240,30 @@ def add_image(
     )
 
 
+def rename_files(conn: sqlite3.Connection, uploads_dir: Path, listing_id: int) -> None:
+    """Give a listing's photos new names, so the old addresses stop working (a moderator removed the
+    listing; its photos may be someone else's). Browsers and the listing's owner keep their copies."""
+    for row in conn.execute(
+        "SELECT id, filename FROM listing_images WHERE listing_id = ?", (listing_id,)
+    ).fetchall():
+        if not _STORED_NAME.fullmatch(row["filename"]):
+            continue
+        stem = secrets.token_hex(16)
+        old = uploads_dir / row["filename"]
+        folder = uploads_dir / stem[:2]
+        folder.mkdir(parents=True, exist_ok=True)
+        moves = (
+            (old, folder / f"{stem}.webp"),
+            (old.with_name(f"{old.stem}-t{old.suffix}"), folder / f"{stem}-t.webp"),
+        )
+        for source, target in moves:
+            if source.exists():
+                os.replace(source, target)
+        conn.execute(
+            "UPDATE listing_images SET filename = ? WHERE id = ?", (f"{stem[:2]}/{stem}.webp", row["id"])
+        )
+
+
 def delete_image(
     conn: sqlite3.Connection,
     uploads_dir: Path,

@@ -155,6 +155,7 @@ REPORT_REASONS = {
     "illegal": "Ulovlig vare eller innhold",
     "offensive": "Støtende innhold",
     "wrong_category": "Feil kategori",
+    "privacy": "Personopplysninger om meg",
     "other": "Annet",
 }
 

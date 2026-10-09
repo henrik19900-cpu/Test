@@ -1240,6 +1240,19 @@ def confirm_email(request: Request, conn: Conn) -> Response:
     return redirect("/min-side", flash="Lenken er ugyldig eller utløpt. Be om en ny på Min side.")
 
 
+@router.post("/min-side/navn")
+def change_name(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    try:
+        users.update_name(conn, user, str(form.get("name") or ""))
+    except ValidationProblem as exc:
+        return redirect("/min-side#konto", flash=_problem_text(exc))
+    return redirect("/min-side#konto", flash="Visningsnavnet er endret.")
+
+
 @router.post("/min-side/epost")
 def change_email(request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)
@@ -1279,6 +1292,14 @@ def delete_account(request: Request, conn: Conn, form: Form) -> Response:
             return redirect("/min-side#slett", flash="Feil passord. Kontoen ble ikke slettet.")
     elif str(form.get("confirm") or "").strip().upper() != "SLETT":
         return redirect("/min-side#slett", flash="Skriv SLETT for å bekrefte. Kontoen ble ikke slettet.")
+    if users.under_review(conn, user.id):
+        contact = request.app.state.settings.contact_email
+        return redirect(
+            "/min-side#slett",
+            flash="Kontoen kan ikke slettes akkurat nå, fordi en moderator behandler en rapport om deg eller en "
+            "av annonsene dine. Prøv igjen når saken er avgjort"
+            + (f", eller skriv til {contact}." if contact else "."),
+        )
     filenames = users.delete_user(conn, user.id)
     images.remove_files(request.app.state.settings.uploads_dir, filenames)
     response = redirect("/", flash="Kontoen din og alt innholdet ditt er slettet.")
@@ -1672,7 +1693,7 @@ def logout(request: Request, conn: Conn, form: Form) -> Response:
 @router.get("/bruker/{user_id:int}")
 def user_page(user_id: int, request: Request, conn: Conn) -> Response:
     seller = users.get_user(conn, user_id)
-    if seller is None:
+    if seller is None or seller.banned_at:  # a closed account has no public profile
         raise NotFound(f"Bruker {user_id} finnes ikke.")
     result = listings.search(conn, SearchParams(user_id=user_id, status="any", limit=60))
     response_time = messages.response_time_text(messages.response_time_hours(conn, user_id))
@@ -1758,6 +1779,7 @@ def remove_listing(listing_id: int, request: Request, conn: Conn, form: Form) ->
         moderation.remove_listing(conn, moderator, listing_id, note)
     except ValidationProblem as exc:
         return redirect("/moderering", flash=exc.message)
+    images.rename_files(conn, request.app.state.settings.uploads_dir, listing_id)
     notify_moderation(
         request.app.state.mailer, base_url(request), conn, listing_id, approved=False, note=note
     )

@@ -1,4 +1,5 @@
-"""Command line: `python -m fritorg serve | seed | make-admin | backup | import-nav | doctor | benchmark`."""
+"""Command line: `python -m fritorg serve | seed | make-admin | backup | export-user | delete-user | import-nav |
+doctor | benchmark`."""
 
 from __future__ import annotations
 
@@ -26,6 +27,13 @@ def main(argv: list[str] | None = None) -> int:
 
     admin = commands.add_parser("make-admin", help="give an existing user moderator rights")
     admin.add_argument("email")
+
+    # For requests that arrive by e-mail, e.g. from a closed account that cannot log in (GDPR art. 15 and 17).
+    export_user = commands.add_parser("export-user", help="print everything stored about an account as JSON")
+    export_user.add_argument("email")
+    delete_user = commands.add_parser("delete-user", help="delete an account and everything in it")
+    delete_user.add_argument("email")
+    delete_user.add_argument("--yes", action="store_true", help="really delete (otherwise only show what)")
 
     backup = commands.add_parser("backup", help="copy the database and uploaded images to a folder")
     backup.add_argument("destination")
@@ -90,6 +98,31 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             users.set_admin(conn, user.id)
         print(f"{user.name} er nå moderator.")
+        return 0
+
+    if args.command in ("export-user", "delete-user"):
+        import json
+
+        from . import images, privacy, users
+
+        db = Database(settings.db_path)
+        db.init()
+        with db.session() as conn:
+            user = users.get_user_by_email(conn, args.email)
+            if user is None:
+                print(f"Fant ingen bruker med e-post {args.email}", file=sys.stderr)
+                return 1
+            if args.command == "export-user":
+                data = privacy.export_user(conn, user, settings.base_url or "http://127.0.0.1:8000")
+                print(json.dumps(data, ensure_ascii=False, indent=2))
+                return 0
+            if not args.yes:
+                print(
+                    f"Sletter {user.name} ({user.email}) med alle annonser, bilder og meldinger: legg til --yes."
+                )
+                return 1
+            images.remove_files(settings.uploads_dir, users.delete_user(conn, user.id))
+        print(f"Kontoen til {user.name} er slettet.")
         return 0
 
     if args.command == "backup":

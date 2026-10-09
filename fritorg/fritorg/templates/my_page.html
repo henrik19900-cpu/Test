@@ -126,6 +126,14 @@
   {% if mail_enabled and not user.email_verified_at %}
     <p class="small">Bekreft e-postadressen din for å få varsel når noen sender deg en melding.</p>
   {% endif %}
+  {% if user.verification != "bankid" %}
+  <form method="post" action="/min-side/navn" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="new-name">Visningsnavn</label>
+    <input id="new-name" name="name" type="text" autocomplete="name" value="{{ user.name }}" minlength="2" maxlength="60" required>
+    <button type="submit" class="button">Endre</button>
+  </form>
+  {% endif %}
   <form method="post" action="/min-side/epost" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <label for="new-email">E-post for varsler</label>

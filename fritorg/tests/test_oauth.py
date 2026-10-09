@@ -168,7 +168,10 @@ def test_the_steps_and_what_is_refused(client):
     assert "error=invalid_request" in no_pkce.headers["location"]
 
     page, approved = _approve(client, _authorize_url(client_id, challenge))
-    assert "«Claude»</strong> vil koble seg til" in page.text and "tilbake til claude.ai" in page.text
+    assert (
+        "«Claude»</strong> vil koble seg til" in page.text
+        and "tilbake til <strong>claude.ai</strong>" in page.text
+    )
     assert "form-action 'self' https://claude.ai" in page.headers["content-security-policy"]
     sent = parse_qs(urlsplit(approved.headers["location"]).query)
     assert approved.headers["location"].startswith(CALLBACK) and sent["state"] == ["xyz"]

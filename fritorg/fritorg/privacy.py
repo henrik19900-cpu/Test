@@ -118,8 +118,9 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
     return {
         "exported_at": now_iso(),
         "site": base,
-        "about": "Alt vi har lagret om kontoen din. Passord, nøkler og mobilnummer lagres bare som "
-        "kryptografiske hasher og kan derfor ikke tas med.",
+        "about": "Opplysningene vi har lagret om kontoen din. Passord, nøkler og mobilnummer lagres bare som "
+        "kryptografiske hasher og kan derfor ikke tas med. Ikke med: svindelvurderingen av annonser og "
+        "meldinger (den beskytter mot svindel), og koder og lenker som slettes etter kort tid.",
         "account": account,
         "listings": own,
         "conversations": conversations,

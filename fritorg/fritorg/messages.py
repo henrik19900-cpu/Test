@@ -382,13 +382,14 @@ def list_conversations(
 
 
 def _kept(conversation: str) -> str:
-    """SQL: a conversation both people have deleted is still stored while a report about it is open or a
-    message in it has strong fraud signals (moderators may need those), and while the trade made in it can
-    still be rated (the rating form and the e-mail about it link to the conversation). Needs _kept_params()."""
+    """SQL: a conversation both people have deleted is still stored while a report about it is open or, for
+    90 days, if a message in it has strong fraud signals (moderators may need those), and while the trade made
+    in it can still be rated (the rating form and the e-mail about it link to the conversation). Needs
+    _kept_params()."""
     return (
         f"EXISTS (SELECT 1 FROM reports r WHERE r.conversation_id = {conversation} AND r.resolved_at IS NULL) "
         f"OR EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id = {conversation} "
-        "AND m.risk_score >= :flagged) "
+        "AND m.risk_score >= :flagged AND m.created_at > :evidence) "
         f"OR EXISTS (SELECT 1 FROM trades t WHERE t.conversation_id = {conversation} AND t.created_at > :open)"
     )
 
@@ -396,7 +397,8 @@ def _kept(conversation: str) -> str:
 def _kept_params() -> dict[str, object]:
     from .ratings import RATE_DAYS  # ratings builds on this module
 
-    return {"flagged": fraud.REVIEW_THRESHOLD, "open": iso_ago(days=RATE_DAYS)}
+    # Flagged messages are evidence for a while: moderators see them for two weeks, reports come later.
+    return {"flagged": fraud.REVIEW_THRESHOLD, "open": iso_ago(days=RATE_DAYS), "evidence": iso_ago(days=90)}
 
 
 def purge_deleted(conn: sqlite3.Connection) -> int:

@@ -239,6 +239,20 @@ def register(
         raise
 
 
+def update_name(conn: sqlite3.Connection, user: User, name: str) -> None:
+    """Change the display name, with the same rules as when the account was made. A name from BankID stays."""
+    if verification_kind(user.verified_via) == "bankid":
+        raise ValidationProblem.field("name", "Navnet kommer fra BankID og kan ikke endres her.")
+    name = normalize_name(name)
+    if not 2 <= len(name) <= 60:
+        raise ValidationProblem.field("name", "Visningsnavnet må være mellom 2 og 60 tegn.")
+    if RESERVED_NAME.search(name):
+        raise ValidationProblem.field(
+            "name", "Velg et annet visningsnavn (det kan forveksles med en tjeneste)."
+        )
+    conn.execute("UPDATE users SET name = ? WHERE id = ?", (name, user.id))
+
+
 def update_email(conn: sqlite3.Connection, user_id: int, email: str) -> None:
     """Change the address; it has to be verified again before notifications are sent to it."""
     email = email.strip()
@@ -313,10 +327,30 @@ def delete_user(conn: sqlite3.Connection, user_id: int) -> list[str]:
         (user_id,),
     ).fetchall()
     with transaction(conn):
+        # Moderators' notes about the person or their listings go; what was decided, and when, stays.
+        conn.execute(
+            "UPDATE moderation_log SET user_id = NULL, note = NULL WHERE user_id = ? "
+            "OR listing_id IN (SELECT id FROM listings WHERE user_id = ?)",
+            (user_id, user_id),
+        )
         # Deleted one by one, so triggers remove them from the search index (the account takes the rest).
         conn.execute("DELETE FROM listings WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     return [row["filename"] for row in rows]
+
+
+def under_review(conn: sqlite3.Connection, user_id: int) -> bool:
+    """Whether a report about the person or one of their listings is still open. Then the account is not
+    deleted on request until a moderator has handled it, so nobody can delete the evidence of a fraud
+    (and the conversations the other person has) by deleting the account (GDPR art. 17(3)(e))."""
+    return (
+        conn.execute(
+            "SELECT 1 FROM reports r LEFT JOIN listings l ON l.id = r.listing_id WHERE r.resolved_at IS NULL "
+            "AND (r.reported_user_id = ? OR l.user_id = ?) LIMIT 1",
+            (user_id, user_id),
+        ).fetchone()
+        is not None
+    )
 
 
 def ban_user(conn: sqlite3.Connection, user_id: int, reason: str) -> None:

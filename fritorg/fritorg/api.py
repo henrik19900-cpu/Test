@@ -476,7 +476,7 @@ def report_listing(
 )
 def get_user(user_id: int, request: Request, conn: Conn) -> dict:
     user = users.get_user(conn, user_id)
-    if user is None:
+    if user is None or user.banned_at:  # a closed account has no public profile
         raise NotFound(f"Bruker {user_id} finnes ikke.")
     active = conn.execute(
         "SELECT COUNT(*) FROM listings WHERE user_id = ? AND status = 'active'", (user_id,)

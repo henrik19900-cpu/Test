@@ -40,15 +40,28 @@ class Report:
     price_drops: int = 0
 
 
+# How long records about people are kept (the privacy policy in templates/docs/vilkar.md says the same).
+RECORDS_DAYS = 365  # moderators' decisions, handled reports and ratings a moderator removed
+ASSISTANT_KEY_DAYS = 90  # an AI assistant's key that has not been used signs in again
+
+
 def purge(conn: sqlite3.Connection) -> int:
     """Delete what is no longer needed. SMS codes are kept two days, for the rate limits."""
     now = now_iso()
+    records = iso_ago(days=RECORDS_DAYS)
     statements = [
         ("DELETE FROM sessions WHERE expires_at < ?", (now,)),
         ("DELETE FROM login_states WHERE created_at < ?", (iso_ago(hours=1),)),
         ("DELETE FROM pending_identities WHERE created_at < ?", (iso_ago(hours=1),)),
         ("DELETE FROM device_grants WHERE expires_at < ?", (iso_ago(days=1),)),
         ("DELETE FROM phone_codes WHERE created_at < ?", (iso_ago(days=2),)),
+        ("DELETE FROM moderation_log WHERE created_at < ?", (records,)),
+        ("DELETE FROM reports WHERE resolved_at IS NOT NULL AND resolved_at < ?", (records,)),
+        ("DELETE FROM ratings WHERE removed_at IS NOT NULL AND removed_at < ?", (records,)),
+        (
+            "DELETE FROM api_tokens WHERE oauth_client_id IS NOT NULL AND COALESCE(last_used_at, created_at) < ?",
+            (iso_ago(days=ASSISTANT_KEY_DAYS),),
+        ),
     ]
     return sum(conn.execute(sql, args).rowcount for sql, args in statements)
 

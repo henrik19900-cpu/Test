@@ -41,7 +41,7 @@
       </span>
       {% endif %}
       <span class="my-listing-actions">
-        <a href="/annonse/{{ item.id }}/rediger">Rediger</a>
+        {% if item.status != "removed" %}<a href="/annonse/{{ item.id }}/rediger">Rediger</a>{% endif %}
         <form method="post" action="/annonse/{{ item.id }}/status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="neste" value="/min-side">

@@ -1588,12 +1588,16 @@ section.panel {
 
 .inline-note {
   display: flex;
+  flex-wrap: wrap; /* on narrow phones the button goes under the field instead of off the screen */
   gap: 0.4rem;
   align-items: center;
+  max-width: 100%;
 }
 
 .inline-note input {
-  width: 15rem;
+  flex: 1 1 10rem;
+  min-width: 0;
+  max-width: 15rem;
   padding: 0.35rem 0.6rem;
   font-size: 0.9rem;
 }

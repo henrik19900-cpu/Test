@@ -110,6 +110,10 @@ def test_appeals_on_the_listing_page_and_through_mcp(app, client, auth):
     web_login(client)  # the owner
     page = client.get(f"/annonse/{listing['id']}").text
     assert "Klag på avgjørelsen" in page and "Ser ut som svindel" in page
+    # Only appealing and deleting are possible, so nothing else is offered.
+    assert "Gjør aktiv igjen" not in page and "Rediger annonsen" not in page
+    edit = client.get(f"/annonse/{listing['id']}/rediger", follow_redirects=False)
+    assert edit.status_code == 303 and edit.headers["location"] == f"/annonse/{listing['id']}#klage"
     client.post(
         f"/annonse/{listing['id']}/klage",
         data={"csrf_token": csrf(client), "text": "Jeg eier sykkelen og har kvittering."},

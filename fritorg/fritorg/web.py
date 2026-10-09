@@ -664,7 +664,12 @@ def edit_listing(listing_id: int, request: Request, conn: Conn) -> Response:
         return login_redirect(request)
     if must_verify(request, user):
         return verification_redirect(f"/annonse/{listing_id}/rediger")
-    _, listing = _own_listing(request, conn, listing_id)
+    owner, listing = _own_listing(request, conn, listing_id)
+    if listing.status == "removed" and not owner.is_admin:
+        flash = "Annonsen er fjernet av en moderator og kan ikke endres."
+        if listing.can_appeal:
+            flash += " Du kan klage på avgjørelsen."
+        return redirect(f"/annonse/{listing_id}#klage", flash=flash)
     values = {name: getattr(listing, name) for name in listings.EDITABLE_FIELDS}
     return _listing_form(request, conn, listing.category_obj, values, listing=listing)
 

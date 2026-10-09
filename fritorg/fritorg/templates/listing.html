@@ -182,7 +182,9 @@
         {% if listing.status == "active" and listing.expires_at %}<p class="small">Aktiv til {{ listing.expires_at|date_no }}. Etter det skjules den, og du kan gjøre den aktiv igjen.</p>{% endif %}
         {% if listing.deletes_at %}<p class="small status-note status-note-danger">Slettes automatisk {{ listing.deletes_at|date_no }} fordi den ikke har vært aktiv eller endret på lenge.{% if listing.status in ("sold", "inactive") %} Gjør den aktiv igjen eller endre den for å beholde den.{% endif %}</p>{% endif %}
         <p class="small owner-stats">Sett {{ views|number }} {{ "gang" if views == 1 else "ganger" }}{% if favorite_count %} · {{ favorite_count }} har lagret den{% endif %}</p>
-        <a class="button button-block" href="/annonse/{{ listing.id }}/rediger">Rediger annonsen</a>
+        {# A removed listing can only be appealed or deleted; one in review waits for a moderator. #}
+        {% if listing.status != "removed" or is_admin %}<a class="button button-block" href="/annonse/{{ listing.id }}/rediger">Rediger annonsen</a>{% endif %}
+        {% if listing.status in ("active", "sold", "inactive") %}
         <form method="post" action="/annonse/{{ listing.id }}/status">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           {% if listing.status == "active" %}
@@ -193,6 +195,7 @@
             <button class="button button-block button-primary" name="status" value="active">Gjør aktiv igjen</button>
           {% endif %}
         </form>
+        {% endif %}
         <details>
           <summary>Slett annonsen</summary>
           <form method="post" action="/annonse/{{ listing.id }}/slett">

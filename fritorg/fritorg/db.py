@@ -499,6 +499,31 @@ CREATE INDEX idx_conversations_deleted ON conversations(id)
 """
 
 
+# Sign-in for AI assistants (oauth.py): the apps that registered, and one-time codes that become API tokens.
+SCHEMA_V11 = """
+CREATE TABLE oauth_clients (
+    id INTEGER PRIMARY KEY,
+    client_id TEXT NOT NULL UNIQUE,
+    secret_hash TEXT,
+    name TEXT NOT NULL,
+    redirect_uris TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT
+);
+CREATE TABLE oauth_codes (
+    code_hash TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+);
+ALTER TABLE api_tokens ADD COLUMN oauth_client_id TEXT;
+"""
+
+
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
     conn.execute("PRAGMA analysis_limit = 1000")
@@ -518,6 +543,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V8,
     SCHEMA_V9,
     SCHEMA_V10,
+    SCHEMA_V11,
 ]
 
 

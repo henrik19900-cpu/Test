@@ -17,6 +17,18 @@ from .ratings import SCORE_LABELS, stars
 from .util import format_ago_no, format_date_no, format_datetime_no, format_days_no, format_number, truncate
 
 SESSION_COOKIE = "ft_session"
+# Content Security Policy for every page (set in app.py, unless a page sets its own).
+CSP = (
+    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
+    "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
+)
+
+
+def csp_allowing_form_action(source: str) -> str:
+    """The CSP for a page whose form sends the browser on to `source` (browsers check redirects too)."""
+    return CSP.replace("form-action 'self'", f"form-action 'self' {source}")
+
+
 CSRF_COOKIE = "ft_csrf"
 FLASH_COOKIE = "ft_flash"
 NBSP = "\u00a0"

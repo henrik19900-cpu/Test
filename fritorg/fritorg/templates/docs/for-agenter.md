@@ -11,21 +11,31 @@
 
 ## Koble til med MCP (anbefalt)
 
-MCP (Model Context Protocol) er standarden de fleste AI-assistenter bruker for å koble seg til tjenester. Adressen er:
+MCP (Model Context Protocol) er standarden de fleste AI-assistenter bruker for å koble seg til tjenester. Det er to adresser:
+
+    {{ base }}/mcp/konto
+
+Med denne logger du inn{% if settings.bankid_required %} med BankID{% endif %} og godkjenner assistenten første gang, og da kan den også legge ut annonser, sende meldinger og lagre søk for deg. Assistenter som støtter innlogging for MCP (OAuth), åpner innloggingssiden selv: Claude, ChatGPT, Claude Code, Cursor, VS Code og flere. Tilgangen vises som en nøkkel på [Min side]({{ base }}/min-side#nokler), der du kan slette den.
 
     {{ base }}/mcp
 
-### Claude Code
-
-    claude mcp add --transport http fritorg {{ base }}/mcp
-
-Med nøkkel, slik at assistenten også kan legge ut annonser og sende meldinger:
-
-    claude mcp add --transport http fritorg {{ base }}/mcp --header "Authorization: Bearer DIN_NØKKEL"
+Uten innlogging: assistenten kan søke og lese annonser.
 
 ### Claude.ai, Claude Desktop og ChatGPT
 
-Legg til en egendefinert connector («custom connector») med adressen over. For full tilgang logger du inn{% if settings.bankid_required %} med BankID{% endif %} på [Min side]({{ base }}/min-side), lager en nøkkel og bruker den personlige adressen du får der: `{{ base }}/mcp/DIN_NØKKEL`. Adressen fungerer som et passord, så ikke del den.
+Legg til en egendefinert connector («custom connector») med adressen `{{ base }}/mcp/konto`, trykk «Koble til» og logg inn.
+
+### Claude Code
+
+    claude mcp add --transport http fritorg {{ base }}/mcp/konto
+
+Skriv så `/mcp` i Claude Code og velg Fritorg for å logge inn.
+
+Har assistenten ikke innlogging for MCP, lager du en nøkkel på Min side og sender den med:
+
+    claude mcp add --transport http fritorg {{ base }}/mcp --header "Authorization: Bearer DIN_NØKKEL"
+
+Noen apper har bare et felt for adressen. Da kan du bruke den personlige adressen fra Min side, `{{ base }}/mcp/DIN_NØKKEL`. Den fungerer som et passord, så ikke del den.
 
 ### Cursor, VS Code og andre MCP-klienter
 
@@ -33,8 +43,7 @@ Legg til en egendefinert connector («custom connector») med adressen over. For
 {
   "mcpServers": {
     "fritorg": {
-      "url": "{{ base }}/mcp",
-      "headers": { "Authorization": "Bearer DIN_NØKKEL" }
+      "url": "{{ base }}/mcp/konto"
     }
   }
 }

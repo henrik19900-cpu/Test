@@ -65,7 +65,8 @@
 
 <section id="nokler" class="panel agent-panel" aria-labelledby="agent-title">
   <h2 id="agent-title">{{ icon("robot", 24) }} Koble til AI-assistenten din</h2>
-  <p>Med en personlig API-nøkkel kan assistenten din (Claude, ChatGPT, Cursor og andre) søke, legge ut annonser og sende meldinger for deg. Nøkkelen er gratis og kan slettes når som helst. Alt assistenten lager, merkes som «via AI-agent».</p>
+  <p>Enklest: legg til <code>{{ base }}/mcp/konto</code> i assistenten din (Claude, ChatGPT, Cursor og andre), og logg inn når den ber om det. Da kan den søke, legge ut annonser og sende meldinger for deg. Alt assistenten lager, merkes som «via AI-agent». Assistenter du har koblet til, står i listen under, og du kan slette dem når som helst.</p>
+  <p class="small">Støtter ikke assistenten innlogging, lager du en personlig nøkkel her.</p>
 
   {% if new_token %}
   <div class="token-box" role="status">

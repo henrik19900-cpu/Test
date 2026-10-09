@@ -28,6 +28,7 @@ from . import (
     maintenance,
     mcp_server,
     navjobs,
+    oauth,
     phone,
     views,
     web,
@@ -37,7 +38,7 @@ from .db import Database
 from .deps import client_ip
 from .errors import AppError, PayloadTooLarge, RateLimited
 from .ratelimit import RateLimiter
-from .templating import CSRF_COOKIE, render_error, templates
+from .templating import CSP, CSRF_COOKIE, render_error, templates
 
 logger = logging.getLogger("fritorg")
 
@@ -67,11 +68,6 @@ OPENAPI_TAGS = [
     {"name": "account", "description": "Free accounts and personal API tokens."},
     {"name": "meta", "description": "Discovery."},
 ]
-
-CSP = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
-    "frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
-)
 
 
 class RedactTokens(logging.Filter):
@@ -196,6 +192,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(api.router)
     app.include_router(mcp_server.router)
+    app.include_router(oauth.router)
     app.include_router(discovery.router)
     app.include_router(bankid_web.router)
     app.include_router(web.router)
@@ -263,7 +260,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if response.headers.get("content-type", "").startswith("text/html") and not path.startswith(
             "/api/docs"
         ):
-            response.headers["Content-Security-Policy"] = CSP
+            response.headers.setdefault("Content-Security-Policy", CSP)  # a page may widen form-action
             response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
             response.headers["X-Frame-Options"] = "DENY"
         if new_csrf:

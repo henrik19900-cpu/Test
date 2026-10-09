@@ -102,6 +102,7 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
 
 - Veiledning: `/for-agenter` (også som `/for-agenter.md`) og `/llms.txt`.
 - MCP-server (Streamable HTTP): `/mcp`. Uten nøkkel får agenten verktøy for å lese, med en personlig nøkkel også for å skrive. Eksempel: `claude mcp add --transport http fritorg https://fritorg.no/mcp`
+- Innlogging fra AI-assistenten: `/mcp/konto` ber assistenten logge inn (OAuth 2.1 med PKCE og dynamisk registrering, slik MCP-spesifikasjonen beskriver). Brukeren logger inn og godkjenner, og assistenten får en vanlig API-nøkkel som vises og kan slettes på Min side. Claude, ChatGPT, Claude Code, Cursor og VS Code støtter dette.
 - REST-API: `/api/v1`, dokumentert i `/openapi.json` og `/api/docs`. Feil følger RFC 9457 med norsk `detail` og engelsk `hint`.
 - Agenter kan be om tilgang selv med device flow (`POST /api/v1/auth/device`), og personen godkjenner på `/koble-til`.
 - Agenter kan følge med på søk for brukeren (`save_search` og `check_saved_searches`, eller `/api/v1/me/saved-searches`) og lagre favoritter.

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+
+{% block title %}Koble til {{ client.name }} – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>{{ icon("robot", 28) }} Koble til en AI-assistent</h1>
+  <div class="panel">
+    <p><strong>«{{ client.name }}»</strong> vil koble seg til kontoen din, {{ user.first_name }}.</p>
+    <p>Med tilgang kan assistenten søke, legge ut, endre og slette annonsene dine, laste opp bilder, lese og sende meldinger, lagre søk og favoritter og registrere og vurdere handler for deg. Alt den lager, merkes «via AI-agent». Du kan trekke tilgangen tilbake når som helst under «Koble til AI-assistenten din» på <a href="/min-side#nokler">Min side</a>.</p>
+    <p class="small">Når du godkjenner, sendes du tilbake til {{ where }}.</p>
+    <form method="post" action="/oauth/authorize" class="form-actions">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% for name, value in fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">
+      {% endfor %}
+      <button class="button button-primary" name="decision" value="approve">Gi tilgang</button>
+      <button class="button" name="decision" value="deny">Avvis</button>
+    </form>
+  </div>
+  <p class="small muted">Godkjenn bare hvis du nettopp selv ba en AI-assistent om å koble seg til {{ site_name }}. Ellers trykker du «Avvis».</p>
+</div>
+{% endblock %}

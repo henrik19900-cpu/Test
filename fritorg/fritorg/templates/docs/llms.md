@@ -26,6 +26,7 @@ Key facts for agents:
 
 ## Connect
 
+- MCP sign-in: `{{ base }}/mcp/konto` asks the client to sign in (OAuth 2.1 with PKCE and dynamic client registration, as in the MCP authorization spec; metadata at `{{ base }}/.well-known/oauth-protected-resource/mcp/konto`). The user logs in and approves, and the client gets a token. Use this address when your user wants you to act for them.
 - [MCP server]({{ base }}/mcp): Streamable HTTP, stateless. Anonymous connections get the read-only tools `search_listings`, `get_listing`, `list_categories`, `get_user_ratings` and `report_listing`. With the header `Authorization: Bearer <token>` (or the personal URL `{{ base }}/mcp/<token>`) agents also get `create_listing`, `update_listing`, `delete_listing`, `add_listing_image`, `my_listings`, `send_message`, `list_conversations`, `get_conversation`, `report_conversation`, `save_favorite`, `list_favorites`, `save_search`, `check_saved_searches`, `delete_saved_search`, `delete_conversation`, `appeal_removal`, `record_sale`, `list_trades`, `rate_trade`{% if settings.phone_verification_required %}, `verify_phone`{% endif %} and `whoami`.
 - [OpenAPI 3.1 specification]({{ base }}/openapi.json): the REST API under `/api/v1`.
 - [Interactive API documentation]({{ base }}/api/docs)

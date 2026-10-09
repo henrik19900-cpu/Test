@@ -29,6 +29,7 @@ from . import (
     listings,
     messages,
     moderation,
+    oauth,
     phone,
     ratings,
     saved_searches,
@@ -1186,21 +1187,22 @@ def instructions(base: str, user: users.User | None, settings: Settings) -> str:
                 "will fail. Ask the user for their Norwegian mobile number and use verify_phone (two steps: phone, "
                 "then the 6-digit code from the SMS)."
             )
-    elif settings.bankid_required:
-        lines.append(
-            "This connection is anonymous and read-only. To create listings or contact sellers, the user logs in "
-            f"with BankID at {base}/min-side (a free account is created on first login), creates an API token there "
-            "and reconnects with the header 'Authorization: Bearer <token>' or the personal MCP URL shown there."
-        )
     else:
+        account = (
+            "logs in with BankID (a free account is created on first login)"
+            if settings.bankid_required
+            else f"logs in, or creates a free account at {base}/registrer"
+        )
         lines.append(
-            "This connection is anonymous and read-only. To create listings or contact sellers, the user creates a "
-            f"free account at {base}/registrer, creates an API token at {base}/min-side and reconnects with the "
-            "header 'Authorization: Bearer <token>' or the personal MCP URL shown there."
+            "This connection is anonymous and read-only. To create listings or contact sellers for the user, "
+            f"connect to {base}{oauth.ACCOUNT_PATH} instead: assistants that support MCP sign-in (OAuth) open a page "
+            f"where the user {account} and approves. Agents that make their own HTTP calls can get a token with "
+            f"the device flow (POST {base}/api/v1/auth/device), and any user can create an API token at "
+            f"{base}/min-side for the header 'Authorization: Bearer <token>'."
             + (
                 " Every account confirms a Norwegian mobile number by SMS code before posting (one account per "
                 "number)."
-                if settings.phone_verification_required
+                if settings.phone_verification_required and not settings.bankid_required
                 else ""
             )
         )
@@ -1308,8 +1310,9 @@ class McpServer:
                 _tool_error(
                     Unauthorized(
                         "Dette verktøyet krever en innlogget bruker.",
-                        hint=f"Ask the user to create a free API token at {base}/min-side and reconnect with "
-                        "'Authorization: Bearer <token>' or their personal MCP URL.",
+                        hint=f"Connect to {base}{oauth.ACCOUNT_PATH} instead, which asks the user to log in "
+                        f"(MCP sign-in, OAuth). Or get a token with the device flow (POST {base}/api/v1/auth/device) "
+                        f"or from {base}/min-side and send 'Authorization: Bearer <token>'.",
                     )
                 ),
             )
@@ -1376,15 +1379,36 @@ def _bearer(request: Request) -> str | None:
     return value.strip() if scheme.lower() == "bearer" and value.strip() else None
 
 
-def _unauthorized() -> JSONResponse:
+def _unauthorized(base: str, path: str | None) -> JSONResponse:
+    """A token that does not work. On /mcp and /mcp/konto the answer also says where to sign in again."""
+    challenge = (
+        oauth.challenge(base, path, "invalid_token")
+        if path
+        else 'Bearer realm="fritorg", error="invalid_token"'
+    )
     return JSONResponse(
         _error(None, INVALID_REQUEST, "Invalid or revoked API token"),
         status_code=401,
-        headers={"WWW-Authenticate": 'Bearer realm="fritorg", error="invalid_token"'},
+        headers={"WWW-Authenticate": challenge},
     )
 
 
-async def _handle_post(request: Request, path_token: str | None) -> Response:
+def _sign_in_required(request: Request) -> JSONResponse:
+    base = base_url(request)
+    return JSONResponse(
+        _error(
+            None,
+            INVALID_REQUEST,
+            f"Sign in to use {base}{oauth.ACCOUNT_PATH}: MCP clients that support sign-in (OAuth) open a login "
+            f"page for the user. Without it, use {base}/mcp (read-only, no account needed) or a personal API "
+            f"token from {base}/min-side.",
+        ),
+        status_code=401,
+        headers={"WWW-Authenticate": oauth.challenge(base)},
+    )
+
+
+async def _handle_post(request: Request, path_token: str | None, path: str | None = "/mcp") -> Response:
     server: McpServer = request.app.state.mcp
     version = request.headers.get("mcp-protocol-version")
     if version and version not in PROTOCOL_VERSIONS:
@@ -1425,7 +1449,7 @@ async def _handle_post(request: Request, path_token: str | None) -> Response:
     if token:
         user = await run_in_threadpool(_user_for_token, server, token)
         if user is None:
-            return _unauthorized()
+            return _unauthorized(base, path)
     reply = await run_in_threadpool(server.process, payload, user, base, client_ip(request))
     if reply is None:
         return Response(status_code=202)
@@ -1442,11 +1466,27 @@ async def mcp_post(request: Request) -> Response:
     return await _handle_post(request, None)
 
 
+@router.post(oauth.ACCOUNT_PATH)
+async def mcp_post_account(request: Request) -> Response:
+    """The address for assistants that sign in (OAuth): it needs a token, and without one it says where to
+    get it. Registered before /mcp/{token}."""
+    if not _bearer(request):
+        return _sign_in_required(request)
+    return await _handle_post(request, None, oauth.ACCOUNT_PATH)
+
+
+@router.get(oauth.ACCOUNT_PATH)
+def mcp_get_account(request: Request) -> Response:
+    if not _bearer(request):
+        return _sign_in_required(request)
+    return _info(request)
+
+
 @router.post("/mcp/{token}")
 async def mcp_post_personal(request: Request, token: str) -> Response:
     if not looks_like_token(token):
         return JSONResponse({"detail": "Not found"}, status_code=404)
-    return await _handle_post(request, token)
+    return await _handle_post(request, token, None)
 
 
 def _info(request: Request) -> Response:
@@ -1475,6 +1515,7 @@ def mcp_get_personal(request: Request, token: str) -> Response:
 
 
 @router.delete("/mcp")
+@router.delete(oauth.ACCOUNT_PATH)
 @router.delete("/mcp/{token}")
 def mcp_delete() -> Response:
     return Response(status_code=405, headers={"Allow": "POST"})

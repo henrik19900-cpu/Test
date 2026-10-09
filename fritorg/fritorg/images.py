@@ -177,6 +177,13 @@ def add_image(
     check_owner(listing, user_id, is_admin)
     if len(data) > max_bytes:
         raise PayloadTooLarge(f"Bildet er for stort (maks {max_bytes // (1024 * 1024)} MB).")
+    digest = hashlib.sha256(data).hexdigest()
+    # The same photo again (a retried upload, a form sent twice) is the one already there.
+    same = conn.execute(
+        "SELECT id FROM listing_images WHERE listing_id = ? AND sha256 = ?", (listing_id, digest)
+    ).fetchone()
+    if same is not None:
+        return next(image for image in listing.images if image.id == same["id"])
     if len(listing.images) >= max_images:
         raise ValidationProblem.field("image", f"En annonse kan ha maks {max_images} bilder.")
     processed = process_image(data)
@@ -192,7 +199,6 @@ def add_image(
 
     alt = " ".join((alt_text or "").split())[:200] or None
     position = max((image.position for image in listing.images), default=-1) + 1
-    digest = hashlib.sha256(data).hexdigest()
     try:
         # A photo already used by another seller is a classic sign of a fake listing.
         if reused_by_other_seller(conn, listing.user_id, digest, processed.dhash):

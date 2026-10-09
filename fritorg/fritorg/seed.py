@@ -889,7 +889,7 @@ def seed(db: Database, settings: Settings | None = None, *, force: bool = False)
                 sofa["id"],
                 accounts[DEMO_EMAIL],
                 "Hei! Er sofaen fortsatt til salgs? Kan hente på lørdag.",
-            )
+            ).conversation_id
             messages.reply(
                 conn,
                 conversation_id,

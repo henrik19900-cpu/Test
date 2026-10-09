@@ -330,6 +330,7 @@ def _create_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         max_per_day=ctx.settings.max_listings_per_day,
         new_account_max_per_day=ctx.settings.new_account_max_listings_per_day,
         active_days=ctx.settings.listing_days,
+        reuse_recent=True,
     )
     listing = listings.get_listing(ctx.conn, listing_id)
     detail = serializers.listing_detail(listing, ctx.base, owner_view=True)
@@ -422,18 +423,18 @@ def _send_message(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "new_account_max_per_day": ctx.settings.new_account_max_messages_per_day,
     }
     if conversation_id is not None:
-        messages.reply(ctx.conn, conversation_id, ctx.user.id, text, via="mcp", **quota)
+        sent = messages.reply(ctx.conn, conversation_id, ctx.user.id, text, via="mcp", **quota)
     elif listing_id is not None:
-        conversation_id = messages.contact_seller(ctx.conn, listing_id, ctx.user.id, text, via="mcp", **quota)
+        sent = messages.contact_seller(ctx.conn, listing_id, ctx.user.id, text, via="mcp", **quota)
     else:
         raise ValidationProblem.field(
             "listing_id",
             "Oppgi listing_id (ny henvendelse) eller conversation_id (svar).",
             hint="Use listing_id to contact a seller, or conversation_id to reply in an existing conversation.",
         )
-    if ctx.mailer is not None:
-        notify_new_message(ctx.mailer, ctx.base, ctx.conn, conversation_id, ctx.user.id)
-    conversation = messages.get_conversation(ctx.conn, conversation_id, ctx.user.id)
+    if ctx.mailer is not None and not sent.repeated:
+        notify_new_message(ctx.mailer, ctx.base, ctx.conn, sent.conversation_id, ctx.user.id)
+    conversation = messages.get_conversation(ctx.conn, sent.conversation_id, ctx.user.id)
     return serializers.conversation_dict(conversation, ctx.user.id, ctx.base, with_messages=True)
 
 

@@ -344,6 +344,7 @@ def create_listing(
         max_per_day=settings.max_listings_per_day,
         new_account_max_per_day=settings.new_account_max_listings_per_day,
         active_days=settings.listing_days,
+        reuse_recent=True,
     )
     base = base_url(request)
     response.headers["Location"] = f"{base}/api/v1/listings/{listing_id}"
@@ -978,7 +979,7 @@ def contact_seller(
 ) -> dict:
     """Send a message about a listing. Reuses your existing conversation with the seller if there is one."""
     phone.ensure_verified(settings, user, base_url(request))
-    conversation_id = messages.contact_seller(
+    sent = messages.contact_seller(
         conn,
         body.listing_id,
         user.id,
@@ -987,8 +988,9 @@ def contact_seller(
         max_per_day=settings.max_messages_per_day,
         new_account_max_per_day=settings.new_account_max_messages_per_day,
     )
-    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
-    conversation = messages.get_conversation(conn, conversation_id, user.id)
+    if not sent.repeated:
+        notify_new_message(request.app.state.mailer, base_url(request), conn, sent.conversation_id, user.id)
+    conversation = messages.get_conversation(conn, sent.conversation_id, user.id)
     return serializers.conversation_dict(conversation, user.id, base_url(request), with_messages=True)
 
 
@@ -1030,7 +1032,7 @@ def reply(
     settings: SettingsDep,
 ) -> dict:
     phone.ensure_verified(settings, user, base_url(request))
-    messages.reply(
+    sent = messages.reply(
         conn,
         conversation_id,
         user.id,
@@ -1039,7 +1041,8 @@ def reply(
         max_per_day=settings.max_messages_per_day,
         new_account_max_per_day=settings.new_account_max_messages_per_day,
     )
-    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
+    if not sent.repeated:
+        notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     conversation = messages.get_conversation(conn, conversation_id, user.id)
     return serializers.conversation_dict(conversation, user.id, base_url(request), with_messages=True)
 

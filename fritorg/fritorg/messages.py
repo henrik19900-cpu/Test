@@ -14,6 +14,16 @@ from .listings import CHANNELS, get_listing
 from .util import iso_ago, now_iso, parse_iso
 
 MAX_BODY = 5000
+# Sending the same text again within this time sends nothing new: agents retry calls that timed out, and
+# forms get sent twice.
+REPEAT_MINUTES = 10
+
+
+@dataclass
+class Sent:
+    conversation_id: int
+    message_id: int
+    repeated: bool = False  # the same text was already the latest message: nothing was sent or notified
 
 
 @dataclass
@@ -233,8 +243,8 @@ def contact_seller(
     via: str = "web",
     max_per_day: int = 200,
     new_account_max_per_day: int | None = None,
-) -> int:
-    """Send a message about a listing, reusing the buyer's existing conversation. Returns its id."""
+) -> Sent:
+    """Send a message about a listing, reusing the buyer's existing conversation."""
     text = _clean_body(body)
     listing = get_listing(conn, listing_id)
     if listing.status != "active" or not listing.is_public:
@@ -249,10 +259,13 @@ def contact_seller(
         raise ValidationProblem.field("listing_id", "Du kan ikke sende melding om din egen annonse.")
     _check_not_blocked(conn, buyer_id, listing.user_id)
     with transaction(conn):
-        _check_quota(conn, buyer_id, max_per_day, new_account_max_per_day)
         row = conn.execute(
             "SELECT id FROM conversations WHERE listing_id = ? AND buyer_id = ?", (listing_id, buyer_id)
         ).fetchone()
+        repeated = _repeated_message(conn, row["id"], buyer_id, text) if row else None
+        if repeated is not None:
+            return Sent(row["id"], repeated, repeated=True)
+        _check_quota(conn, buyer_id, max_per_day, new_account_max_per_day)
         if row:
             conversation_id = row["id"]
         else:
@@ -263,8 +276,8 @@ def contact_seller(
                 (listing_id, listing.title, buyer_id, listing.user_id, now, now),
             )
             conversation_id = cursor.lastrowid
-        _insert_message(conn, conversation_id, buyer_id, text, via)
-    return conversation_id
+        message_id = _insert_message(conn, conversation_id, buyer_id, text, via)
+    return Sent(conversation_id, message_id)
 
 
 def reply(
@@ -276,14 +289,35 @@ def reply(
     via: str = "web",
     max_per_day: int = 200,
     new_account_max_per_day: int | None = None,
-) -> int:
+) -> Sent:
     text = _clean_body(body)
     conversation = _get(conn, conversation_id, sender_id)
     _check_not_blocked(conn, sender_id, conversation.other_id(sender_id))
     with transaction(conn):
+        repeated = _repeated_message(conn, conversation.id, sender_id, text)
+        if repeated is not None:
+            return Sent(conversation.id, repeated, repeated=True)
         _check_quota(conn, sender_id, max_per_day, new_account_max_per_day)
         message_id = _insert_message(conn, conversation.id, sender_id, text, via)
-    return message_id
+    return Sent(conversation.id, message_id)
+
+
+def _repeated_message(
+    conn: sqlite3.Connection, conversation_id: int, sender_id: int, text: str
+) -> int | None:
+    """The latest message in the conversation, if the sender sent this same text a few minutes ago."""
+    row = conn.execute(
+        "SELECT id, sender_id, body, created_at FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1",
+        (conversation_id,),
+    ).fetchone()
+    if (
+        row
+        and row["sender_id"] == sender_id
+        and row["body"] == text
+        and row["created_at"] > iso_ago(minutes=REPEAT_MINUTES)
+    ):
+        return row["id"]
+    return None
 
 
 def _get(conn: sqlite3.Connection, conversation_id: int, user_id: int) -> Conversation:

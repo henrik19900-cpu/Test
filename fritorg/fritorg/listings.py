@@ -847,10 +847,12 @@ def create_listing(
     max_per_day: int = 50,
     new_account_max_per_day: int | None = None,
     active_days: int = 60,
+    reuse_recent: bool = False,
 ) -> int:
     """Create a listing. Listings with strong fraud signals start in status "review".
 
-    It is active for `active_days` (0 = no end); then it is hidden until the owner renews it.
+    It is active for `active_days` (0 = no end); then it is hidden until the owner renews it. With
+    `reuse_recent`, the same listing sent again within REPEAT_MINUTES returns the one already made.
     """
     values = validate_listing(data)
     status = data.get("status") or "active"
@@ -859,6 +861,9 @@ def create_listing(
             "status", f"Ugyldig status. Gyldige verdier: {', '.join(OWNER_STATUSES)}"
         )
     with transaction(conn):
+        repeated = _repeated_listing(conn, user_id, values) if reuse_recent else None
+        if repeated is not None:
+            return repeated
         _quota(conn, user_id, max_per_day, new_account_max_per_day)
         assessment, fingerprint = fraud.assess_listing(conn, user_id, values)
         if assessment.needs_review:
@@ -896,6 +901,29 @@ def create_listing(
         assert listing_id is not None
     forget_counts()
     return listing_id
+
+
+# Agents retry calls that timed out, and forms get sent twice: the same listing again within this time
+# returns the one already made instead of a copy.
+REPEAT_MINUTES = 10
+
+
+def _repeated_listing(conn: sqlite3.Connection, user_id: int, values: dict[str, Any]) -> int | None:
+    row = conn.execute(
+        # "+": look among the account's own new listings, never through a whole category.
+        "SELECT id FROM listings WHERE user_id = ? AND status IN ('active', 'inactive', 'review') "
+        "AND created_at > ? AND +title = ? AND +description = ? AND +category = ? AND +price IS ? "
+        "AND external_id IS NULL ORDER BY id DESC LIMIT 1",
+        (
+            user_id,
+            iso_ago(minutes=REPEAT_MINUTES),
+            values["title"],
+            values["description"],
+            values["category"],
+            values["price"],
+        ),
+    ).fetchone()
+    return row["id"] if row else None
 
 
 def update_listing(

@@ -347,7 +347,7 @@ def test_bulk_export_streams_ndjson(client, auth):
 def test_daily_listing_quota(app, client, auth):
     app.state.settings.max_listings_per_day = 2
     make_listing(client, auth)
-    make_listing(client, auth)
+    make_listing(client, auth, title="Andre sykkel til salgs")
     response = client.post(
         "/api/v1/listings",
         json={"category": "sykler", "title": "Tredje sykkel", "description": "Enda en sykkel til salgs."},

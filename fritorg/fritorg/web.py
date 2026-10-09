@@ -426,7 +426,7 @@ def contact_seller(listing_id: int, request: Request, conn: Conn, form: Form) ->
         return verification_redirect(f"/annonse/{listing_id}#kontakt")
     settings = request.app.state.settings
     try:
-        conversation_id = messages.contact_seller(
+        sent = messages.contact_seller(
             conn,
             listing_id,
             user.id,
@@ -436,8 +436,9 @@ def contact_seller(listing_id: int, request: Request, conn: Conn, form: Form) ->
         )
     except (ValidationProblem, RateLimited, Forbidden) as exc:
         return redirect(f"/annonse/{listing_id}#kontakt", flash=exc.message)
-    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
-    return redirect(f"/meldinger/{conversation_id}", flash="Meldingen er sendt.")
+    if not sent.repeated:
+        notify_new_message(request.app.state.mailer, base_url(request), conn, sent.conversation_id, user.id)
+    return redirect(f"/meldinger/{sent.conversation_id}", flash="Meldingen er sendt.")
 
 
 @router.post("/annonse/{listing_id:int}/rapporter")
@@ -632,6 +633,7 @@ def create_listing(request: Request, conn: Conn, form: Form) -> Response:
             max_per_day=settings.max_listings_per_day,
             new_account_max_per_day=settings.new_account_max_listings_per_day,
             active_days=settings.listing_days,
+            reuse_recent=True,
         )
     except ValidationProblem as exc:
         return _listing_form(request, conn, category, values, _errors_by_field(exc), status=422)
@@ -899,7 +901,7 @@ def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Res
         return verification_redirect(f"/meldinger/{conversation_id}")
     settings = request.app.state.settings
     try:
-        messages.reply(
+        sent = messages.reply(
             conn,
             conversation_id,
             user.id,
@@ -909,7 +911,8 @@ def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Res
         )
     except (ValidationProblem, RateLimited, Forbidden) as exc:
         return redirect(f"/meldinger/{conversation_id}", flash=exc.message)
-    notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
+    if not sent.repeated:
+        notify_new_message(request.app.state.mailer, base_url(request), conn, conversation_id, user.id)
     return redirect(f"/meldinger/{conversation_id}#siste")
 
 

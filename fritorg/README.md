@@ -129,7 +129,7 @@ Dette bygger på en gjennomgang av vilkårene, loven og rettspraksis (blant anne
 
 Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.com/), som henter og fornyer HTTPS-sertifikater automatisk.
 
-1. Skaff en server med Docker (for eksempel en liten VPS i Norge eller EU) og pek domenets A/AAAA-oppføring dit.
+1. Skaff en server med Docker (for eksempel en liten VPS i Norge eller EU) og pek domenets A/AAAA-oppføring dit. En gratis maskin hos Oracle Cloud holder godt: se [steg for steg](deploy/oracle-cloud.md).
 2. Fyll inn innstillingene:
    ```sh
    cd fritorg/deploy

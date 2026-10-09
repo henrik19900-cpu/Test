@@ -34,7 +34,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -t fritorg fritorg
+        # Docker Hub sometimes refuses anonymous pulls from shared runners (429, 504); then use Google's mirror.
+        run: |
+          docker build -t fritorg fritorg || docker build -t fritorg fritorg \
+            --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.12-slim
       - name: Start with demo data and check that it answers
         run: |
           docker run -d --name fritorg -p 8000:8000 -e FRITORG_SEED_DEMO=1 fritorg

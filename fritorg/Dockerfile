@@ -1,5 +1,8 @@
 # Fritorg – production image. Build from this folder: docker build -t fritorg .
-FROM python:3.12-slim
+# The same official Python image can come from a mirror of Docker Hub when Docker Hub refuses anonymous
+# pulls (429): --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.12-slim
+ARG PYTHON_IMAGE=python:3.12-slim
+FROM ${PYTHON_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

@@ -125,5 +125,6 @@ Prøv også en gjenoppretting en gang, så du vet at den virker.
 ## Feilsøking
 
 - **Siden svarer ikke:** sjekk at begge brannmurene er åpnet (steg 3), og at `docker compose ps` viser at `app` og `caddy` kjører.
+- **«429 Too Many Requests» når bildet bygges:** Docker Hub begrenser nedlastinger uten innlogging. Vent litt, eller hent Python-bildet fra Googles speil av Docker Hub: `docker compose build --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.12-slim`, og så `docker compose up -d`.
 - **Feil med sertifikatet:** domenet peker ikke til maskinen ennå, eller port 80 er stengt. Se `docker compose logs caddy`.
 - **Maskinen er stoppet:** sjekk e-posten fra Oracle. På gratiskontoer kan lite brukte maskiner bli tatt tilbake. Oppgrader til Pay As You Go (steg 1), og start maskinen igjen under **Compute → Instances**.

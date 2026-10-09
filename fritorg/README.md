@@ -93,7 +93,8 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
 - **Advarsler i meldinger** med betalingslenker, forespørsler om BankID-koder eller kortnummer, eller forsøk på å flytte samtalen til WhatsApp.
 - **Strengere grenser for nye kontoer** det første døgnet.
 - **Rapportering** av annonser og samtaler. Rapporterer tre brukere samme annonse, skjules den til den er kontrollert.
-- **Moderering** på `/moderering`: godkjenne eller fjerne annonser, avvise rapporter og stenge kontoer. Alt logges.
+- **Moderering** på `/moderering`: godkjenne eller fjerne annonser, avvise rapporter, fjerne vurderinger og stenge kontoer. Alt logges.
+- **Klage:** den som får en annonse fjernet, ser begrunnelsen og kan klage én gang. En moderator publiserer annonsen igjen eller svarer på e-post hvorfor den forblir fjernet. Stengte kontoer får vite hvor de kan klage (`FRITORG_CONTACT_EMAIL`).
 - **Merking:** «Mobilnummer bekreftet» eller «BankID-verifisert», «Ny bruker» og «via AI-agent».
 - **Navn som kan forveksles** med siden selv eller kjente selskaper (for eksempel «Fritorg», «Vipps», «Posten») avvises.
 

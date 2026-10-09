@@ -181,6 +181,40 @@ class Image:
 
 
 @dataclass
+class Appeal:
+    """The owner's appeal against a moderator removing their listing (moderation.appeal)."""
+
+    id: int
+    listing_id: int
+    text: str
+    created_at: str
+    decided_at: str | None
+    decision: str | None  # "reversed" (published again) or "upheld"
+    decision_note: str | None
+
+    @property
+    def status(self) -> str:
+        return self.decision or "open"
+
+
+def latest_appeal(conn: sqlite3.Connection, listing_id: int) -> Appeal | None:
+    row = conn.execute(
+        "SELECT * FROM appeals WHERE listing_id = ? ORDER BY id DESC LIMIT 1", (listing_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    return Appeal(
+        row["id"],
+        row["listing_id"],
+        row["text"],
+        row["created_at"],
+        row["decided_at"],
+        row["decision"],
+        row["decision_note"],
+    )
+
+
+@dataclass
 class Listing:
     id: int
     user_id: int
@@ -213,6 +247,8 @@ class Listing:
     seller_active: int | None = None
     seller_sold: int | None = None
     seller_rating: Summary | None = None
+    # For a removed listing: the owner's latest appeal (only loaded by get_listing).
+    appeal: Appeal | None = None
     # Favourites: the price when the person saved it (only loaded for their favourites).
     saved_price: int | None = None
     views: int = 0  # how many times people looked at it (see views.py)
@@ -342,6 +378,15 @@ class Listing:
     @property
     def moderation_reasons(self) -> list[dict[str, str]]:
         return fraud.reasons(self.risk_flags)
+
+    @property
+    def can_appeal(self) -> bool:
+        """A removed listing can be appealed once per removal."""
+        if self.status != "removed":
+            return False
+        return self.appeal is None or (
+            self.reviewed_at is not None and self.appeal.created_at < self.reviewed_at
+        )
 
     def price_text(self, sep: str = " ") -> str | None:
         if self.type == "give":
@@ -733,6 +778,8 @@ def get_listing(conn: sqlite3.Connection, listing_id: int) -> Listing:
     from .ratings import summary  # ratings builds on this module
 
     listing.seller_rating = summary(conn, listing.user_id)
+    if listing.status == "removed":
+        listing.appeal = latest_appeal(conn, listing.id)
     return listing
 
 

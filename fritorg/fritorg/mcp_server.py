@@ -28,6 +28,7 @@ from . import (
     images,
     listings,
     messages,
+    moderation,
     phone,
     ratings,
     saved_searches,
@@ -448,6 +449,15 @@ def _get_conversation(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     assert conversation_id is not None
     conversation = messages.get_conversation(ctx.conn, conversation_id, ctx.user.id)
     return serializers.conversation_dict(conversation, ctx.user.id, ctx.base, with_messages=True)
+
+
+def _appeal_removal(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    listing_id = _int(args, "listing_id", required=True)
+    assert listing_id is not None
+    return serializers.appeal_dict(
+        moderation.appeal(ctx.conn, ctx.user.id, listing_id, _str(args, "text") or "", via="mcp")
+    )
 
 
 def _delete_conversation(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -984,6 +994,18 @@ TOOLS: list[Tool] = [
         _get_conversation,
         required=("conversation_id",),
         requires_auth=True,
+    ),
+    Tool(
+        "appeal_removal",
+        "Appeal a removal",
+        "When a moderator removed one of the user's listings (moderation.status 'removed', can_appeal true): "
+        "ask for a new look, once, with the user's own reasons. A moderator answers by e-mail.",
+        {"listing_id": _LISTING_ID, "text": {"type": "string", "minLength": 10, "maxLength": 2000}},
+        _appeal_removal,
+        required=("listing_id", "text"),
+        requires_auth=True,
+        read_only=False,
+        idempotent=False,
     ),
     Tool(
         "delete_conversation",

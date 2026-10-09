@@ -17,6 +17,7 @@ from . import (
     inventory,
     listings,
     messages,
+    moderation,
     phone,
     privacy,
     ratings,
@@ -33,6 +34,8 @@ from .mailer import notify_new_message, notify_rating, notify_trade, send_verifi
 from .ratelimit import RateLimiter
 from .schemas import (
     AccountOut,
+    AppealIn,
+    AppealOut,
     AuthOut,
     BlockedOut,
     CategoryOut,
@@ -418,6 +421,22 @@ def delete_image(
 ) -> Response:
     images.delete_image(conn, settings.uploads_dir, user.id, listing_id, image_id, is_admin=user.is_admin)
     return Response(status_code=204)
+
+
+@router.post(
+    "/listings/{listing_id}/appeal",
+    status_code=201,
+    response_model=AppealOut,
+    tags=["listings"],
+    summary="Appeal a removal",
+)
+def appeal_removal(listing_id: int, body: AppealIn, request: Request, conn: Conn, user: CurrentUser) -> dict:
+    """The owner of a listing a moderator removed asks for a new look, once per removal. A moderator either
+    publishes it again or upholds the decision and answers by e-mail; `moderation.appeal` on the listing
+    shows the status."""
+    return serializers.appeal_dict(
+        moderation.appeal(conn, user.id, listing_id, body.text, via=_channel(request))
+    )
 
 
 @router.post(

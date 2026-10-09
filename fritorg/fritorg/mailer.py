@@ -263,6 +263,25 @@ def notify_rating(
     )
 
 
+def notify_appeal_upheld(mailer: Mailer, conn: sqlite3.Connection, listing_id: int, note: str) -> None:
+    """Answer the owner when a moderator keeps a removal after their appeal."""
+    if not mailer.enabled:
+        return
+    row = conn.execute("SELECT user_id, title FROM listings WHERE id = ?", (listing_id,)).fetchone()
+    address = _verified_address(conn, row["user_id"]) if row else None
+    if address is None:
+        return
+    email, name = address
+    mailer.send_later(
+        Mail(
+            email,
+            f"Svar på klagen din: «{row['title']}»",
+            f"Hei {name}!\n\nEn moderator har sett på klagen din og mener at annonsen «{row['title']}» fortsatt "
+            f"bryter vilkårene, så den forblir fjernet.\n\nSvar fra moderatoren: {note}\n",
+        )
+    )
+
+
 def notify_moderation(
     mailer: Mailer,
     base: str,

@@ -17,6 +17,7 @@
 - Etter en handel som selgeren har registrert, kan dere vurdere hverandre fra 1 til 5 med en kommentar, én gang og innen 30 dager. Vurderingen er offentlig på profilen til den som blir vurdert, med navnet ditt, tittelen på annonsen og datoen. Den vises når dere begge har vurdert, eller etter 14 dager, og kan ikke endres. Vurderinger skal være ærlige og handle om handelen. Usanne eller krenkende vurderinger kan rapporteres og fjernes av en moderator.
 - Ulovlige varer og tjenester, svindel, spam og støtende innhold er ikke tillatt og blir fjernet.
 - Kontoer som misbruker tjenesten, kan bli begrenset eller stengt.
+- Fjerner en moderator annonsen din, får du en begrunnelse på annonsen og på e-post. Mener du at avgjørelsen er feil, kan du klage én gang på annonsen. En moderator ser på saken på nytt og publiserer annonsen igjen eller forklarer hvorfor den forblir fjernet.{% if settings.contact_email %} Er kontoen din stengt, kan du klage til {{ settings.contact_email }}.{% endif %}
 
 ## Åpne data og AI-agenter
 

@@ -10,7 +10,7 @@ import json
 from typing import Any
 
 from . import taxonomy
-from .listings import AttrFilter, Image, Listing, SearchResult
+from .listings import Appeal, AttrFilter, Image, Listing, SearchResult
 from .messages import Conversation
 from .ratings import Rating, Summary, Trade
 from .saved_searches import SavedSearch
@@ -115,6 +115,8 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
                 "status": listing.status,
                 "reasons": listing.moderation_reasons,
                 "note": listing.moderation_note,
+                "can_appeal": listing.can_appeal,
+                "appeal": appeal_dict(listing.appeal) if listing.appeal else None,
             }
             if owner_view
             else None,
@@ -137,6 +139,17 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
     else:
         data["links"]["contact_seller"] = f"POST {base}/api/v1/conversations"
     return data
+
+
+def appeal_dict(appeal: Appeal) -> dict[str, Any]:
+    return {
+        "id": appeal.id,
+        "status": appeal.status,
+        "text": appeal.text,
+        "created_at": appeal.created_at,
+        "decided_at": appeal.decided_at,
+        "answer": appeal.decision_note,
+    }
 
 
 def rating_summary_dict(summary: Summary) -> dict[str, Any]:

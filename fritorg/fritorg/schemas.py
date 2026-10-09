@@ -183,6 +183,23 @@ class ModerationReasonOut(BaseModel):
     reason: str
 
 
+class AppealOut(BaseModel):
+    id: int
+    status: Literal["open", "reversed", "upheld"] = Field(
+        description="'open' = waiting for a moderator; 'reversed' = published again; 'upheld' = still removed."
+    )
+    text: str
+    created_at: str
+    decided_at: str | None
+    answer: str | None = Field(description="The moderator's answer when the removal was upheld.")
+
+
+class AppealIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=10, max_length=2000, description="Why the removal is wrong.")
+
+
 class ModerationOut(BaseModel):
     """Only included for the listing's owner."""
 
@@ -191,6 +208,8 @@ class ModerationOut(BaseModel):
     )
     reasons: list[ModerationReasonOut] = Field(description="Fraud signals found in the listing.")
     note: str | None = Field(description="Message from the moderator.")
+    can_appeal: bool = Field(False, description="A removed listing can be appealed once per removal.")
+    appeal: AppealOut | None = Field(None, description="The latest appeal against the removal.")
 
 
 class CategoryRef(BaseModel):

@@ -52,6 +52,7 @@ Legg til en egendefinert connector («custom connector») med adressen over. For
 | `create_listing` | Ja | Legg ut en annonse |
 | `update_listing` | Ja | Endre en annonse, merk som solgt eller skjul |
 | `delete_listing` | Ja | Slett en annonse |
+| `appeal_removal` | Ja | Klag når en moderator har fjernet en av brukerens annonser |
 | `add_listing_image` | Ja | Last opp et bilde (base64) |
 | `my_listings` | Ja | Brukerens egne annonser |
 | `send_message` | Ja | Kontakt en selger eller svar i en samtale |

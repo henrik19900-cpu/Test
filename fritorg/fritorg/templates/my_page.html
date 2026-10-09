@@ -35,7 +35,7 @@
       <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.status == "active" and item.expires_at %} · aktiv til {{ item.expires_at|date_no }}{% endif %} · sett {{ views[item.id]|number }} {{ "gang" if views[item.id] == 1 else "ganger" }}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
       {% if item.status in ("review", "removed") or item.deletes_at %}
       <span class="small status-note{% if item.status == 'removed' or item.deletes_at %} status-note-danger{% endif %}">
-        {%- if item.status == "review" %}Venter på godkjenning fra moderator.{% elif item.status == "removed" %}Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %}{% endif %}
+        {%- if item.status == "review" %}Venter på godkjenning fra moderator.{% elif item.status == "removed" %}Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %} (<a href="/annonse/{{ item.id }}#klage">klag</a>){% endif %}
         {%- if item.status in ("review", "removed") and item.deletes_at %} · {% endif %}
         {%- if item.deletes_at %}Slettes {{ item.deletes_at|date_no }} fordi den ikke har vært aktiv eller endret på lenge{% if item.status in ("sold", "inactive") %}. Gjør den aktiv igjen eller endre den for å beholde den{% endif %}.{% endif -%}
       </span>

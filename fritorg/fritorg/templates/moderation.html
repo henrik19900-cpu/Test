@@ -93,6 +93,36 @@
   {% endif %}
 </section>
 
+<section class="panel" aria-labelledby="klager">
+  <h2 id="klager">Klager på avgjørelser ({{ appeals|length }})</h2>
+  {% if appeals %}
+  <ul class="mod-list">
+    {% for a in appeals %}
+    <li>
+      <p>Annonse <a href="/annonse/{{ a.listing_id }}"><strong>{{ a.title }}</strong></a> fra <a href="/bruker/{{ a.user_id }}">{{ a.user_name }}</a> · fjernet {{ a.reviewed_at|datetime_no }} · klaget {{ a.created_at|datetime_no }}</p>
+      <p class="small">Begrunnelse for fjerningen: {{ a.moderation_note or "–" }}</p>
+      <p class="description small">{{ a.text }}</p>
+      <div class="mod-actions">
+        <form method="post" action="/moderering/klage/{{ a.id }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="decision" value="reverse">
+          <button class="button button-primary button-small">Publiser annonsen igjen</button>
+        </form>
+        <form method="post" action="/moderering/klage/{{ a.id }}" class="inline-note">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="decision" value="uphold">
+          <input name="note" required maxlength="500" placeholder="Svar til annonsøren" aria-label="Svar til annonsøren">
+          <button class="button button-small">Behold avgjørelsen</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Ingen klager venter.</p>
+  {% endif %}
+</section>
+
 <section class="panel" aria-labelledby="vurderinger">
   <h2 id="vurderinger">Rapporterte vurderinger ({{ reported_ratings|length }})</h2>
   {% if reported_ratings %}

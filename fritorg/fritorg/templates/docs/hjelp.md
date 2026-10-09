@@ -59,6 +59,10 @@ Når dere er enige om en handel, trykker selgeren **Solgt til …** i samtalen. 
 
 Noen annonser ligner på dem svindlere bruker, for eksempel med krav om depositum før visning eller betalingslenker. Da sjekker en moderator annonsen før den blir synlig. Det betyr ikke at vi tror du er en svindler. Grunnen står på annonsen.
 
+### En moderator har fjernet annonsen min. Kan jeg klage?
+
+Ja. Begrunnelsen står på annonsen. Mener du at den er feil, åpner du annonsen og velger **Klag på avgjørelsen**. En moderator ser på saken på nytt og svarer deg på e-post. Du kan klage én gang per avgjørelse.
+
 ### Hvor mange har sett annonsen min?
 
 Det står på annonsen og under **Min side**, sammen med hvor mange som har lagret den.

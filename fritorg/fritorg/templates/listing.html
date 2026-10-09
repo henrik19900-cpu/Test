@@ -45,8 +45,28 @@
     {% if listing.moderation_reasons %}<ul>{% for r in listing.moderation_reasons %}<li>{{ r.reason }}</li>{% endfor %}</ul>{% endif %}
   </div>
 {% elif listing.status == "removed" %}
-  <div class="notice notice-danger" role="status">
+  <div class="notice notice-danger" role="status" id="klage">
     <p><strong>Annonsen er fjernet av en moderator.</strong>{% if listing.moderation_note %} Begrunnelse: {{ listing.moderation_note }}{% endif %}</p>
+    {% if is_owner %}
+      {% if listing.can_appeal %}
+      <details>
+        <summary>Mener du at dette er feil? Klag på avgjørelsen</summary>
+        <form method="post" action="/annonse/{{ listing.id }}/klage">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field">
+            <label for="appeal-text">Hvorfor er avgjørelsen feil?</label>
+            <textarea id="appeal-text" name="text" rows="4" minlength="10" maxlength="2000" required></textarea>
+            <p class="hint">En moderator ser på saken på nytt og svarer deg på e-post. Du kan klage én gang.</p>
+          </div>
+          <button type="submit" class="button">Send klagen</button>
+        </form>
+      </details>
+      {% elif listing.appeal and listing.appeal.status == "open" %}
+      <p class="small">Du klaget {{ listing.appeal.created_at|date_no }}. En moderator ser på saken og svarer deg på e-post.</p>
+      {% elif listing.appeal and listing.appeal.status == "upheld" %}
+      <p class="small">Klagen din ble behandlet {{ listing.appeal.decided_at|date_no }}, og avgjørelsen står.{% if listing.appeal.decision_note %} Svar: {{ listing.appeal.decision_note }}{% endif %}</p>
+      {% endif %}
+    {% endif %}
   </div>
 {% endif %}
 

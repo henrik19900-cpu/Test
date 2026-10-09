@@ -472,6 +472,26 @@ ALTER TABLE conversations ADD COLUMN seller_hidden_at TEXT;
 """
 
 
+# Appeals against moderation decisions (moderation.appeal): the owner of a removed listing can ask once per
+# removal for a new look, and a moderator either publishes it again or upholds the decision.
+SCHEMA_V9 = """
+CREATE TABLE appeals (
+    id INTEGER PRIMARY KEY,
+    listing_id INTEGER NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    created_via TEXT NOT NULL DEFAULT 'web',
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    decided_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    decision TEXT,
+    decision_note TEXT
+);
+CREATE INDEX idx_appeals_listing ON appeals(listing_id, created_at);
+CREATE INDEX idx_appeals_open ON appeals(created_at) WHERE decided_at IS NULL;
+"""
+
+
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
     conn.execute("PRAGMA analysis_limit = 1000")
@@ -489,6 +509,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V6,
     SCHEMA_V7,
     SCHEMA_V8,
+    SCHEMA_V9,
 ]
 
 

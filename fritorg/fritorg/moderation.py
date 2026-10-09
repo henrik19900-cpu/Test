@@ -1,4 +1,4 @@
-"""Moderation: the review queue, user reports, reported ratings, flagged messages and account bans.
+"""Moderation: the review queue, user reports, reported ratings, appeals, flagged messages and account bans.
 
 Moderators are users with is_admin set (`python -m fritorg make-admin EMAIL`). Every decision
 is written to moderation_log.
@@ -13,8 +13,17 @@ from typing import Any
 
 from . import fraud, users
 from .db import transaction
-from .errors import NotFound, ValidationProblem
-from .listings import REPORT_REASONS, Listing, SearchParams, get_listing, search
+from .errors import Forbidden, NotFound, ValidationProblem
+from .listings import (
+    CHANNELS,
+    REPORT_REASONS,
+    Appeal,
+    Listing,
+    SearchParams,
+    get_listing,
+    latest_appeal,
+    search,
+)
 from .util import iso_ago, now_iso
 
 
@@ -79,6 +88,7 @@ def stats(conn: sqlite3.Connection) -> list[tuple[str, int]]:
         ("Meldinger siste døgn", "SELECT COUNT(*) FROM messages WHERE created_at > ?", (day,)),
         ("Til kontroll", "SELECT COUNT(*) FROM listings WHERE status = 'review'", ()),
         ("Åpne rapporter", "SELECT COUNT(*) FROM reports WHERE resolved_at IS NULL", ()),
+        ("Åpne klager", "SELECT COUNT(*) FROM appeals WHERE decided_at IS NULL", ()),
         ("Stengte kontoer", "SELECT COUNT(*) FROM users WHERE banned_at IS NOT NULL", ()),
     ]
     return [(label, conn.execute(sql, args).fetchone()[0]) for label, sql, args in queries]
@@ -249,6 +259,81 @@ def dismiss_reports(conn: sqlite3.Connection, moderator: users.User, report_ids:
                 (now_iso(), moderator.id, report_id),
             )
         _log(conn, moderator.id, "dismiss_reports", note=",".join(str(i) for i in report_ids))
+
+
+# --- Appeals -----------------------------------------------------------------------------------
+#
+# The owner of a removed listing can appeal once per removal, with their reasons. A moderator looks again and
+# either publishes the listing or upholds the decision with an answer to the owner. Both are logged.
+
+MAX_APPEAL = 2000
+
+
+def appeal(conn: sqlite3.Connection, user_id: int, listing_id: int, text: str, via: str = "web") -> Appeal:
+    listing = get_listing(conn, listing_id)
+    if listing.user_id != user_id:
+        raise Forbidden(
+            "Bare den som la ut annonsen, kan klage.", hint="Only the listing's owner can appeal."
+        )
+    if not listing.can_appeal:
+        raise ValidationProblem.field(
+            "listing_id",
+            "Du kan klage én gang når en moderator har fjernet annonsen."
+            if listing.status == "removed"
+            else "Annonsen er ikke fjernet av en moderator.",
+            hint="Appeals are for listings a moderator removed, once per removal.",
+        )
+    text = " ".join((text or "").split())
+    if len(text) < 10 or len(text) > MAX_APPEAL:
+        raise ValidationProblem.field(
+            "text",
+            f"Forklar kort hvorfor avgjørelsen er feil (10–{MAX_APPEAL} tegn).",
+            hint="10 to 2000 characters.",
+        )
+    with transaction(conn):
+        conn.execute(
+            "INSERT INTO appeals (listing_id, user_id, text, created_via, created_at) VALUES (?, ?, ?, ?, ?)",
+            (listing_id, user_id, text, via if via in CHANNELS else "web", now_iso()),
+        )
+    result = latest_appeal(conn, listing_id)
+    assert result is not None
+    return result
+
+
+def open_appeals(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT a.id, a.text, a.created_at, l.id AS listing_id, l.title, l.moderation_note, l.reviewed_at, "
+        "u.id AS user_id, u.name AS user_name FROM appeals a JOIN listings l ON l.id = a.listing_id "
+        "JOIN users u ON u.id = a.user_id WHERE a.decided_at IS NULL ORDER BY a.created_at"
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def decide_appeal(
+    conn: sqlite3.Connection, moderator: users.User, appeal_id: int, *, reverse: bool, note: str = ""
+) -> dict[str, Any]:
+    """Publish the listing again (reverse) or uphold the removal, with an answer for the owner."""
+    row = conn.execute("SELECT * FROM appeals WHERE id = ? AND decided_at IS NULL", (appeal_id,)).fetchone()
+    if row is None:
+        raise NotFound(f"Klage {appeal_id} finnes ikke eller er behandlet.")
+    note = " ".join(note.split())[:500]
+    if not reverse and not note:
+        raise ValidationProblem.field("note", "Skriv et kort svar til annonsøren.")
+    if reverse:
+        approve_listing(conn, moderator, row["listing_id"])
+    with transaction(conn):
+        conn.execute(
+            "UPDATE appeals SET decided_at = ?, decided_by = ?, decision = ?, decision_note = ? WHERE id = ?",
+            (now_iso(), moderator.id, "reversed" if reverse else "upheld", note or None, appeal_id),
+        )
+        _log(
+            conn,
+            moderator.id,
+            "reverse_removal" if reverse else "uphold_removal",
+            listing_id=row["listing_id"],
+            note=note or None,
+        )
+    return {"listing_id": row["listing_id"], "reversed": reverse, "note": note or None}
 
 
 def ban_user(conn: sqlite3.Connection, moderator: users.User, user_id: int, reason: str) -> None:

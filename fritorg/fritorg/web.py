@@ -34,6 +34,7 @@ from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
 from .errors import AppError, Conflict, Forbidden, NotFound, RateLimited, ValidationProblem
 from .listings import SearchParams
 from .mailer import (
+    notify_appeal_upheld,
     notify_moderation,
     notify_new_message,
     notify_rating,
@@ -477,6 +478,22 @@ def change_status(listing_id: int, request: Request, conn: Conn, form: Form) -> 
     }
     return redirect(
         safe_next(str(form.get("neste") or ""), f"/annonse/{listing_id}"), flash=labels.get(status)
+    )
+
+
+@router.post("/annonse/{listing_id:int}/klage")
+def appeal_removal(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    try:
+        moderation.appeal(conn, user.id, listing_id, str(form.get("text") or ""))
+    except (ValidationProblem, Forbidden) as exc:
+        return redirect(f"/annonse/{listing_id}#klage", flash=exc.message)
+    return redirect(
+        f"/annonse/{listing_id}",
+        flash="Klagen er sendt. En moderator ser på saken på nytt og svarer på e-post.",
     )
 
 
@@ -1250,11 +1267,14 @@ def login(request: Request, conn: Conn, form: Form) -> Response:
     try:
         user = users.authenticate(conn, email, str(form.get("password") or ""))
     except AppError as exc:
+        error = exc.message
+        if isinstance(exc, Forbidden) and settings.contact_email:  # a closed account can still complain
+            error += f" Mener du at det er feil, kan du klage til {settings.contact_email}."
         return render(
             request,
             conn,
             "login.html",
-            {"next": target, "error": exc.message, "values": {"email": email}},
+            {"next": target, "error": error, "values": {"email": email}},
             status=401,
         )
     return _start_session(request, conn, user, target, f"Velkommen tilbake, {user.first_name}!")
@@ -1635,6 +1655,7 @@ def moderation_page(request: Request, conn: Conn) -> Response:
             "queue": moderation.review_queue(conn),
             "cases": moderation.open_reports(conn),
             "reported_ratings": moderation.reported_ratings(conn),
+            "appeals": moderation.open_appeals(conn),
             "flagged": moderation.flagged_messages(conn),
         },
     )
@@ -1679,6 +1700,27 @@ def remove_rating(rating_id: int, request: Request, conn: Conn, form: Form) -> R
     except ValidationProblem as exc:
         return redirect("/moderering#vurderinger", flash=exc.message)
     return redirect("/moderering#vurderinger", flash="Vurderingen er fjernet.")
+
+
+@router.post("/moderering/klage/{appeal_id:int}")
+def decide_appeal(appeal_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    moderator = _require_moderator(request, conn)
+    if moderator is None:
+        return login_redirect(request)
+    reverse = form.get("decision") == "reverse"
+    try:
+        decision = moderation.decide_appeal(
+            conn, moderator, appeal_id, reverse=reverse, note=str(form.get("note") or "")
+        )
+    except ValidationProblem as exc:
+        return redirect("/moderering#klager", flash=exc.message)
+    mailer, listing_id = request.app.state.mailer, decision["listing_id"]
+    if reverse:
+        notify_moderation(mailer, base_url(request), conn, listing_id, approved=True)
+        return redirect("/moderering#klager", flash=f"Annonse {listing_id} er publisert igjen.")
+    notify_appeal_upheld(mailer, conn, listing_id, decision["note"])
+    return redirect("/moderering#klager", flash="Avgjørelsen står, og annonsøren har fått svar.")
 
 
 @router.post("/moderering/rapporter/avvis")

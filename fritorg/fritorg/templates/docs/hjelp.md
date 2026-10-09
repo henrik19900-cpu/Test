@@ -47,6 +47,10 @@ Se varen før du betaler, hold samtalen på {{ site_name }}, og oppgi aldri kort
 
 Åpne annonsen og trykk **Merk som solgt** (eller «gitt bort», «utleid» og så videre). Du finner også knappene under **Min side**.
 
+### Hva skjer med gamle annonser?
+
+{% if settings.listing_days %}Etter {{ settings.listing_days }} dager skjules annonsen, og du kan gjøre den aktiv igjen med ett klikk. {% endif %}{% if settings.delete_after_days %}Annonser som ikke har vært aktive eller endret på {{ settings.delete_after_days|days_no }}, slettes automatisk med bildene. {{ DELETION_NOTICE_DAYS|days_no|capitalize }} før står det på **Min side**, og har du bekreftet e-postadressen, får du beskjed på e-post. Vil du beholde annonsen, gjør du den aktiv igjen eller endrer den.{% else %}Skjulte og solgte annonser blir liggende til du sletter dem.{% endif %}
+
 ### Hvorfor er annonsen min «til kontroll»?
 
 Noen annonser ligner på dem svindlere bruker, for eksempel med krav om depositum før visning eller betalingslenker. Da sjekker en moderator annonsen før den blir synlig. Det betyr ikke at vi tror du er en svindler. Grunnen står på annonsen.

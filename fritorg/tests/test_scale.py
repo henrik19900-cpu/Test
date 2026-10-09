@@ -222,6 +222,27 @@ def test_upgrading_builds_the_new_index(tmp_path):
         conn.execute("INSERT INTO listings_fts (listings_fts, rank) VALUES ('integrity-check', 1)")
         row = conn.execute("SELECT hash_a, hash_d FROM listing_images").fetchone()
         assert (row[0], row[1]) == (0xF0F0, 0x0F0F)
+        assert conn.execute("SELECT deletion_notice_at FROM listings").fetchone()[0] is None
+
+
+def test_old_listings_are_found_through_small_indexes(conn, seller):
+    for n in range(3):
+        listing_id = add(conn, seller, title=f"Gammel ting {n}")
+        conn.execute(
+            "UPDATE listings SET status = 'inactive', updated_at = '2000-01-01T00:00:00Z' WHERE id = ?",
+            (listing_id,),
+        )
+    add(conn, seller, title="Aktiv ting")
+    statements: list[str] = []
+    conn.set_trace_callback(statements.append)
+    assert len(listings.mark_for_deletion(conn, 365)) == 3
+    conn.execute("UPDATE listings SET deletion_notice_at = '2000-01-01T00:00:00Z' WHERE status = 'inactive'")
+    assert listings.delete_marked_listings(conn)[0] == 3
+    conn.set_trace_callback(None)
+    finds = [sql for sql in statements if sql.startswith("SELECT id FROM listings")]
+    plans = [" ".join(row["detail"] for row in conn.execute(f"EXPLAIN QUERY PLAN {sql}")) for sql in finds]
+    assert "idx_listings_idle" in plans[0] and "idx_listings_deletion" in plans[1]
+    assert [row["title"] for row in conn.execute("SELECT title FROM listings")] == ["Aktiv ting"]
 
 
 def test_sitemap_index_splits_listings(client, auth, monkeypatch):

@@ -78,6 +78,13 @@ def format_ago_no(iso: str | None) -> str:
     return text if day.year == today.year else f"{text} {day.year}"
 
 
+def format_days_no(days: int) -> str:
+    """A period in Norwegian: "ett år", "2 år", "14 dager"."""
+    if days and days % 365 == 0:
+        return "ett år" if days == 365 else f"{days // 365} år"
+    return "én dag" if days == 1 else f"{days} dager"
+
+
 def format_datetime_no(iso: str | None) -> str:
     if not iso:
         return ""

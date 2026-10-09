@@ -411,6 +411,22 @@ def _migrate_v5(conn: sqlite3.Connection) -> None:
     analyze(conn)
 
 
+# Automatic deletion of old listings (listings.mark_for_deletion): deletion_notice_at is when the owner was
+# told that a listing will be deleted. Anything that changes the listing sets updated_at, and the trigger then
+# cancels the deletion. Partial indexes find the candidates without reading the active listings.
+SCHEMA_V6 = """
+ALTER TABLE listings ADD COLUMN deletion_notice_at TEXT;
+CREATE INDEX idx_listings_idle ON listings(updated_at) WHERE status <> 'active' AND source IS NULL AND feed IS NULL;
+CREATE INDEX idx_listings_deletion ON listings(deletion_notice_at) WHERE deletion_notice_at IS NOT NULL;
+
+CREATE TRIGGER listings_deletion_cancelled AFTER UPDATE OF updated_at ON listings
+WHEN NEW.deletion_notice_at IS NOT NULL
+BEGIN
+    UPDATE listings SET deletion_notice_at = NULL WHERE id = NEW.id;
+END;
+"""
+
+
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
     conn.execute("PRAGMA analysis_limit = 1000")
@@ -425,6 +441,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V3,
     SCHEMA_V4,
     _migrate_v5,
+    SCHEMA_V6,
 ]
 
 

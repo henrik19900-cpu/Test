@@ -59,6 +59,7 @@ def listing_summary(listing: Listing, base: str) -> dict[str, Any]:
         "source": listing.source,
         "created_at": listing.created_at,
         "updated_at": listing.updated_at,
+        "deletes_at": listing.deletes_at,
     }
 
 

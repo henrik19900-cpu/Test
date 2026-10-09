@@ -1018,6 +1018,7 @@ def _my_page(
             "tokens": users.list_api_tokens(conn, user.id),
             "new_token": new_token,
             "mail_enabled": request.app.state.mailer.enabled,
+            "delete_after_days": request.app.state.settings.delete_after_days,
         },
     )
 

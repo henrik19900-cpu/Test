@@ -24,7 +24,8 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 
 - **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
 - **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt. Det er like raskt med en million annonser (se [Kapasitet og serverkrav](#kapasitet-og-serverkrav)).
-- **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk, så gamle annonser ikke hoper seg opp. Selgeren får e-post når en annonse går ut.
+- **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk. Selgeren får e-post når en annonse går ut.
+- **Gamle annonser slettes automatisk:** en annonse som ikke er aktiv og ikke er endret på ett år, slettes med bildene. Selgeren får beskjed på Min side og på e-post 14 dager før.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser, hurtigsvar for selgeren («Ja, den er fortsatt til salgs») og blokkering av brukere man ikke vil høre fra. Selgerens svartid vises på annonsen («Svarer vanligvis innen en time»).
 - **For selgere:** hvor mange som har sett annonsen og lagret den, og valg av hovedbilde.
 - **Favoritter og lagrede søk:** lagre annonser med hjertet, og lagre et søk for å se hvor mange nye treff som har kommet siden sist. Med bekreftet e-post kommer nye treff på e-post, høyst én gang i timen per søk, med lenke for å melde seg av uten å logge inn. Selgeren ser hvor mange som har lagret annonsen, men ikke hvem.
@@ -66,6 +67,8 @@ Alt ligger i datamappen (`FRITORG_DATA_DIR`, standard `data/`):
 Postnummerregisteret til Posten Bring AS (åpne data under NLOD 2.0) følger med koden i `fritorg/data/postnummer.tsv`, så postnummeret i en annonse kan fylle ut sted og fylke. Oppdater filen én gang i året fra [data.norge.no](https://data.norge.no/datasets/f7508db5-2167-3356-ab5e-aacffce2a9b6).
 
 Om brukerne lagres e-postadresse, visningsnavn og passord som en scrypt-hash. Mobilnummeret lagres aldri i klartekst, bare som en nøkkelbasert hash (så hvert nummer kan brukes på én konto) og de tre siste sifrene. Med BankID lagres navnet, men aldri fødselsnummeret.
+
+Annonser som ikke er aktive (skjulte, utløpte, solgte, til kontroll og fjernede), slettes automatisk med bildene når de ikke har vært endret på ett år (`FRITORG_DELETE_AFTER_DAYS`). Eieren får beskjed på Min side og på e-post 14 dager før, og annonsen blir stående hvis den gjøres aktiv igjen eller endres innen da. Meldinger om en slettet annonse blir liggende. Annonser fra Nav, Platsbanken og bedrifter som synkroniserer lageret sitt, følger kilden.
 
 Én SQLite-fil holder for en million annonser og mer på en liten server (se [Kapasitet og serverkrav](#kapasitet-og-serverkrav)). Appen kjører som én prosess. Skal den skaleres ut på flere servere, må databasen og fartsgrensene (som nå ligger i minnet) flyttes til en felles tjeneste.
 
@@ -202,8 +205,9 @@ Slik holder søket seg raskt:
 - Bildene serveres direkte av Caddy, så Python bare lager sidene. Sjekken av gjenbrukte bilder slår opp i en indeks i stedet for å sammenligne med alle bildene.
 - Sitemap deles i filer på 50 000 annonser, som søkemotorene krever. Eksporten av alle annonser leser 30 000 annonser i sekundet.
 - Vedlikeholdet oppdaterer statistikken SQLite bruker til å velge indekser, én gang i døgnet.
+- Gamle annonser slettes automatisk etter ett år, 500 om gangen hvert tiende minutt, så databasen og bildene ikke vokser for alltid.
 
-**Plassbehov.** Med testdataene (beskrivelser på rundt 800 tegn i snitt) tar databasen rundt 6 kB per annonse, altså 6 GB for en million annonser. Søkeindeksen er drøyt halvparten av det. Bildene tar mest plass: rundt 0,25 MB per bilde (stort bilde og miniatyr). Med tre bilder per annonse blir det rundt 75 GB per 100 000 annonser.
+**Plassbehov.** Med testdataene (beskrivelser på rundt 800 tegn i snitt) tar databasen rundt 6 kB per annonse, altså 6 GB for en million annonser. Søkeindeksen er drøyt halvparten av det. Bildene tar mest plass: rundt 0,25 MB per bilde (stort bilde og miniatyr). Med tre bilder per annonse blir det rundt 75 GB per 100 000 annonser. Fordi gamle annonser slettes etter ett år, avhenger plassen av hvor mange annonser som legges ut i løpet av et år, ikke av hvor lenge siden har vært i drift.
 
 | Annonser | Server |
 | --- | --- |
@@ -216,7 +220,6 @@ Neste steg, når det trengs:
 
 - **Mer trafikk:** sett et CDN (for eksempel Cloudflare) foran siden, så bilder og filer i `/static` leveres derfra. Kjør appen i flere prosesser. Da må bakgrunnsjobbene (vedlikehold og import) bare kjøres i én av dem.
 - **Flere bilder enn disken rommer:** flytt bildene til S3-kompatibel objektlagring. Lagringen av bilder ligger samlet i `fritorg/images.py`.
-- **Gamle annonser:** annonser som er utløpt, blir liggende til selgeren sletter dem. Vil du slette dem automatisk etter for eksempel ett år, må det inn i vilkårene først.
 
 ## Konfigurasjon
 
@@ -240,6 +243,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_SMTP_HOST`, `_PORT`, `_USERNAME`, `_PASSWORD`, `_FROM`, `_SECURITY` | –, `587`, …, `starttls` | Utgående e-post. Uten `FRITORG_SMTP_HOST` sendes ingen e-post. |
 | `FRITORG_RATE_LIMIT_READ`, `_WRITE`, `_AUTH` | `600`, `60`, `30` | Fartsgrenser per IP-adresse (lesing og skriving per minutt, innlogging per 10 minutter). |
 | `FRITORG_LISTING_DAYS` | `60` | Hvor lenge en annonse ligger ute før den skjules og kan fornyes (0 = for alltid). |
+| `FRITORG_DELETE_AFTER_DAYS` | `365` | Annonser som ikke er aktive, slettes med bildene når de ikke er endret på så mange dager, etter varsel 14 dager før (0 = aldri). Vilkårene viser tallet. |
 | `FRITORG_MAX_LISTINGS_PER_DAY`, `FRITORG_MAX_MESSAGES_PER_DAY` | `50`, `200` | Grenser per konto per døgn. |
 | `FRITORG_NEW_ACCOUNT_MAX_LISTINGS_PER_DAY`, `..._MESSAGES_PER_DAY` | `5`, `20` | Grenser det første døgnet. |
 | `FRITORG_MAX_IMAGE_BYTES`, `FRITORG_MAX_IMAGES_PER_LISTING` | 8 MB, `12` | Bildegrenser. |

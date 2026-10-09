@@ -33,7 +33,13 @@
       <a class="my-listing-title" href="/annonse/{{ item.id }}">{{ item.title }}</a>
       <span class="tag tag-status-{{ item.status }}">{{ item.shown_status }}</span>
       <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.status == "active" and item.expires_at %} · aktiv til {{ item.expires_at|date_no }}{% endif %} · sett {{ views[item.id]|number }} {{ "gang" if views[item.id] == 1 else "ganger" }}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
-      {% if item.status == "review" %}<span class="small status-note">Venter på godkjenning fra moderator.</span>{% elif item.status == "removed" %}<span class="small status-note status-note-danger">Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %}</span>{% endif %}
+      {% if item.status in ("review", "removed") or item.deletes_at %}
+      <span class="small status-note{% if item.status == 'removed' or item.deletes_at %} status-note-danger{% endif %}">
+        {%- if item.status == "review" %}Venter på godkjenning fra moderator.{% elif item.status == "removed" %}Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %}{% endif %}
+        {%- if item.status in ("review", "removed") and item.deletes_at %} · {% endif %}
+        {%- if item.deletes_at %}Slettes {{ item.deletes_at|date_no }} fordi den ikke har vært aktiv eller endret på lenge{% if item.status in ("sold", "inactive") %}. Gjør den aktiv igjen eller endre den for å beholde den{% endif %}.{% endif -%}
+      </span>
+      {% endif %}
       <span class="my-listing-actions">
         <a href="/annonse/{{ item.id }}/rediger">Rediger</a>
         <form method="post" action="/annonse/{{ item.id }}/status">
@@ -51,6 +57,7 @@
     </li>
     {% endfor %}
   </ul>
+  {% if delete_after_days %}<p class="small muted">Annonser som ikke har vært aktive eller endret på {{ delete_after_days|days_no }}, slettes automatisk med bildene. Du får beskjed{% if mail_enabled %} på e-post{% endif %} {{ DELETION_NOTICE_DAYS|days_no }} før.</p>{% endif %}
   {% else %}
     <p class="empty">Du har ingen annonser ennå. <a href="/ny-annonse">Legg ut din første – det er gratis.</a></p>
   {% endif %}

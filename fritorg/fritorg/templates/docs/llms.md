@@ -51,6 +51,7 @@ Key facts for agents:
 People can also create and revoke tokens themselves at [{{ base }}/min-side]({{ base }}/min-side). Send the token as `Authorization: Bearer <token>`.
 - Fair-use quotas per account: {{ settings.max_listings_per_day }} new listings and {{ settings.max_messages_per_day }} messages per 24 hours.
 {% if settings.listing_days %}- Listings are active for {{ settings.listing_days }} days (`expires_at`), then hidden. The owner renews one with `update_listing` / `PATCH` status `active`.
+{% endif %}{% if settings.delete_after_days %}- Listings that are not active (hidden, sold, in review or removed) are deleted automatically, with their images, when they have not changed for {{ settings.delete_after_days }} days. {{ DELETION_NOTICE_DAYS }} days before, `deletes_at` is set and the owner is told by e-mail; renewing (status `active`) or editing the listing keeps it. Imported and synced listings follow their source.
 {% endif %}
 {% if settings.phone_verification_required %}
 ## Verifying the mobile number (once per account)

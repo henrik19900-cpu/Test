@@ -798,7 +798,8 @@ TOOLS: list[Tool] = [
     Tool(
         "my_listings",
         "My listings",
-        "The user's own listings, including hidden ones.",
+        "The user's own listings, including hidden ones. `deletes_at` marks old listings that are about to be "
+        "deleted automatically: tell your user, who can keep one by renewing (status 'active') or editing it.",
         {
             "status": {
                 "type": "string",

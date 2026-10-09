@@ -13,7 +13,7 @@ import threading
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, NamedTuple
 
 from . import fraud, postcodes, taxonomy, users
@@ -211,6 +211,7 @@ class Listing:
     source_url: str | None = None
     apply_url: str | None = None
     expires_at: str | None = None
+    deletion_notice_at: str | None = None  # when the owner was told it will be deleted (mark_for_deletion)
 
     @property
     def category_obj(self) -> Category:
@@ -287,6 +288,13 @@ class Listing:
     def expires_soon(self) -> bool:
         """Within a week of being hidden: the owner is offered to renew it."""
         return bool(self.expires_at) and not self.is_imported and self.expires_at < iso_in(days=7)
+
+    @property
+    def deletes_at(self) -> str | None:
+        """When an old listing is deleted automatically: set when its owner is told, two weeks before."""
+        if not self.deletion_notice_at or self.status == "active":
+            return None
+        return to_iso(parse_iso(self.deletion_notice_at) + timedelta(days=DELETION_NOTICE_DAYS))
 
     @property
     def source_info(self) -> Source | None:
@@ -581,6 +589,7 @@ def _listing(row: sqlite3.Row) -> Listing:
         source_url=row["source_url"],
         apply_url=row["apply_url"],
         expires_at=row["expires_at"],
+        deletion_notice_at=row["deletion_notice_at"],
     )
 
 
@@ -964,6 +973,63 @@ def expire_listings(conn: sqlite3.Connection) -> list[Listing]:
                     (now_iso(), listing.id),
                 )
     return expired
+
+
+# Old listings are deleted automatically (Settings.delete_after_days). A listing that is not active (hidden,
+# sold, in review or removed) and has not changed for that long, less the notice period, is marked and its
+# owner told; DELETION_NOTICE_DAYS later it is deleted with its photos. Any change before then, such as
+# renewing it, cancels the deletion (see SCHEMA_V6). Imported and synced listings follow their source.
+DELETION_NOTICE_DAYS = 14
+DELETION_BATCH = 500  # per maintenance round, so a backlog never makes one round slow
+
+
+def mark_for_deletion(conn: sqlite3.Connection, delete_after_days: int) -> list[Listing]:
+    """Mark the listings whose time is nearly up. Returns them, so their owners can be told."""
+    now = now_iso()
+    with transaction(conn):  # finding and marking in one go: a listing renewed meanwhile is never marked
+        ids = [
+            row["id"]
+            for row in conn.execute(
+                "SELECT id FROM listings INDEXED BY idx_listings_idle WHERE status <> 'active' AND source IS NULL "
+                "AND feed IS NULL AND updated_at < ? AND deletion_notice_at IS NULL ORDER BY updated_at LIMIT ?",
+                (iso_ago(days=delete_after_days - DELETION_NOTICE_DAYS), DELETION_BATCH),
+            )
+        ]
+        conn.executemany("UPDATE listings SET deletion_notice_at = ? WHERE id = ?", [(now, i) for i in ids])
+    if not ids:
+        return []
+    return fetch(conn, f"WHERE l.id IN ({','.join('?' * len(ids))}) ORDER BY l.id", ids)
+
+
+def delete_marked_listings(conn: sqlite3.Connection) -> tuple[int, list[str]]:
+    """Delete the marked listings whose notice period is over.
+
+    Returns how many, and the image files the caller should remove from disk. Conversations about them stay,
+    as when the owner deletes one.
+    """
+    with transaction(conn):  # finding and deleting in one go: a listing renewed meanwhile is kept
+        ids = [
+            row["id"]
+            for row in conn.execute(
+                "SELECT id FROM listings WHERE deletion_notice_at < ? AND status <> 'active' "
+                "ORDER BY deletion_notice_at LIMIT ?",
+                (iso_ago(days=DELETION_NOTICE_DAYS), DELETION_BATCH),
+            )
+        ]
+        marks = ",".join("?" * len(ids))
+        filenames = [
+            row["filename"]
+            for row in conn.execute(f"SELECT filename FROM listing_images WHERE listing_id IN ({marks})", ids)
+        ]
+        conn.execute(f"DELETE FROM listings WHERE id IN ({marks})", ids)  # triggers update the search index
+    return len(ids), filenames
+
+
+def cancel_deletions(conn: sqlite3.Connection) -> int:
+    """Unmark every listing, when automatic deletion has been turned off."""
+    return conn.execute(
+        "UPDATE listings SET deletion_notice_at = NULL WHERE deletion_notice_at IS NOT NULL"
+    ).rowcount
 
 
 def add_risk_flag(conn: sqlite3.Connection, listing_id: int, code: str) -> bool:

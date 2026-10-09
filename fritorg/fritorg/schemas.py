@@ -224,6 +224,11 @@ class ListingSummaryOut(BaseModel):
     )
     created_at: str
     updated_at: str
+    deletes_at: str | None = Field(
+        None,
+        description="Set two weeks before an old listing is deleted automatically (one that has not been active "
+        "or changed for a long time). Renewing it (status 'active') or editing it keeps it.",
+    )
 
 
 class SourceOut(BaseModel):

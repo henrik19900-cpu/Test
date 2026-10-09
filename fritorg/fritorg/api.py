@@ -701,7 +701,7 @@ def my_listings(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict:
-    """All your listings, including hidden ones."""
+    """All your listings, including hidden ones. `deletes_at` marks old listings about to be deleted automatically."""
     params = SearchParams(
         user_id=user.id, status=status, include_hidden=True, sort="newest", limit=limit, offset=offset
     )

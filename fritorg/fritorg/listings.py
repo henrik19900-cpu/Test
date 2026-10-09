@@ -480,7 +480,7 @@ def validate_attributes(category: Category, raw: Any) -> dict[str, Any]:
         if value is None or (isinstance(value, str) and not value.strip()):
             continue
         try:
-            clean[key] = coerce_attribute(attr, value)
+            clean[attr.key] = coerce_attribute(attr, value)
         except ValueError as exc:
             errors.append({"field": f"attributes.{key}", "message": f"{attr.label}: {exc}"})
     if errors:
@@ -500,11 +500,14 @@ def resolve_county(value: str | None) -> str | None:
     for county in COUNTIES.values():
         if county.name.lower() == text.lower():
             return county.slug
-    raise ValidationProblem.field(
-        "county",
-        f"Ukjent fylke {text!r}.",
-        hint=taxonomy.suggest(text, list(COUNTIES)) + " See GET /api/v1/counties.",
+    place_county = postcodes.county_for_place(text)
+    hint = (
+        f"{text} is a place in the county {place_county!r}: use county='{place_county}', and location='{text}' "
+        "for the place itself."
+        if place_county
+        else taxonomy.suggest(text, list(COUNTIES)) + " See GET /api/v1/counties."
     )
+    raise ValidationProblem.field("county", f"Ukjent fylke {text!r}.", hint=hint)
 
 
 def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
@@ -557,15 +560,19 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
     if price_unit not in PRICE_UNITS:
         error("price_unit", f"Ugyldig prisenhet. Gyldige verdier: {', '.join(PRICE_UNITS)}")
 
-    try:
-        county = resolve_county(values.get("county"))
-    except ValidationProblem as exc:
-        errors.extend(exc.errors)
-        county = None
-
     location = " ".join(str(values.get("location") or "").split()) or None
     if location and len(location) > 80:
         error("location", "Stedsnavnet kan ha maks 80 tegn.")
+
+    try:
+        county = resolve_county(values.get("county"))
+    except ValidationProblem as exc:
+        # A place given as the county ("Bergen") is in a known county: use that, and the place.
+        county = postcodes.county_for_place(str(values.get("county")))
+        if county is None:
+            errors.extend(exc.errors)
+        else:
+            location = location or " ".join(str(values.get("county")).split())
 
     postal_code = str(values.get("postal_code") or "").strip() or None
     if postal_code and not re.fullmatch(r"\d{4}", postal_code):
@@ -574,6 +581,8 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
         # A postal code is enough: the place and county come from the postal code register.
         location = location or place.place
         county = county or place.county
+    # So is a place name the register knows ("Bergen"), or the listing would not show in county searches.
+    county = county or postcodes.county_for_place(location)
 
     try:
         attributes = validate_attributes(category, values.get("attributes"))
@@ -1367,15 +1376,22 @@ def _attr_error(message: str) -> ValidationProblem:
     return ValidationProblem.field(
         "attr",
         message,
-        hint="Use attr=key:value, attr=key:v1,v2 or attr=key:min..max. Keys: GET /api/v1/categories/{slug}",
+        hint='MCP: attributes={"key": value, "key2": [v1, v2], "key3": {"min": 1, "max": 9}}; REST: attr=key:value, '
+        "attr=key:v1,v2 or attr=key:min..max. A category's keys and values: list_categories(category=...) or "
+        "GET /api/v1/categories/{slug}",
     )
 
 
-def _filter_attribute(key: str) -> Attribute:
+def _filter_attribute(key: str, category: str | None = None) -> Attribute:
     attr = ATTRIBUTES.get(key)
-    if attr is None:
-        raise _attr_error(f"Ukjent attributt {key!r}. {taxonomy.suggest(key, sorted(ATTRIBUTES))}")
-    return attr
+    if attr is not None:
+        return attr
+    scope = taxonomy.CATEGORIES.get(category or "")
+    known = scope.attributes if scope is not None and scope.attributes else tuple(ATTRIBUTES.values())
+    for candidate in known:  # the Norwegian label works too ("tilstand")
+        if candidate.label.casefold() == key.strip().casefold():
+            return candidate
+    raise _attr_error(f"Ukjent attributt {key!r}. {taxonomy.suggest(key, sorted({a.key for a in known}))}")
 
 
 def _coerce_filter(attr: Attribute, raw: Any) -> Any:
@@ -1423,11 +1439,12 @@ def attr_filters_from_params(items: Iterable[tuple[str, str]]) -> list[AttrFilte
     return filters + list(ranges.values())
 
 
-def attr_filters_from_object(obj: dict[str, Any] | None) -> list[AttrFilter]:
+def attr_filters_from_object(obj: dict[str, Any] | None, category: str | None = None) -> list[AttrFilter]:
     """MCP style: {"fuel": "electric", "make": ["Volvo", "Tesla"], "year": {"min": 2018}}."""
     filters = []
     for key, spec in (obj or {}).items():
-        attr = _filter_attribute(key)
+        attr = _filter_attribute(key, category)
+        key = attr.key
         if isinstance(spec, dict):
             unknown = set(spec) - {"min", "max"}
             if unknown or not spec:

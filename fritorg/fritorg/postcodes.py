@@ -55,3 +55,32 @@ def _register() -> dict[str, Place]:
 
 def lookup(postal_code: str | None) -> Place | None:
     return _register().get((postal_code or "").strip())
+
+
+@cache
+def _counties_by_name() -> dict[str, frozenset[str]]:
+    """Postal place and municipality names (casefolded) -> the counties they are in."""
+    names: dict[str, set[str]] = {}
+    for place in _register().values():
+        if place.county:
+            for name in (place.place, place.municipality):
+                names.setdefault(name.casefold(), set()).add(place.county)
+    return {name: frozenset(counties) for name, counties in names.items()}
+
+
+def county_for_place(text: str | None) -> str | None:
+    """The county of a place name such as "Bergen", "Majorstuen, Oslo" or "Mo i Rana", when the postal code
+    register has that name in one county only."""
+    text = " ".join((text or "").split())
+    if not text:
+        return None
+    candidates = [text, *(part.strip() for part in reversed(text.split(",")))]
+    words = text.split()
+    if len(words) <= 3:  # "Bergen sentrum"
+        candidates.append(words[0])
+    names = _counties_by_name()
+    for candidate in candidates:
+        counties = names.get(candidate.casefold())
+        if counties and len(counties) == 1:
+            return next(iter(counties))
+    return None

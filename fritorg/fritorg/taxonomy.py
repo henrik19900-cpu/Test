@@ -109,8 +109,12 @@ class Category:
         return self.parent or self.slug
 
     def attribute(self, key: str) -> Attribute | None:
+        """By key, or by its Norwegian label ("Tilstand" for condition)."""
         for attr in self.attributes:
             if attr.key == key:
+                return attr
+        for attr in self.attributes:
+            if attr.label.casefold() == key.strip().casefold():
                 return attr
         return None
 
@@ -196,7 +200,8 @@ CONDITION = Attribute(
     "condition",
     "Tilstand",
     "enum",
-    "Condition of the item",
+    "Condition: new = new/unused, like_new = as good as new, good = lightly used (pent brukt), "
+    "used = well used with visible wear (godt brukt), for_parts = broken or for parts",
     options=(
         Option("new", "Ny/ubrukt"),
         Option("like_new", "Som ny"),

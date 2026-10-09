@@ -195,7 +195,7 @@ def _search_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             hint="Narrow the search, or use the bulk export (GET /api/v1/export/listings.ndjson) for everything.",
         )
     result = listings.search(ctx.conn, params)
-    return {
+    found: dict[str, Any] = {
         "total": result.total,
         "total_exact": result.total_exact,
         "offset": result.params.offset,
@@ -203,6 +203,15 @@ def _search_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "has_more": result.has_more,
         "items": [_compact(item, ctx.base) for item in result.items],
     }
+    if not result.items and not params.offset and params.attrs:
+        params.attrs = []
+        without = listings.search(ctx.conn, params, count=False).items
+        if without:  # say so, instead of a bare "nothing found"
+            found["hint"] = (
+                "Nothing matches the attribute filters, but there are matches without them (listings that do not "
+                "state an attribute never match a filter on it). Retry without `attributes`, or with other values."
+            )
+    return found
 
 
 def _get_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -263,6 +272,7 @@ def _whoami(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "verified": ctx.user.is_verified,
         "verification": ctx.user.verification,
         "verification_required": phone.verification_needed(ctx.settings, ctx.user),
+        "email_verified": bool(ctx.user.email_verified_at),
         "unread_messages": messages.unread_count(ctx.conn, ctx.user.id),
         "profile_url": f"{ctx.base}/bruker/{ctx.user.id}",
     }
@@ -334,16 +344,54 @@ def _create_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
     listing = listings.get_listing(ctx.conn, listing_id)
     detail = serializers.listing_detail(listing, ctx.base, owner_view=True)
+    detail["next_steps"] = _listing_next_steps(ctx, listing)
+    return detail
+
+
+def _listing_next_steps(ctx: ToolContext, listing: listings.Listing) -> str:
+    """What the agent can do now with a listing it created or changed."""
+    url = f"{ctx.base}/annonse/{listing.id}"
     if listing.status == "review":
-        detail["next_steps"] = (
+        return (
             "The listing is held for manual review before it is published (see moderation.reasons). "
             "Tell the user. If a reason is a misunderstanding, edit the text with update_listing."
         )
-    else:
-        detail["next_steps"] = (
-            "Add photos with add_listing_image. Mark as sold later with update_listing status='sold'."
+    if listing.status == "removed":
+        return "A moderator removed the listing (see moderation). The owner can appeal once: appeal_removal."
+    if listing.status == "sold":
+        buyers = [
+            f"{c.id} ({c.buyer_name})"
+            for c in messages.list_conversations(ctx.conn, ctx.user.id, include_hidden=True)
+            if c.listing_id == listing.id
+            and ratings.trade_for_conversation(ctx.conn, c.id, ctx.user.id) is None
+        ]
+        if buyers:
+            return (
+                "Marked as sold. If it went to someone the user talked to here, record the sale so both can rate "
+                f"each other: record_sale(conversation_id). Conversations about it: {', '.join(buyers)}."
+            )
+        return "Marked as sold. Set status 'active' if it is for sale again."
+    steps = []
+    if listing.status == "inactive":
+        steps.append(
+            f"Saved as a hidden draft: only the user sees it, logged in, at {url}. Show the user the title, text "
+            "and price, and publish when they say so: update_listing(listing_id, status='active')."
         )
-    return detail
+    else:
+        steps.append(f"Published at {url}.")
+    if listing.county is None:
+        steps.append(
+            "No county is set, so it does not show in county searches: set county, or postal_code for both "
+            "place and county."
+        )
+    if not listing.images:
+        steps.append(
+            "Add photos with add_listing_image, or ask the user to add them on the website: "
+            f"{ctx.base}/annonse/{listing.id}/rediger."
+        )
+    if listing.status == "active":
+        steps.append("When it is sold: update_listing(listing_id, status='sold').")
+    return " ".join(steps)
 
 
 def _update_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -367,7 +415,9 @@ def _update_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         is_admin=ctx.user.is_admin,
         active_days=ctx.settings.listing_days,
     )
-    return serializers.listing_detail(listing, ctx.base, owner_view=True)
+    detail = serializers.listing_detail(listing, ctx.base, owner_view=True)
+    detail["next_steps"] = _listing_next_steps(ctx, listing)
+    return detail
 
 
 def _delete_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -443,6 +493,9 @@ def _list_conversations(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any
     conversations = messages.list_conversations(
         ctx.conn, ctx.user.id, unread_only=bool(args.get("unread_only"))
     )
+    listing_id = _int(args, "listing_id")
+    if listing_id is not None:
+        conversations = [c for c in conversations if c.listing_id == listing_id]
     return {
         "conversations": [
             serializers.conversation_dict(c, ctx.user.id, ctx.base, with_messages=False)
@@ -486,7 +539,7 @@ def _search_params(args: dict[str, Any]) -> SearchParams:
         location=_str(args, "location"),
         price_min=_int(args, "price_min"),
         price_max=_int(args, "price_max"),
-        attrs=listings.attr_filters_from_object(args.get("attributes")),
+        attrs=listings.attr_filters_from_object(args.get("attributes"), _str(args, "category")),
     )
 
 
@@ -518,16 +571,27 @@ def _save_search(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     saved, created = saved_searches.create(
         ctx.conn, ctx.user.id, _search_params(args), notify=notify if isinstance(notify, bool) else None
     )
+    mailed = _alerts_mailed(ctx, saved.notify)
+    steps = "New matches are counted from now. Call check_saved_searches later to get them."
+    if mailed:
+        steps += " The user is also e-mailed about new matches, at most hourly."
+    elif saved.notify and ctx.mailer is not None and ctx.mailer.enabled:
+        steps += (
+            " E-mail alerts are on, but nothing is e-mailed until the user confirms their e-mail address "
+            f"(the link in the welcome e-mail, or {ctx.base}/min-side#konto)."
+        )
     return {
         **serializers.saved_search_dict(saved, ctx.base),
+        "email_alerts": mailed,
         "created": created,
-        "next_steps": "New matches are counted from now. Call check_saved_searches later to get them"
-        + (
-            " (the user is also e-mailed, at most hourly, if their e-mail address is verified)."
-            if saved.notify
-            else "."
-        ),
+        "next_steps": steps,
     }
+
+
+def _alerts_mailed(ctx: ToolContext, notify: bool) -> bool:
+    """Whether alerts for a saved search are really e-mailed: switched on, and to a confirmed address."""
+    assert ctx.user is not None
+    return bool(notify and ctx.mailer is not None and ctx.mailer.enabled and ctx.user.email_verified_at)
 
 
 def _check_saved_searches(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -539,7 +603,7 @@ def _check_saved_searches(ctx: ToolContext, args: dict[str, Any]) -> dict[str, A
         entry: dict[str, Any] = {
             "id": saved.id,
             "name": saved.name,
-            "email_alerts": saved.notify,
+            "email_alerts": _alerts_mailed(ctx, saved.notify),
             "new_count": saved.new_count,
             "url": ctx.base + saved.web_path,
         }
@@ -832,7 +896,8 @@ TOOLS: list[Tool] = [
         "update_listing",
         "Update listing",
         "Change fields of one of the user's listings. Attributes are merged; set an attribute to null to remove it. "
-        "Use status 'sold' when sold, 'inactive' to hide, 'active' to show again.",
+        "Use status 'active' to publish a draft or show it again, 'inactive' to hide, 'sold' when sold (then "
+        "record_sale, so buyer and seller can rate each other).",
         {
             "listing_id": _LISTING_ID,
             **{
@@ -843,7 +908,7 @@ TOOLS: list[Tool] = [
                 )
                 for key, schema in _LISTING_FIELDS.items()
             },
-            "status": {"type": "string", "enum": list(taxonomy.STATUSES)},
+            "status": {"type": "string", "enum": list(taxonomy.OWNER_STATUSES)},
         },
         _update_listing,
         required=("listing_id",),
@@ -978,7 +1043,10 @@ TOOLS: list[Tool] = [
         "list_conversations",
         "List conversations",
         "The user's conversations with buyers and sellers, newest first, with unread counts.",
-        {"unread_only": {"type": "boolean"}},
+        {
+            "unread_only": {"type": "boolean"},
+            "listing_id": {"type": "integer", "description": "Only the conversations about this listing."},
+        },
         _list_conversations,
         requires_auth=True,
     ),

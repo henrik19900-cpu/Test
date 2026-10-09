@@ -25,8 +25,6 @@ from .util import now_iso, parse_iso, to_iso
 
 logger = logging.getLogger(__name__)
 
-INDEXED_CHARS = 2500  # how much of an imported text is full-text indexed (long ads stay fast to search)
-
 
 def source_user(conn: sqlite3.Connection, slug: str) -> int:
     """The account that owns a source's listings."""
@@ -65,8 +63,7 @@ def web_url(value: Any) -> str | None:
 
 
 def delete(conn: sqlite3.Connection, listing_id: int) -> None:
-    conn.execute("DELETE FROM listings_fts WHERE rowid = ?", (listing_id,))
-    conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
+    conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))  # a trigger removes it from the index
 
 
 def remove(conn: sqlite3.Connection, slug: str, source_id: str) -> int:
@@ -132,8 +129,8 @@ def upsert(conn: sqlite3.Connection, slug: str, owner_id: int, item: Item) -> st
         values["location"],
         values["postal_code"],
         json.dumps(values["attributes"], ensure_ascii=False),
+        listings.search_meta(values),
     )
-    searchable = {**values, "description": values["description"][:INDEXED_CHARS]}
     existing = conn.execute(
         "SELECT id, status FROM listings WHERE source = ? AND source_id = ?", (slug, item.source_id)
     ).fetchone()
@@ -142,8 +139,8 @@ def upsert(conn: sqlite3.Connection, slug: str, owner_id: int, item: Item) -> st
         status = existing["status"] if existing["status"] in ("removed", "review") else "active"
         conn.execute(
             "UPDATE listings SET category = ?, type = ?, title = ?, description = ?, price = ?, price_unit = ?, "
-            "county = ?, location = ?, postal_code = ?, attributes = ?, status = ?, updated_at = ?, "
-            "source_url = ?, apply_url = ?, source_updated_at = ?, expires_at = ? WHERE id = ?",
+            "county = ?, location = ?, postal_code = ?, attributes = ?, search_meta = ?, status = ?, "
+            "updated_at = ?, source_url = ?, apply_url = ?, source_updated_at = ?, expires_at = ? WHERE id = ?",
             (
                 *common,
                 status,
@@ -155,13 +152,12 @@ def upsert(conn: sqlite3.Connection, slug: str, owner_id: int, item: Item) -> st
                 existing["id"],
             ),
         )
-        listings.index_listing(conn, existing["id"], searchable)
         return "updated"
     cursor = conn.execute(
         "INSERT INTO listings (category, type, title, description, price, price_unit, county, location, "
-        "postal_code, attributes, user_id, status, created_via, created_at, updated_at, source, source_id, "
-        "source_url, apply_url, source_updated_at, expires_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'import', ?, ?, ?, ?, ?, ?, ?, ?)",
+        "postal_code, attributes, search_meta, user_id, status, created_via, created_at, updated_at, source, "
+        "source_id, source_url, apply_url, source_updated_at, expires_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 'import', ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             *common,
             owner_id,
@@ -176,7 +172,6 @@ def upsert(conn: sqlite3.Connection, slug: str, owner_id: int, item: Item) -> st
         ),
     )
     assert cursor.lastrowid is not None
-    listings.index_listing(conn, cursor.lastrowid, searchable)
     return "created"
 
 

@@ -1,19 +1,21 @@
 """Housekeeping that runs in the background while the app runs: listings whose period is over
-are hidden (and their owners told), people hear about new matches for their saved searches, and
-expired sessions, codes and login states are deleted."""
+are hidden (and their owners told), people hear about new matches for their saved searches,
+expired sessions, codes and login states are deleted, and once a day the statistics SQLite uses to
+pick indexes are refreshed (the right index matters more as the number of listings grows)."""
 
 from __future__ import annotations
 
 import logging
 import sqlite3
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
 
 from . import alerts, listings, saved_searches
 from .config import Settings
-from .db import Database
+from .db import Database, analyze
 from .mailer import Mail, Mailer
 from .util import iso_ago, now_iso
 from .views import ViewCounter
@@ -21,7 +23,9 @@ from .views import ViewCounter
 logger = logging.getLogger(__name__)
 
 INTERVAL_SECONDS = 600
+STATISTICS_SECONDS = 86_400
 T = TypeVar("T")
+_analyzed: dict[str, float] = {}  # database file -> when its statistics were last refreshed
 
 
 @dataclass
@@ -99,6 +103,10 @@ def run(
                     step("price alerts", lambda: alerts.send_price_drops(conn, mailer, base, secret)) or 0
                 )
         report.purged = step("purge", lambda: purge(conn)) or 0
+        key = str(db.path)
+        if time.monotonic() - _analyzed.get(key, -STATISTICS_SECONDS) >= STATISTICS_SECONDS:
+            step("statistics", lambda: analyze(conn))
+            _analyzed[key] = time.monotonic()
     return report
 
 

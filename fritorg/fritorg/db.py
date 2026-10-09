@@ -6,9 +6,11 @@ One connection per request; WAL mode lets readers and a writer work concurrently
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+
+MMAP_BYTES = 1 << 30  # address space only: memory is used as pages are read, and shared between connections
 
 SCHEMA_V1 = """
 CREATE TABLE users (
@@ -325,8 +327,105 @@ BEGIN
 END;
 """
 
-# Append new migrations to the end; never edit one that has shipped.
-MIGRATIONS: list[str] = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4]
+# Search that stays fast with a million listings (see listings.search).
+#
+# * The full-text index reads its text from the listings table instead of keeping its own copy. Triggers keep
+#   it up to date, so nothing else writes to listings_fts. Each column is indexed with a space on both sides,
+#   so one- and two-letter words can be found as words ("tv" = a word that starts or ends with "tv").
+# * Covering indexes hold every column that searches filter and sort on, so finding the 20 listings on a page
+#   (and counting the rest) never reads the listing rows with their long descriptions. listings.search picks
+#   one of them by how it sorts: by date, by category, by county, by price, or by id for full-text hits.
+# * A partial index finds closed accounts, whose listings are hidden.
+IMPORTED_INDEXED_CHARS = 2500  # how much of an imported ad's text is searchable (long ads stay fast)
+
+
+def _indexed(row: str) -> str:
+    """The title, body and meta values indexed for a listings row (NEW, OLD or the table itself)."""
+    body = (
+        f"CASE WHEN {row}.source IS NULL THEN {row}.description "
+        f"ELSE substr({row}.description, 1, {IMPORTED_INDEXED_CHARS}) END"
+    )
+    return f"' ' || {row}.title || ' ', ' ' || {body} || ' ', ' ' || {row}.search_meta || ' '"
+
+
+SCHEMA_V5 = [
+    "DROP TABLE listings_fts",
+    f"CREATE VIEW listings_search (id, title, body, meta) AS SELECT l.id, {_indexed('l')} FROM listings l",
+    "CREATE VIRTUAL TABLE listings_fts USING fts5(title, body, meta, content = 'listings_search', "
+    "content_rowid = 'id', tokenize = 'trigram', columnsize = 0)",
+    f"""CREATE TRIGGER listings_fts_insert AFTER INSERT ON listings BEGIN
+        INSERT INTO listings_fts (rowid, title, body, meta) VALUES (NEW.id, {_indexed("NEW")});
+    END""",
+    f"""CREATE TRIGGER listings_fts_delete AFTER DELETE ON listings BEGIN
+        INSERT INTO listings_fts (listings_fts, rowid, title, body, meta) VALUES ('delete', OLD.id, {_indexed("OLD")});
+    END""",
+    f"""CREATE TRIGGER listings_fts_update AFTER UPDATE OF title, description, source, search_meta ON listings
+    BEGIN
+        INSERT INTO listings_fts (listings_fts, rowid, title, body, meta) VALUES ('delete', OLD.id, {_indexed("OLD")});
+        INSERT INTO listings_fts (rowid, title, body, meta) VALUES (NEW.id, {_indexed("NEW")});
+    END""",
+    "INSERT INTO listings_fts (listings_fts) VALUES ('rebuild')",
+    "DROP INDEX idx_listings_status_created",
+    "DROP INDEX idx_listings_status_category",
+    "DROP INDEX idx_listings_county",
+    "DROP INDEX idx_listings_user",
+    "CREATE INDEX idx_listings_by_date ON listings(status, created_at, id, user_id, category, type, county, price, "
+    "source)",
+    "CREATE INDEX idx_listings_by_category ON listings(status, category, created_at, id, user_id, type, county, "
+    "price, source, attributes)",
+    "CREATE INDEX idx_listings_by_county ON listings(status, county, created_at, id, user_id, category, type, price, "
+    "source)",
+    "CREATE INDEX idx_listings_by_price ON listings(status, price, id DESC, user_id, category, type, county, "
+    "source)",
+    "CREATE INDEX idx_listings_by_id ON listings(id, status, user_id, category, type, county, price, source, "
+    "created_at, public_seq, location)",
+    "CREATE INDEX idx_listings_by_user ON listings(user_id, status, created_at, id)",
+    "CREATE INDEX idx_users_banned ON users(id) WHERE banned_at IS NOT NULL",
+    # Reused photos (images.py): the quarters of each perceptual hash, and the start of the file hash.
+    "DROP INDEX idx_images_sha256",
+    "CREATE INDEX idx_images_sha256_start ON listing_images(substr(sha256, 1, 16))",
+    "CREATE INDEX idx_images_hash_a ON listing_images(hash_a) WHERE hash_a IS NOT NULL",
+    "CREATE INDEX idx_images_hash_b ON listing_images(hash_b) WHERE hash_b IS NOT NULL",
+    "CREATE INDEX idx_images_hash_c ON listing_images(hash_c) WHERE hash_c IS NOT NULL",
+    "CREATE INDEX idx_images_hash_d ON listing_images(hash_d) WHERE hash_d IS NOT NULL",
+]
+
+
+def _migrate_v5(conn: sqlite3.Connection) -> None:
+    from .images import hash_quarters
+    from .listings import refresh_search_meta  # the extra searchable text comes from the taxonomy
+
+    conn.execute("ALTER TABLE listings ADD COLUMN search_meta TEXT NOT NULL DEFAULT ''")
+    refresh_search_meta(conn)
+    for column in ("hash_a", "hash_b", "hash_c", "hash_d"):
+        conn.execute(f"ALTER TABLE listing_images ADD COLUMN {column} INTEGER")
+    conn.executemany(
+        "UPDATE listing_images SET hash_a = ?, hash_b = ?, hash_c = ?, hash_d = ? WHERE id = ?",
+        (
+            (*hash_quarters(row[1]), row[0])
+            for row in conn.execute("SELECT id, dhash FROM listing_images WHERE dhash IS NOT NULL").fetchall()
+        ),
+    )
+    for statement in SCHEMA_V5:
+        conn.execute(statement)
+    analyze(conn)
+
+
+def analyze(conn: sqlite3.Connection) -> None:
+    """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
+    conn.execute("PRAGMA analysis_limit = 1000")
+    conn.execute("ANALYZE")
+
+
+# Append new migrations to the end; never edit one that has shipped. A migration is SQL run as one script,
+# or a function that gets the connection inside the migration's transaction.
+MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
+    SCHEMA_V1,
+    SCHEMA_V2,
+    SCHEMA_V3,
+    SCHEMA_V4,
+    _migrate_v5,
+]
 
 
 def _casefold(value: object) -> object:
@@ -347,6 +446,10 @@ class Database:
         conn.create_function("casefold", 1, _casefold, deterministic=True)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA synchronous = NORMAL")
+        # Read the file through the operating system's cache directly (each request has a fresh connection,
+        # so SQLite's own per-connection cache starts empty), and sort in memory.
+        conn.execute(f"PRAGMA mmap_size = {MMAP_BYTES}")
+        conn.execute("PRAGMA temp_store = MEMORY")
         return conn
 
     def init(self) -> None:
@@ -355,8 +458,18 @@ class Database:
         try:
             conn.execute("PRAGMA journal_mode = WAL")
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-            for number, sql in enumerate(MIGRATIONS[version:], start=version + 1):
-                conn.executescript(f"BEGIN;\n{sql}\nPRAGMA user_version = {number};\nCOMMIT;")
+            for number, migration in enumerate(MIGRATIONS[version:], start=version + 1):
+                if isinstance(migration, str):
+                    conn.executescript(f"BEGIN;\n{migration}\nPRAGMA user_version = {number};\nCOMMIT;")
+                    continue
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    migration(conn)
+                    conn.execute(f"PRAGMA user_version = {number}")
+                except BaseException:
+                    conn.execute("ROLLBACK")
+                    raise
+                conn.execute("COMMIT")
         finally:
             conn.close()
 

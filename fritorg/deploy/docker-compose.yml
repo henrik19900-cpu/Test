@@ -6,8 +6,11 @@ services:
     build: ..
     restart: unless-stopped
     env_file: .env
+    environment:
+      FRITORG_UPLOADS_DIR: /uploads
     volumes:
       - fritorg-data:/data
+      - fritorg-uploads:/uploads  # photos: a volume of their own, which Caddy serves
     expose:
       - "8000"
 
@@ -24,10 +27,12 @@ services:
       DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - fritorg-uploads:/srv/uploads:ro  # only the photos, not the database
       - caddy-data:/data
       - caddy-config:/config
 
 volumes:
   fritorg-data:
+  fritorg-uploads:
   caddy-data:
   caddy-config:

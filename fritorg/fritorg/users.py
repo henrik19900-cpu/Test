@@ -253,9 +253,8 @@ def delete_user(conn: sqlite3.Connection, user_id: int) -> list[str]:
         (user_id,),
     ).fetchall()
     with transaction(conn):
-        conn.execute(
-            "DELETE FROM listings_fts WHERE rowid IN (SELECT id FROM listings WHERE user_id = ?)", (user_id,)
-        )
+        # Deleted one by one, so triggers remove them from the search index (the account takes the rest).
+        conn.execute("DELETE FROM listings WHERE user_id = ?", (user_id,))
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     return [row["filename"] for row in rows]
 

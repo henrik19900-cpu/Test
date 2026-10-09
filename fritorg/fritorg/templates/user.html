@@ -9,7 +9,7 @@
 <h1>{{ seller.name }}</h1>
 {% if seller.is_verified %}<p><span class="tag tag-verified" title="{{ seller.verification_title }}">{{ seller.verification_label }}</span></p>{% endif %}
 {% if response_time %}<p class="small response-time">{{ icon("chat", 16) }} {{ response_time }}</p>{% endif %}
-<p class="muted">Medlem siden {{ seller.created_at|date_no }} · {{ result.total|number }} {{ "annonse" if result.total == 1 else "annonser" }}</p>
+<p class="muted">Medlem siden {{ seller.created_at|date_no }} · {{ result.total_label(NBSP) }} {{ "annonse" if result.total == 1 and result.total_exact else "annonser" }}</p>
 {% if result.items %}
   {{ listing_grid(result.items, heading=2) }}
 {% else %}

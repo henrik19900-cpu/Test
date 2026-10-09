@@ -20,7 +20,7 @@ def test_backup_copies_database_images_and_key(app, client, auth, settings, tmp_
     target = ops.backup(settings, tmp_path / "backup")
     copy = sqlite3.connect(target)
     assert copy.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == 1
-    assert len(list((tmp_path / "backup" / "uploads").glob("*.webp"))) == 2  # image and thumbnail
+    assert len(list((tmp_path / "backup" / "uploads").rglob("*.webp"))) == 2  # image and thumbnail
     assert (tmp_path / "backup" / "secret_key").read_text() == app.state.secret_key
 
 

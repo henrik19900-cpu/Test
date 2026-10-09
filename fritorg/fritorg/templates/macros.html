@@ -58,11 +58,11 @@
 </nav>
 {%- endmacro %}
 
-{% macro pagination(page, pages, page_url) -%}
+{% macro pagination(page, pages, page_url, exact=True) -%}
 {% if pages > 1 %}
 <nav class="pagination" aria-label="Sider">
   {% if page > 1 %}<a class="button" rel="prev" href="{{ page_url(page - 1) }}">← Forrige</a>{% endif %}
-  <span>Side {{ page }} av {{ pages }}</span>
+  <span>Side {{ page }}{% if exact %} av {{ pages }}{% endif %}</span>
   {% if page < pages %}<a class="button" rel="next" href="{{ page_url(page + 1) }}">Neste →</a>{% endif %}
 </nav>
 {% endif %}

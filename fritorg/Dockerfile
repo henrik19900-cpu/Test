@@ -11,8 +11,8 @@ COPY pyproject.toml README.md ./
 COPY fritorg ./fritorg
 RUN pip install . \
     && useradd --create-home --uid 10001 fritorg \
-    && mkdir -p /data \
-    && chown fritorg:fritorg /data
+    && mkdir -p /data /uploads \
+    && chown fritorg:fritorg /data /uploads
 
 USER fritorg
 # The app sits behind a reverse proxy (Caddy in deploy/docker-compose.yml) that sets

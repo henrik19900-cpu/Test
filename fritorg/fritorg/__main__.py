@@ -1,4 +1,4 @@
-"""Command line: `python -m fritorg serve | seed | make-admin | backup | import-nav | doctor`."""
+"""Command line: `python -m fritorg serve | seed | make-admin | backup | import-nav | doctor | benchmark`."""
 
 from __future__ import annotations
 
@@ -46,7 +46,21 @@ def main(argv: list[str] | None = None) -> int:
         "--send-test-sms", metavar="NUMBER", help="also send a test SMS to a Norwegian mobile"
     )
 
+    bench = commands.add_parser(
+        "benchmark", help="time searches on a throwaway database with made-up listings (sizing a server)"
+    )
+    bench.add_argument("--listings", type=int, default=100_000, help="how many listings (default 100 000)")
+    bench.add_argument("--keep", metavar="FILE", help="keep the test database in this file")
+
     args = parser.parse_args(argv)
+    if args.command == "benchmark":
+        from pathlib import Path
+
+        from .benchmark import run as run_benchmark
+
+        print(f"Lager {args.listings} oppdiktede annonser i en egen testdatabase …")
+        run_benchmark(args.listings, Path(args.keep) if args.keep else None)
+        return 0
     settings = Settings.from_env()
 
     if args.command == "seed":

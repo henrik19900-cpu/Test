@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date
@@ -606,37 +608,72 @@ def _attach_images(conn: sqlite3.Connection, listings: list[Listing]) -> None:
         )
 
 
-def _search_text(values: dict[str, Any]) -> str:
-    """Extra indexed text: category names (Norwegian and English), place and attribute values."""
-    category = taxonomy.CATEGORIES[values["category"]]
-    group = taxonomy.CATEGORIES[category.group]
-    parts = [
-        category.name,
-        category.name_en,
-        group.name,
-        group.name_en,
-        LISTING_TYPES[values["type"]].label,
-        COUNTIES[values["county"]].name if values.get("county") else None,
+_PRIVATE_USE = re.compile("[\ue000-\uf8ff]")
+
+
+def filter_tag(kind: str, slug: str) -> str:
+    """A word in search_meta that only filters use: the slug written in private-use characters, which
+    never occur in real text. The index finds it from a few rare trigrams, so the full-text query can apply
+    the county ("f") or category ("k") filter itself at almost no cost."""
+    base = {"f": 0xE000, "k": 0xE100}[kind]
+    return chr(base + 0xFF) + "".join(chr(base + ord(char)) for char in slug) + chr(base + 0xFF)
+
+
+def search_meta(values: dict[str, Any]) -> str:
+    """Extra searchable text (listings.search_meta): category names in Norwegian and English, the place and
+    attribute values, and filter tags for the county and the category (see filter_tag)."""
+    category = taxonomy.CATEGORIES.get(values["category"])
+    group = taxonomy.CATEGORIES.get(category.group) if category else None
+    listing_type = LISTING_TYPES.get(values["type"])
+    county = COUNTIES.get(values.get("county") or "")
+    parts: list[Any] = [
+        category and category.name,
+        category and category.name_en,
+        group and group.name,
+        group and group.name_en,
+        listing_type and listing_type.label,
+        county and county.name,
         values.get("location"),
         values.get("postal_code"),
     ]
-    for key, value in values["attributes"].items():
-        attr = ATTRIBUTES[key]
+    for key, value in (values.get("attributes") or {}).items():
+        attr = ATTRIBUTES.get(key)
+        if attr is None:
+            continue
         parts.append(attr.display(value))
         if attr.type == "enum":
             parts.append(str(value).replace("_", " "))
-    return " ".join(str(p) for p in parts if p)
+    words = [" ".join(_PRIVATE_USE.sub("", str(part)).split()) for part in parts if part]
+    tags = [filter_tag("k", values["category"])] + ([filter_tag("f", values["county"])] if county else [])
+    return " ".join([word for word in words if word] + tags)
 
 
-def _index(conn: sqlite3.Connection, listing_id: int, values: dict[str, Any]) -> None:
-    conn.execute("DELETE FROM listings_fts WHERE rowid = ?", (listing_id,))
-    conn.execute(
-        "INSERT INTO listings_fts (rowid, title, body, meta) VALUES (?, ?, ?, ?)",
-        (listing_id, values["title"], values["description"], _search_text(values)),
-    )
-
-
-index_listing = _index  # for importers that write listings themselves
+def refresh_search_meta(conn: sqlite3.Connection) -> int:
+    """Recompute search_meta for every listing (after changes to the taxonomy). Returns how many changed."""
+    changed = 0
+    last_id = 0
+    while True:
+        rows = conn.execute(
+            "SELECT id, category, type, county, location, postal_code, attributes, search_meta FROM listings "
+            "WHERE id > ? ORDER BY id LIMIT 1000",
+            (last_id,),
+        ).fetchall()
+        if not rows:
+            return changed
+        updates = []
+        for row in rows:
+            try:
+                attributes = json.loads(row["attributes"] or "{}")
+            except ValueError:
+                attributes = {}
+            meta = search_meta(
+                {**dict(row), "attributes": attributes if isinstance(attributes, dict) else {}}
+            )
+            if meta != row["search_meta"]:
+                updates.append((meta, row["id"]))
+        conn.executemany("UPDATE listings SET search_meta = ? WHERE id = ?", updates)
+        changed += len(updates)
+        last_id = rows[-1]["id"]
 
 
 def fetch(
@@ -760,7 +797,8 @@ def create_listing(
         cursor = conn.execute(
             "INSERT INTO listings (user_id, category, type, title, description, price, price_unit, county, "
             "location, postal_code, attributes, status, created_via, created_at, updated_at, risk_score, "
-            "risk_flags, text_hash, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "risk_flags, text_hash, expires_at, search_meta) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 user_id,
                 values["category"],
@@ -781,11 +819,12 @@ def create_listing(
                 json.dumps(assessment.codes),
                 fingerprint,
                 iso_in(days=active_days) if active_days else None,
+                search_meta(values),
             ),
         )
         listing_id = cursor.lastrowid
         assert listing_id is not None
-        _index(conn, listing_id, values)
+    forget_counts()
     return listing_id
 
 
@@ -849,7 +888,7 @@ def update_listing(
         conn.execute(
             "UPDATE listings SET category = ?, type = ?, title = ?, description = ?, price = ?, price_unit = ?, "
             "county = ?, location = ?, postal_code = ?, attributes = ?, status = ?, updated_at = ?, "
-            "risk_score = ?, risk_flags = ?, text_hash = ? WHERE id = ?",
+            "risk_score = ?, risk_flags = ?, text_hash = ?, search_meta = ? WHERE id = ?",
             (
                 clean["category"],
                 clean["type"],
@@ -866,12 +905,13 @@ def update_listing(
                 assessment.score,
                 json.dumps(assessment.codes),
                 fingerprint,
+                search_meta(clean),
                 listing_id,
             ),
         )
-        _index(conn, listing_id, clean)
         if status == "active":
             _renew(conn, listing, active_days)
+    forget_counts()
     return get_listing(conn, listing_id)
 
 
@@ -904,12 +944,14 @@ def set_status(
         )
         if status == "active":
             _renew(conn, listing, active_days)
+    forget_counts()
 
 
 def expire_listings(conn: sqlite3.Connection) -> list[Listing]:
     """Hide listings whose period is over. Returns them, so their owners can be told."""
     rows = conn.execute(
-        f"{_SELECT} WHERE l.source IS NULL AND l.status = 'active' AND l.expires_at IS NOT NULL "
+        # "+l.status": find them through the index of end times, not by reading every active listing.
+        f"{_SELECT} WHERE l.source IS NULL AND +l.status = 'active' AND l.expires_at IS NOT NULL "
         "AND l.expires_at < ?",
         (now_iso(),),
     ).fetchall()
@@ -945,22 +987,54 @@ def delete_listing(
     """Delete a listing. Returns the image filenames that the caller should remove from disk."""
     listing = get_listing(conn, listing_id)
     check_owner(listing, user_id, is_admin)
-    with transaction(conn):
-        conn.execute("DELETE FROM listings_fts WHERE rowid = ?", (listing_id,))
-        conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))
+    conn.execute("DELETE FROM listings WHERE id = ?", (listing_id,))  # a trigger removes it from the index
+    forget_counts()
     return [image.filename for image in listing.images]
 
 
+# Active listings per category, for the front page and the search page. Counting a million listings takes
+# about a tenth of a second, so the numbers are kept for a minute. Meanwhile one request counts again while
+# the others use the previous numbers. On a small site counting is quick, and the numbers are counted again
+# after every change this process makes, so a new listing shows at once.
+COUNTS_SECONDS = 60.0
+QUICK_COUNT_SECONDS = 0.01
+_counts: dict[str, tuple[float, float, dict[str, int]]] = {}  # file -> (counted at, seconds it took, counts)
+_counting: set[str] = set()
+_counts_lock = threading.Lock()
+
+
+def _database_file(conn: sqlite3.Connection) -> str:
+    return conn.execute("PRAGMA database_list").fetchone()["file"]
+
+
+def forget_counts() -> None:
+    with _counts_lock:
+        for key in [key for key, (_, took, _) in _counts.items() if took < QUICK_COUNT_SECONDS]:
+            del _counts[key]
+
+
 def category_counts(conn: sqlite3.Connection) -> dict[str, int]:
-    # Counted from the (status, category, user_id) index alone; banned sellers are few.
-    rows = conn.execute(
-        "SELECT category, COUNT(*) AS n FROM listings WHERE status = 'active' "
-        "AND user_id NOT IN (SELECT id FROM users WHERE banned_at IS NOT NULL) GROUP BY category"
-    )
-    counts = {r["category"]: r["n"] for r in rows}
-    for group in taxonomy.GROUPS:
-        counts[group] = sum(counts.get(c, 0) for c in taxonomy.CATEGORIES[group].children)
-    return counts
+    key = _database_file(conn)
+    with _counts_lock:
+        cached = _counts.get(key)
+        if cached and (time.monotonic() - cached[0] < COUNTS_SECONDS or key in _counting):
+            return dict(cached[2])
+        _counting.add(key)
+    try:
+        started = time.monotonic()
+        rows = conn.execute(
+            f"SELECT category, COUNT(*) AS n FROM listings l WHERE l.status = 'active' AND {SELLER_OK} "
+            "GROUP BY category"
+        )
+        counts = {r["category"]: r["n"] for r in rows}
+        for group in taxonomy.GROUPS:
+            counts[group] = sum(counts.get(c, 0) for c in taxonomy.CATEGORIES[group].children)
+        with _counts_lock:
+            _counts[key] = (started, time.monotonic() - started, counts)
+    finally:
+        with _counts_lock:
+            _counting.discard(key)
+    return dict(counts)
 
 
 def create_report(
@@ -1001,6 +1075,19 @@ def create_report(
 
 
 # --- Search -----------------------------------------------------------------------------------
+#
+# A search does a bounded amount of work however many listings there are, so a small server copes with
+# millions of them:
+#
+# * The ids on a page come from a covering index (or, for words, from the full-text index newest first) and
+#   the query stops as soon as the page is full. Only the listings on the page are read in full.
+# * Matches are counted up to COUNT_LIMIT. Above that the total reads "over 1 000" (more than 40 pages).
+# * To count a word search, at most the SCAN_LIMIT newest hits for the words are looked at; if there are
+#   more, the total reads "minst 2 300". Filters the full-text index can apply itself (county, category,
+#   place, id ranges) are part of the full-text query, so they never use up that budget; other filters
+#   only matter when a very common word meets a very narrow filter. Pages always show every match.
+# * "Mest relevant" puts listings with all the words in the title, category, place or properties first,
+#   newest first, then the rest. Among very common words it does this for the RANKED_HITS newest hits.
 
 SORTS = {
     "relevance": "Mest relevant",
@@ -1014,6 +1101,11 @@ MAX_LIMIT = 100
 MAX_OFFSET = 1_000_000
 MAX_ATTR_FILTERS = 20
 MAX_SQL_INT = 2**63 - 1  # the largest number SQLite stores
+COUNT_LIMIT = 1_000
+SCAN_LIMIT = 20_000
+RANKED_HITS = 2_000
+# Listings of closed accounts are hidden. Few accounts are closed, and a partial index lists them.
+SELLER_OK = "l.user_id NOT IN (SELECT id FROM users WHERE banned_at IS NOT NULL)"
 
 
 @dataclass
@@ -1075,12 +1167,17 @@ class SearchParams:
 @dataclass
 class SearchResult:
     items: list[Listing]
-    total: int
+    total: int  # 0 when the caller did not ask for a count
     params: SearchParams
+    total_exact: bool = True  # False: there are at least `total` matches (see COUNT_LIMIT and SCAN_LIMIT)
+    has_more: bool = False  # more matches after this page
 
-    @property
-    def has_more(self) -> bool:
-        return self.params.offset + len(self.items) < self.total
+    def total_label(self, sep: str = " ") -> str:
+        """The total for people: "123", or "over 1 000" and "minst 230" when not every match was counted."""
+        number = format_number(self.total, sep)
+        if self.total_exact:
+            return number
+        return f"over {number}" if self.total >= COUNT_LIMIT else f"minst {number}"
 
 
 def _attr_error(message: str) -> ValidationProblem:
@@ -1285,41 +1382,59 @@ _SHORT_STOPWORDS = {
 }
 
 
-def build_fts_query(q: str) -> tuple[str | None, list[str]]:
-    """Turn free text into an FTS5 trigram query (all terms must match).
-
-    Terms shorter than three characters cannot use the trigram index; they are returned
-    separately and matched with LIKE instead.
-    """
-    phrases, short = [], []
+def search_terms(q: str) -> list[str]:
+    """The words of a search, case-folded, without short function words and repeats."""
+    terms: list[str] = []
     for token in _TOKEN_RE.findall(q.casefold()):
         token = token.strip("-./+")
-        if not token:
-            continue
-        if len(token) >= 3:
-            phrases.append('"' + token.replace('"', '""') + '"')
-        elif token not in _SHORT_STOPWORDS:
-            short.append(token)
-    return (" AND ".join(phrases) or None), short
+        if token and token not in _SHORT_STOPWORDS and token not in terms:
+            terms.append(token)
+    return terms
+
+
+def _phrase(text: str) -> str:
+    return '"' + text.replace('"', '""') + '"'
+
+
+def _word_query(term: str) -> str:
+    """One word as an FTS5 trigram query. From three letters it matches anywhere, so "sofa" finds
+    "hjørnesofa". A shorter word must start or end a word (every indexed text has a space on both sides)."""
+    if len(term) >= 3:
+        return _phrase(term)
+    if len(term) == 2:
+        return f"({_phrase(' ' + term)} OR {_phrase(term + ' ')})"
+    return _phrase(f" {term} ")
+
+
+def build_fts_query(q: str) -> str | None:
+    """Free text as an FTS5 query that every word must match, or None if there is nothing to search for."""
+    return " AND ".join(_word_query(term) for term in search_terms(q)) or None
 
 
 def _escape_like(text: str) -> str:
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
-    params = validate_search(params)
+def _place_filter(location: str) -> tuple[str, str]:
+    """The place filter as (full-text query on meta, LIKE pattern for ' ' || casefold(location)). From three
+    letters it matches anywhere in the place; shorter text must start a word, so "ås" finds Ås, not Kvås."""
+    text = location.strip().casefold()
+    if len(text) >= 3:
+        return _phrase(text), f"%{_escape_like(text)}%"
+    return _phrase(" " + text), f"% {_escape_like(text)}%"
+
+
+def _conditions(params: SearchParams) -> tuple[list[str], list[Any]]:
+    """SQL conditions on listings `l` for everything except the words."""
     conditions: list[str] = []
     args: list[Any] = []
-
     if params.status == "any":
         conditions.append("l.status IN ('active', 'sold')")
     elif params.status != "all":  # "all" (incl. hidden) is only accepted for owners, see validate_search
         conditions.append("l.status = ?")
         args.append(params.status)
     if not params.include_hidden:
-        conditions.append("u.banned_at IS NULL")
-
+        conditions.append(SELLER_OK)
     if params.category:
         slugs = taxonomy.descendants(params.category)
         conditions.append(f"l.category IN ({','.join('?' * len(slugs))})")
@@ -1331,8 +1446,8 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
         conditions.append("l.county = ?")
         args.append(params.county)
     if params.location and params.location.strip():
-        conditions.append("casefold(l.location) LIKE ? ESCAPE '\\'")
-        args.append(f"%{_escape_like(params.location.strip().casefold())}%")
+        conditions.append("(' ' || casefold(l.location)) LIKE ? ESCAPE '\\'")
+        args.append(_place_filter(params.location)[1])
     if params.price_min is not None:
         conditions.append("l.price >= ?")
         args.append(params.price_min)
@@ -1361,7 +1476,6 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
     if params.up_to_seq is not None:
         conditions.append("l.public_seq <= ?")
         args.append(params.up_to_seq)
-
     for flt in params.attrs:
         attr = ATTRIBUTES[flt.key]  # keys were validated against the registry when parsed
         column = f"json_extract(l.attributes, '$.\"{flt.key}\"')"
@@ -1379,53 +1493,281 @@ def search(conn: sqlite3.Connection, params: SearchParams) -> SearchResult:
         if flt.max is not None:
             conditions.append(f"{column} <= ?")
             args.append(flt.max)
+    return conditions, args
 
-    fts_query, short_terms = build_fts_query(params.q or "")
-    for term in short_terms:
-        # Matched in titles, category fields and places, and in the descriptions of listings posted here
-        # (imported job ads are long). SQLite's LIKE already ignores ASCII case; casefold() is slower and
-        # only needed for æ, ø and å.
-        fold = (lambda column: column) if term.isascii() else (lambda column: f"casefold({column})")
-        conditions.append(
-            f"({fold('l.title')} LIKE ? ESCAPE '\\' "
-            f"OR (l.source IS NULL AND {fold('l.description')} LIKE ? ESCAPE '\\') "
-            f"OR l.id IN (SELECT rowid FROM listings_fts WHERE {fold('meta')} LIKE ? ESCAPE '\\'))"
-        )
-        pattern = f"%{_escape_like(term)}%"
-        args.extend([pattern, pattern, pattern])
 
-    if fts_query:
-        # Run the full-text match once, up front. Joined directly, SQLite may instead probe the
-        # index once per listing, which gets slow for common words.
-        prefix = (
-            "WITH f AS MATERIALIZED (SELECT rowid AS id, bm25(listings_fts, 10.0, 1.0, 3.0) AS rank "
-            "FROM listings_fts WHERE listings_fts MATCH ?) "
-        )
-        source = "f JOIN listings l ON l.id = f.id JOIN users u ON u.id = l.user_id"
-        columns = f"l.*, {_SELLER_COLUMNS}, f.rank AS rank"
-        args.insert(0, fts_query)
+def _full_text(params: SearchParams) -> tuple[str | None, str | None]:
+    """(query for every hit, query for hits with all words in the title, category, place or properties).
+
+    Both are None when neither words nor a place are searched for. Filters that the index can apply itself
+    (county, category and place are in the meta column) are part of both queries: the SQL filters still
+    decide, but the index no longer hands over hits that cannot pass them.
+    """
+    words = build_fts_query(params.q or "")
+    place = params.location.strip() if params.location else ""
+    if words is None and not place:
+        return None, None
+    narrowing = []
+    if params.county:
+        narrowing.append("{meta} : " + _phrase(filter_tag("f", params.county)))
+    category = taxonomy.CATEGORIES.get(params.category or "")
+    if category and category.is_leaf:  # a whole group (e.g. Torget) is too large to gain from it
+        narrowing.append("{meta} : " + _phrase(filter_tag("k", category.slug)))
+    if place:
+        narrowing.append("{meta} : " + _place_filter(place)[0])
+    every = " AND ".join(([f"({words})"] if words else []) + narrowing)
+    best = " AND ".join([f"{{title meta}} : ({words})", *narrowing]) if words else None
+    return every, best
+
+
+Segment = tuple[str, list[Any]]
+
+
+def _page(
+    conn: sqlite3.Connection, segments: list[Segment], offset: int, limit: int
+) -> tuple[list[int], bool]:
+    """Ids [offset, offset + limit) of the segments' results one after the other, and whether more follow.
+    Each segment is a query for listing ids in order; LIMIT and OFFSET are added here."""
+    ids: list[int] = []
+    wanted = limit + 1  # one more than fits on the page tells whether there is a next page
+    for sql, args in segments:
+        if wanted <= 0:
+            break
+        rows = conn.execute(f"{sql} LIMIT ? OFFSET ?", [*args, wanted, offset]).fetchall()
+        if rows:
+            ids += [row[0] for row in rows]
+            wanted -= len(rows)
+            offset = 0
+        elif offset:  # the page starts after this segment: skip it
+            offset -= conn.execute(f"SELECT COUNT(*) FROM ({sql} LIMIT ?)", [*args, offset]).fetchone()[0]
+    return ids[:limit], len(ids) > limit
+
+
+def _count(conn: sqlite3.Connection, sql: str, args: list[Any]) -> tuple[int, bool]:
+    """How many rows `sql` gives, up to COUNT_LIMIT: (count, exact)."""
+    found = conn.execute(f"SELECT COUNT(*) FROM ({sql} LIMIT {COUNT_LIMIT + 1})", args).fetchone()[0]
+    return (COUNT_LIMIT, False) if found > COUNT_LIMIT else (found, True)
+
+
+def _is_plain(params: SearchParams) -> bool:
+    """A search for one category (or everything) and nothing else, which the cached counts answer."""
+    numbers = (params.price_min, params.price_max, params.user_id, params.after_id, params.after_seq)
+    return (
+        params.status == "active"
+        and not params.include_hidden
+        and params.include_imported
+        and not (params.q and build_fts_query(params.q))
+        and not (params.type or params.county or params.location or params.updated_since or params.has_images)
+        and not params.attrs
+        and all(number is None for number in (*numbers, params.up_to_seq, params.exclude_user_id))
+    )
+
+
+def _browse(
+    conn: sqlite3.Connection, params: SearchParams, where: str, args: list[Any], count: bool
+) -> tuple[list[Segment], tuple[int, bool]]:
+    """Searches without words: a covering index gives the ids in order."""
+    total = (0, True)
+    if count:
+        if _is_plain(params):
+            counts = category_counts(conn)
+            groups = taxonomy.GROUPS
+            plain = (
+                counts.get(params.category, 0) if params.category else sum(counts.get(g, 0) for g in groups)
+            )
+            total = (plain, True)
+        else:
+            total = _count(conn, f"SELECT 1 FROM listings l WHERE {where}", args)
+    sort = params.effective_sort
+    if sort.startswith("price"):
+        # Many matches with a price: walk the price index until the page is full. Few: find them through the
+        # other filters and sort them ("+" keeps SQLite from walking the whole price index for a few).
+        priced = _count(conn, f"SELECT 1 FROM listings l WHERE {where} AND +l.price IS NOT NULL", args)
+        if not priced[1] and params.status == "active":
+            select, price = (
+                f"SELECT l.id FROM listings l INDEXED BY idx_listings_by_price WHERE {where}",
+                "l.price",
+            )
+        else:
+            select, price = f"SELECT l.id FROM listings l WHERE {where}", "+l.price"
+        if sort == "price_asc":
+            segments = [
+                (f"{select} AND {price} IS NOT NULL ORDER BY {price}, l.id DESC", args),
+                (
+                    f"SELECT l.id FROM listings l WHERE {where} AND l.price IS NULL "
+                    "ORDER BY l.created_at DESC, l.id DESC",
+                    args,
+                ),
+            ]
+        else:
+            segments = [(f"{select} ORDER BY {price} DESC, l.id DESC", args)]
     else:
-        prefix = ""
-        source = "listings l JOIN users u ON u.id = l.user_id"
-        columns = f"l.*, {_SELLER_COLUMNS}"
+        order = "l.created_at, l.id" if sort == "oldest" else "l.created_at DESC, l.id DESC"
+        segments = [(f"SELECT l.id FROM listings l WHERE {where} ORDER BY {order}", args)]
+    return segments, total
 
-    where = " AND ".join(conditions) if conditions else "1"
-    order = {
-        "newest": "l.created_at DESC, l.id DESC",
-        "oldest": "l.created_at ASC, l.id ASC",
-        "price_asc": "l.price IS NULL, l.price ASC, l.id DESC",
-        "price_desc": "l.price IS NULL, l.price DESC, l.id DESC",
-        "relevance": "rank, l.created_at DESC, l.id DESC" if fts_query else "l.created_at DESC, l.id DESC",
-    }[params.effective_sort]
 
-    total = conn.execute(f"{prefix}SELECT COUNT(*) FROM {source} WHERE {where}", args).fetchone()[0]
-    rows = conn.execute(
-        f"{prefix}SELECT {columns} FROM {source} WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
-        [*args, params.limit, params.offset],
-    ).fetchall()
-    items = [_listing(row) for row in rows]
-    _attach_images(conn, items)
-    return SearchResult(items=items, total=total, params=params)
+def _hits(bounds: str, *, newest_first: bool, limit: int) -> str:
+    """Full-text hits as a subquery that keeps its order (see _words)."""
+    if newest_first and not bounds:
+        return f"SELECT rowid AS id FROM listings_fts WHERE listings_fts MATCH ? ORDER BY rowid DESC LIMIT {limit}"
+    # The index ignores a lower id bound when it reads newest first, so bounded ranges are read oldest first.
+    return f"SELECT rowid AS id FROM listings_fts WHERE listings_fts MATCH ?{bounds} LIMIT {limit}"
+
+
+def _many_hits(conn: sqlite3.Connection, bounds: str, hit_args: list[Any]) -> bool:
+    """More hits than SCAN_LIMIT?"""
+    more = f"SELECT 1 FROM listings_fts WHERE listings_fts MATCH ?{bounds} LIMIT 1 OFFSET {SCAN_LIMIT}"
+    return conn.execute(more, hit_args).fetchone() is not None
+
+
+def _words(
+    conn: sqlite3.Connection,
+    params: SearchParams,
+    where: str,
+    args: list[Any],
+    every: str,
+    best: str | None,
+) -> tuple[list[Segment], tuple[int, bool], bool] | None:
+    """Searches with words (or a place): the full-text index gives the hits, newest first.
+
+    The matches among the SCAN_LIMIT newest hits go into a temporary table in memory, up to COUNT_LIMIT + 1
+    of them: one statement that stops early when the words are common. That gives the count, and when
+    there are few matches, the pages and the ranking read the table instead of the full-text index again.
+    With many matches, pages read the hits from the index as they come: a subquery with ORDER BY and LIMIT,
+    which SQLite runs as a co-routine that hands over the rows in order, so the page query stops as soon as
+    the page is full. (An ORDER BY on the outer query would make SQLite sort every hit; without the LIMIT
+    it would drop the inner ORDER BY.)
+    """
+    bounds, bound_args = "", []  # id ranges the index applies itself
+    if params.after_id is not None:
+        bounds += " AND rowid > ?"
+        bound_args.append(params.after_id)
+    if params.after_seq is not None:
+        # Listings published after that point; a draft published late has an older id.
+        oldest = conn.execute(
+            "SELECT MIN(id) FROM listings WHERE public_seq > ?", (params.after_seq,)
+        ).fetchone()[0]
+        if oldest is None:
+            return None
+        bounds += " AND rowid >= ?"
+        bound_args.append(oldest)
+    sort = params.effective_sort
+    by_price = sort in ("price_asc", "price_desc")
+    hit_args = [every, *bound_args]
+    for table in ("search_matches", "search_best"):
+        conn.execute(f"CREATE TEMP TABLE IF NOT EXISTS {table} (id INTEGER PRIMARY KEY)")
+        conn.execute(f"DELETE FROM temp.{table}")
+    newest = _hits(bounds, newest_first=True, limit=SCAN_LIMIT)
+    conn.execute(
+        f"INSERT INTO temp.search_matches SELECT l.id FROM ({newest}) f CROSS JOIN listings l ON l.id = f.id "
+        f"WHERE {where} LIMIT {COUNT_LIMIT + 1}",
+        [*hit_args, *args],
+    )
+    found = conn.execute("SELECT COUNT(*) FROM temp.search_matches").fetchone()[0]
+    few = found <= COUNT_LIMIT
+    beyond = (few or by_price) and _many_hits(conn, bounds, hit_args)  # more hits than were looked at
+    in_table = few and not beyond  # the table holds every match
+    total = (min(found, COUNT_LIMIT), in_table)
+    descending = " ORDER BY id DESC" if sort != "oldest" else " ORDER BY id"
+    if in_table:
+        matches = "SELECT id FROM temp.search_matches"
+        if by_price:
+            select = "SELECT l.id FROM listings l WHERE l.id IN temp.search_matches"
+            if sort == "price_asc":
+                segments = [
+                    (f"{select} AND l.price IS NOT NULL ORDER BY l.price, l.id DESC", []),
+                    (f"{select} AND l.price IS NULL ORDER BY l.id DESC", []),
+                ]
+            else:
+                segments = [(f"{select} ORDER BY l.price DESC, l.id DESC", [])]
+        elif sort == "relevance" and best:
+            # Few matches: all of them are ranked, those with every word in the title, category, place or
+            # properties first.
+            conn.execute(
+                f"INSERT INTO temp.search_best SELECT rowid FROM listings_fts WHERE listings_fts MATCH ?{bounds} "
+                "AND rowid >= (SELECT MIN(id) FROM temp.search_matches)",
+                [best, *bound_args],
+            )
+            segments = [
+                (f"{matches} WHERE id IN temp.search_best{descending}", []),
+                (f"{matches} WHERE id NOT IN temp.search_best{descending}", []),
+            ]
+        else:
+            segments = [(matches + descending, [])]
+        return segments, total, True
+    ordered = _hits(bounds, newest_first=sort != "oldest", limit=-1)  # -1: no limit, but keeps the order
+    resort = " ORDER BY f.id DESC" if bounds and sort != "oldest" else ""
+    joined = f"SELECT l.id FROM ({ordered}) f CROSS JOIN listings l ON l.id = f.id WHERE {where}"
+    if by_price:
+        # Sorted by price among the SCAN_LIMIT newest hits (all of them, unless the words are very common).
+        select = f"SELECT l.id FROM listings l WHERE {where} AND l.id IN ({newest})"
+        if sort == "price_asc":
+            segments = [
+                (f"{select} AND l.price IS NOT NULL ORDER BY l.price, l.id DESC", [*args, *hit_args]),
+                (f"{select} AND l.price IS NULL ORDER BY l.id DESC", [*args, *hit_args]),
+            ]
+        else:
+            segments = [(f"{select} ORDER BY l.price DESC, l.id DESC", [*args, *hit_args])]
+    elif sort == "relevance" and best:
+        # Many matches: the newest RANKED_HITS hits are ranked, those with every word in the title,
+        # category, place or properties first. Older hits follow by date. (The window is read oldest first:
+        # the index ignores a lower id bound when it reads newest first.)
+        floor = 0
+        if not bounds:
+            row = conn.execute(
+                "SELECT rowid FROM listings_fts WHERE listings_fts MATCH ? ORDER BY rowid DESC "
+                f"LIMIT 1 OFFSET {RANKED_HITS - 1}",
+                hit_args,
+            ).fetchone()
+            floor = row[0] if row else 0
+        conn.execute(
+            f"INSERT INTO temp.search_best SELECT rowid FROM listings_fts WHERE listings_fts MATCH ?{bounds} "
+            f"AND rowid >= ? LIMIT {RANKED_HITS}",
+            [best, *bound_args, floor],
+        )
+        segments = [
+            (
+                f"SELECT l.id FROM temp.search_best f CROSS JOIN listings l ON l.id = f.id WHERE {where} "
+                "ORDER BY f.id DESC",
+                args,
+            ),
+            (f"{joined} AND f.id NOT IN temp.search_best{resort}", [*hit_args, *args]),
+        ]
+    else:
+        segments = [(joined + resort, [*hit_args, *args])]
+    return segments, total, not (beyond and by_price)
+
+
+def _by_ids(conn: sqlite3.Connection, ids: list[int]) -> list[Listing]:
+    if not ids:
+        return []
+    found = {item.id: item for item in fetch(conn, f"WHERE l.id IN ({','.join('?' * len(ids))})", ids)}
+    return [found[listing_id] for listing_id in ids if listing_id in found]
+
+
+def search(conn: sqlite3.Connection, params: SearchParams, *, count: bool = True) -> SearchResult:
+    """Find listings. With count=False the matches are not counted (total is 0), which saves time when
+    only the first few listings are shown."""
+    params = validate_search(params)
+    conditions, args = _conditions(params)
+    where = " AND ".join(conditions) or "1"
+    every, best = _full_text(params)
+    if every is None:
+        plan = (*_browse(conn, params, where, args, count), True)
+    else:
+        plan = _words(conn, params, where, args, every, best)
+    if plan is None:
+        return SearchResult(items=[], total=0, params=params)
+    segments, (total, exact), complete = plan
+    ids, more = _page(conn, segments, params.offset, params.limit)
+    if complete and not more and (ids or not params.offset):  # the page shows the last match
+        total, exact = params.offset + len(ids), True
+    if not count:
+        total, exact = 0, True
+    return SearchResult(
+        items=_by_ids(conn, ids), total=total, params=params, total_exact=exact, has_more=more
+    )
 
 
 def iter_public_listings(
@@ -1436,7 +1778,8 @@ def iter_public_listings(
     only_own = "" if include_imported else "AND l.source IS NULL "
     while True:
         rows = conn.execute(
-            f"{_SELECT} WHERE l.status IN ('active', 'sold') AND u.banned_at IS NULL AND l.id > ? {only_own}"
+            # "+l.status": walk the listings in id order instead of sorting all of them for each batch.
+            f"{_SELECT} WHERE +l.status IN ('active', 'sold') AND u.banned_at IS NULL AND l.id > ? {only_own}"
             "ORDER BY l.id LIMIT ?",
             (last_id, batch),
         ).fetchall()

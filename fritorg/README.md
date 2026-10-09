@@ -16,13 +16,14 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - [Sette i drift](#sette-i-drift)
 - [Sjekkliste før lansering](#sjekkliste-før-lansering)
 - [Drift](#drift)
+- [Kapasitet og serverkrav](#kapasitet-og-serverkrav)
 - [Konfigurasjon](#konfigurasjon)
 - [Utvikling](#utvikling)
 
 ## Funksjoner
 
 - **42 kategorier** i fem hovedgrupper, med egne felt per kategori (for eksempel merke, årsmodell, kilometerstand og drivstoff for biler) og alle 16 fylker.
-- **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt.
+- **Søk** som finner deler av ord (`sofa` finner også `hjørnesofa`), med filtre for kategori, type, sted, pris og kategorifelt. Det er like raskt med en million annonser (se [Kapasitet og serverkrav](#kapasitet-og-serverkrav)).
 - **Annonser ligger ute i 60 dager** og kan fornyes med ett klikk, så gamle annonser ikke hoper seg opp. Selgeren får e-post når en annonse går ut.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser, hurtigsvar for selgeren («Ja, den er fortsatt til salgs») og blokkering av brukere man ikke vil høre fra. Selgerens svartid vises på annonsen («Svarer vanligvis innen en time»).
 - **For selgere:** hvor mange som har sett annonsen og lagret den, og valg av hovedbilde.
@@ -59,14 +60,14 @@ Alt ligger i datamappen (`FRITORG_DATA_DIR`, standard `data/`):
 | Fil | Innhold |
 | --- | --- |
 | `fritorg.sqlite3` | SQLite-database i WAL-modus: brukere, annonser, meldinger, favoritter, lagrede søk, rapporter og modereringslogg. Fulltekstsøket bruker SQLite FTS5. Databasen oppgraderes automatisk når appen starter med en ny versjon (migreringene står i `fritorg/db.py`). |
-| `uploads/` | Bilder som WebP, i full størrelse (maks 1600 piksler) og som miniatyrbilde. Filnavnene er tilfeldige. |
+| `uploads/` | Bilder som WebP, i full størrelse (maks 1600 piksler) og som miniatyrbilde. Filnavnene er tilfeldige, og filene ligger i 256 undermapper etter de to første tegnene i navnet. Mappen kan legges et annet sted med `FRITORG_UPLOADS_DIR`. |
 | `secret_key` | Hemmelig nøkkel, opprettes automatisk hvis `FRITORG_SECRET_KEY` ikke er satt. Den trengs for å kjenne igjen mobilnumre, BankID-identiteter og lenker, så den må tas vare på. |
 
 Postnummerregisteret til Posten Bring AS (åpne data under NLOD 2.0) følger med koden i `fritorg/data/postnummer.tsv`, så postnummeret i en annonse kan fylle ut sted og fylke. Oppdater filen én gang i året fra [data.norge.no](https://data.norge.no/datasets/f7508db5-2167-3356-ab5e-aacffce2a9b6).
 
 Om brukerne lagres e-postadresse, visningsnavn og passord som en scrypt-hash. Mobilnummeret lagres aldri i klartekst, bare som en nøkkelbasert hash (så hvert nummer kan brukes på én konto) og de tre siste sifrene. Med BankID lagres navnet, men aldri fødselsnummeret.
 
-Én SQLite-fil holder lenge for en norsk markedsplass: søk i 50 000 annonser tar et par hundre millisekunder i verste fall. Appen kjører som én prosess. Skal den skaleres ut på flere servere, må databasen og fartsgrensene (som nå ligger i minnet) flyttes til en felles tjeneste.
+Én SQLite-fil holder for en million annonser og mer på en liten server (se [Kapasitet og serverkrav](#kapasitet-og-serverkrav)). Appen kjører som én prosess. Skal den skaleres ut på flere servere, må databasen og fartsgrensene (som nå ligger i minnet) flyttes til en felles tjeneste.
 
 ## Bekreftelse av brukere
 
@@ -162,6 +163,7 @@ fritorg doctor [--send-test-mail ADRESSE] [--send-test-sms NUMMER]   # klar for 
 fritorg make-admin E-POST                                            # gi moderatorrettigheter
 fritorg backup MAPPE                                                 # database, bilder og nøkkel
 fritorg import-nav [--until-done]                                    # hent ledige stillinger fra Nav nå
+fritorg benchmark [--listings 1000000]                               # mål søket med oppdiktede annonser
 fritorg seed [--force]                                               # demo-data (ikke i produksjon)
 ```
 
@@ -173,6 +175,49 @@ Med Docker kjøres kommandoene med `docker compose exec app ...`. En enkel dagli
 
 Sikkerhetskopien tas mens appen kjører, og databasen blir konsistent. Kopier mappen videre til et annet sted (for eksempel objektlagring).
 
+## Kapasitet og serverkrav
+
+Fritorg skal kunne ha veldig mange annonser på én liten server. Det er målt med en testdatabase med 1 million oppdiktede annonser, omtrent like mange som på finn.no. Testmaskinen hadde to prosessorkjerner (Intel Xeon, 2,1 GHz). Før denne versjonen tok forsiden 3 sekunder å lage med så mange annonser, og et søk opptil 5 sekunder. Nå tar en hel side, med HTML:
+
+| Side (1 million annonser) | Tid |
+| --- | --- |
+| Forsiden | 8 ms |
+| Kategori, for eksempel Møbler | 8 ms |
+| Søk «sofa» | 13 ms |
+| Søk «sofa» i Oslo | 30 ms |
+| Smalt søk, for eksempel «leilighet» i Finnmark | 60 ms |
+| Bil, lavest pris først | 8 ms |
+| En annonse | 8 ms |
+| Søk i API-et | 16 ms |
+
+Under full belastning, med 16 brukere som klikker uten pause på en blanding av søk og annonser, klarte de to kjernene 77 sidevisninger i sekundet. Det tilsvarer over 6 millioner i døgnet. Appen brukte da 150 MB minne. Resten av minnet går til operativsystemets hurtigbuffer for databasefilen.
+
+Slik holder søket seg raskt:
+
+- Søket gjør like mye arbeid enten det er tusen eller en million annonser. Annonsene på en side hentes fra indekser som har alle feltene det filtreres og sorteres på, og spørringen stopper så snart siden er full. Bare annonsene som vises, leses i sin helhet.
+- Treff telles opp til 1 000. Er det flere, står det «Over 1 000 treff». For vanlige ord ser tellingen på de 20 000 nyeste treffene, og står det da «Minst 450 treff», kan det være flere. Sidene viser likevel alle treffene. Antall annonser per kategori telles én gang i minuttet.
+- Fylke, kategori og sted ligger som egne merker i søkeindeksen, så «sofa i Finnmark» bare leser sofaene i Finnmark.
+- «Mest relevant» setter annonser med alle ordene i tittelen, kategorien, stedet eller egenskapene først, de nyeste først. Blant svært vanlige ord gjelder det de 2 000 nyeste treffene.
+- Søkeindeksen leser teksten fra annonsetabellen i stedet for å ha sin egen kopi. Den oppdateres av databasen selv, så den aldri kommer ut av takt med annonsene.
+- Bildene serveres direkte av Caddy, så Python bare lager sidene. Sjekken av gjenbrukte bilder slår opp i en indeks i stedet for å sammenligne med alle bildene.
+- Sitemap deles i filer på 50 000 annonser, som søkemotorene krever. Eksporten av alle annonser leser 30 000 annonser i sekundet.
+- Vedlikeholdet oppdaterer statistikken SQLite bruker til å velge indekser, én gang i døgnet.
+
+**Plassbehov.** Med testdataene (beskrivelser på rundt 800 tegn i snitt) tar databasen rundt 6 kB per annonse, altså 6 GB for en million annonser. Søkeindeksen er drøyt halvparten av det. Bildene tar mest plass: rundt 0,25 MB per bilde (stort bilde og miniatyr). Med tre bilder per annonse blir det rundt 75 GB per 100 000 annonser.
+
+| Annonser | Server |
+| --- | --- |
+| Inntil 100 000 | 2 kjerner, 2 GB minne, 40 GB disk og et volum til bildene |
+| Inntil 1 million | 2–4 kjerner, 4–8 GB minne, 20 GB disk til databasen og et volum til bildene (rundt 750 GB) |
+
+Prøv en server før du leier den: `fritorg benchmark --listings 1000000` lager en egen testdatabase med oppdiktede annonser, måler de vanligste søkene og sletter databasen etterpå. Med 100 000 annonser tar det et par minutter, med en million rundt en halvtime.
+
+Neste steg, når det trengs:
+
+- **Mer trafikk:** sett et CDN (for eksempel Cloudflare) foran siden, så bilder og filer i `/static` leveres derfra. Kjør appen i flere prosesser. Da må bakgrunnsjobbene (vedlikehold og import) bare kjøres i én av dem.
+- **Flere bilder enn disken rommer:** flytt bildene til S3-kompatibel objektlagring. Lagringen av bilder ligger samlet i `fritorg/images.py`.
+- **Gamle annonser:** annonser som er utløpt, blir liggende til selgeren sletter dem. Vil du slette dem automatisk etter for eksempel ett år, må det inn i vilkårene først.
+
 ## Konfigurasjon
 
 Alle innstillinger er miljøvariabler. De viktigste:
@@ -181,6 +226,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | --- | --- | --- |
 | `FRITORG_BASE_URL` | utledes fra forespørselen | Offentlig adresse, for eksempel `https://fritorg.no`. Med https slås HSTS og sikre informasjonskapsler på. |
 | `FRITORG_DATA_DIR` | `data` | Mappe for database, bilder og nøkkel. |
+| `FRITORG_UPLOADS_DIR` | `data/uploads` | Mappe for bildene. I `deploy/` er det et eget volum, så Caddy kan servere bildene uten tilgang til databasen. |
 | `FRITORG_SECRET_KEY` | fil i datamappen | Hemmelig nøkkel (64 heksadesimale tegn). |
 | `FRITORG_SITE_NAME` | `Fritorg` | Navnet på siden. |
 | `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Hvem som driver siden og hvordan de nås. |

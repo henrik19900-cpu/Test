@@ -273,7 +273,11 @@ class ListingOut(ListingSummaryOut):
 
 
 class SearchOut(BaseModel):
-    total: int
+    total: int = Field(description="Number of matches, counted up to 1 000.")
+    total_exact: bool = Field(
+        description="False when not every match was counted: there are at least `total` matches. "
+        "Use `next` to page through them."
+    )
     limit: int
     offset: int
     next: str | None = Field(description="URL of the next page, or null.")

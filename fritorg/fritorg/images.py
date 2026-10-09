@@ -7,7 +7,9 @@ Every upload is decoded and re-encoded with Pillow. That
 * keeps pages fast: a WebP of at most 1600 px plus a 640 px thumbnail.
 
 A perceptual hash (dHash) of each image makes it possible to spot photos that another
-seller uploaded first, even after they were resized or re-compressed.
+seller uploaded first, even after they were resized or re-compressed. Its four 16-bit quarters are
+indexed, so a new photo is compared with the few earlier ones that share a quarter, not with every photo
+on the site. Files are spread over 256 folders by the first two letters of their random name.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ import binascii
 import hashlib
 import io
 import os
+import re
 import secrets
 import sqlite3
 import warnings
@@ -128,18 +131,30 @@ def _informative(hash_hex: str) -> bool:
     return 10 <= bin(int(hash_hex, 16)).count("1") <= 54
 
 
+def hash_quarters(hash_hex: str | None) -> tuple[int | None, ...]:
+    """The four 16-bit quarters of a dHash, for listing_images.hash_a..hash_d (None if uninformative).
+
+    Two hashes at most three bits apart share at least one quarter, and most of those four or five bits
+    apart do too, so looking up the quarters finds the earlier copies of a photo."""
+    if not hash_hex or not _informative(hash_hex):
+        return (None, None, None, None)
+    value = int(hash_hex, 16)
+    return tuple((value >> shift) & 0xFFFF for shift in (48, 32, 16, 0))
+
+
 def reused_by_other_seller(conn: sqlite3.Connection, user_id: int, digest: str, perceptual: str) -> bool:
     """True if another seller uploaded this picture first (so the original owner is never flagged)."""
+    quarters = hash_quarters(perceptual)
     rows = conn.execute(
         "SELECT i.id, i.sha256, i.dhash, l.user_id FROM listing_images i JOIN listings l ON l.id = i.listing_id "
-        "WHERE i.sha256 = ? OR i.dhash IS NOT NULL ORDER BY i.id LIMIT 50000",
-        (digest,),
+        "WHERE substr(i.sha256, 1, 16) = ? OR i.hash_a = ? OR i.hash_b = ? OR i.hash_c = ? OR i.hash_d = ? "
+        "ORDER BY i.id",
+        (digest[:16], *quarters),
     ).fetchall()
-    check_similar = _informative(perceptual)
     target = int(perceptual, 16)
     for row in rows:  # ordered oldest first: the first match is the original
         same = row["sha256"] == digest
-        if not same and check_similar and row["dhash"]:
+        if not same and quarters[0] is not None and row["dhash"]:
             same = bin(int(row["dhash"], 16) ^ target).count("1") <= SIMILAR_BITS
         if same:
             return row["user_id"] != user_id
@@ -166,13 +181,14 @@ def add_image(
         raise ValidationProblem.field("image", f"En annonse kan ha maks {max_images} bilder.")
     processed = process_image(data)
 
-    uploads_dir.mkdir(parents=True, exist_ok=True)
     stem = secrets.token_hex(16)
-    filename = f"{stem}.webp"
-    for name, content in ((filename, processed.full), (f"{stem}-t.webp", processed.thumb)):
-        temporary = uploads_dir / f".{name}.tmp"
+    folder = uploads_dir / stem[:2]
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = f"{stem[:2]}/{stem}.webp"
+    for name, content in ((f"{stem}.webp", processed.full), (f"{stem}-t.webp", processed.thumb)):
+        temporary = folder / f".{name}.tmp"
         temporary.write_bytes(content)
-        os.replace(temporary, uploads_dir / name)
+        os.replace(temporary, folder / name)
 
     alt = " ".join((alt_text or "").split())[:200] or None
     position = max((image.position for image in listing.images), default=-1) + 1
@@ -183,7 +199,8 @@ def add_image(
             add_risk_flag(conn, listing_id, "reused_image")
         cursor = conn.execute(
             "INSERT INTO listing_images (listing_id, filename, content_type, size_bytes, alt_text, position, sha256, "
-            "dhash, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "dhash, hash_a, hash_b, hash_c, hash_d, width, height, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 listing_id,
                 filename,
@@ -193,6 +210,7 @@ def add_image(
                 position,
                 digest,
                 processed.dhash,
+                *hash_quarters(processed.dhash),
                 processed.width,
                 processed.height,
                 now_iso(),
@@ -248,10 +266,15 @@ def make_main(
     conn.execute("UPDATE listings SET updated_at = ? WHERE id = ?", (now_iso(), listing_id))
 
 
+_STORED_NAME = re.compile(r"(?:[0-9a-f]{2}/)?[0-9a-f]{32}\.webp")
+
+
 def remove_files(uploads_dir: Path, filenames: list[str]) -> None:
-    """Delete images and their thumbnails."""
+    """Delete images and their thumbnails. Only names this module made are accepted (nothing else on disk)."""
     for name in filenames:
-        path = uploads_dir / Path(name).name
+        if not _STORED_NAME.fullmatch(name):
+            continue
+        path = uploads_dir / name
         for candidate in (path, path.with_name(f"{path.stem}-t{path.suffix}")):
             try:
                 candidate.unlink()

@@ -40,11 +40,14 @@ def test_substring_search_handles_norwegian_compounds(conn, seller):
     assert ids(conn, q="velur grå") == [corner]
 
 
-def test_short_terms_fall_back_to_like(conn, seller):
+def test_short_words_match_the_start_or_end_of_a_word(conn, seller):
     tv = add(conn, seller, category="elektronikk", title="TV 55 tommer", attributes={})
-    add(conn, seller, title="Sofa")
-    assert ids(conn, q="tv") == [tv]
-    assert ids(conn, q="tv 55") == [tv]
+    bench = add(conn, seller, title="Benk til OLED-TV", description="Passer til de fleste.")
+    chair = add(conn, seller, title="Stol", description="Har stått ved tv-benken.")
+    add(conn, seller, title="Sofa", description="Hentes i Satvik.")  # "tv" inside a word
+    assert ids(conn, q="tv") == [bench, tv, chair]  # titles first
+    assert ids(conn, q="TV 55") == [tv]
+    assert ids(conn, q="tv", sort="newest") == [chair, bench, tv]
 
 
 def test_category_names_in_both_languages_are_searchable(conn, seller):
@@ -111,16 +114,20 @@ def test_index_follows_updates_and_deletes(conn, seller):
     assert ids(conn, q="lampe") == [listing_id]
     listings.delete_listing(conn, seller.id, listing_id)
     assert ids(conn, q="lampe") == []
-    assert conn.execute("SELECT COUNT(*) FROM listings_fts").fetchone()[0] == 0
+    # The index matches the listings exactly (raises an error if it does not).
+    conn.execute("INSERT INTO listings_fts (listings_fts, rank) VALUES ('integrity-check', 1)")
 
 
 def test_fts_query_escaping():
-    assert build_fts_query('sofa "OR" grå') == ('"sofa" AND "grå"', ["or"])
-    assert build_fts_query("e-bike 26") == ('"e-bike"', ["26"])
-    assert build_fts_query("   ") == (None, [])
-    # Short function words are ignored; short product terms are kept.
-    assert build_fts_query("vi søker sofa og bord") == ('"søker" AND "sofa" AND "bord"', [])
-    assert build_fts_query("bmw x5 i oslo") == ('"bmw" AND "oslo"', ["x5"])
+    assert build_fts_query('sofa "OR" grå') == '"sofa" AND (" or" OR "or ") AND "grå"'
+    assert build_fts_query('sofa"bord') == '"sofa" AND "bord"'
+    assert build_fts_query("e-bike 26") == '"e-bike" AND (" 26" OR "26 ")'
+    assert build_fts_query("   ") is None
+    # Short function words are ignored; short product terms must start or end a word.
+    assert build_fts_query("vi søker sofa og bord") == '"søker" AND "sofa" AND "bord"'
+    assert build_fts_query("bmw x5 i oslo") == '"bmw" AND (" x5" OR "x5 ") AND "oslo"'
+    assert build_fts_query("iphone x") == '"iphone" AND " x "'
+    assert build_fts_query("sofa SOFA") == '"sofa"'
 
 
 def test_queries_with_fts_syntax_do_not_crash(conn, seller):

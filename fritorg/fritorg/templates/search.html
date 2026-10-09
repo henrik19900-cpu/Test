@@ -3,7 +3,7 @@
 {% from "icons.html" import icon %}
 
 {% block title %}{{ title }} – {{ site_name }}{% endblock %}
-{% block description %}{{ result.total }} annonser på {{ site_name }}. {{ title }}.{% endblock %}
+{% block description %}{{ result.total_label()|capitalize }} annonser på {{ site_name }}. {{ title }}.{% endblock %}
 {% block head %}
 <link rel="alternate" type="application/json" href="{{ api_url }}" title="Samme søk som JSON (API)">
 <link rel="alternate" type="text/markdown" href="{{ md_url }}" title="Samme søk som Markdown">
@@ -82,7 +82,7 @@
     <div class="results-head">
       <div>
         <h1 id="results-title">{{ title }}</h1>
-        <p class="muted">{{ result.total|number }} treff</p>
+        <p class="muted">{{ result.total_label(NBSP)|capitalize }} treff</p>
         <p class="mobile-only filter-jump"><a class="button button-small" href="#filtre">Filtrer{% if filter_count %} ({{ filter_count }}){% endif %}</a></p>
         {% if save_query %}
           {% if saved_search %}
@@ -116,7 +116,7 @@
 
     {% if result.items %}
       {{ listing_grid(result.items, new_after, heading=2) }}
-      {{ pagination(page, pages, page_url) }}
+      {{ pagination(page, pages, page_url, result.total_exact) }}
     {% else %}
       <div class="empty">
         <p><strong>Ingen treff akkurat nå.</strong> Prøv færre filtre eller et annet søkeord.</p>

@@ -175,7 +175,7 @@ def home(request: Request, conn: Conn) -> Response:
             "query-input": "required name=search_term_string",
         },
     }
-    jobs = listings.search(conn, SearchParams(category="jobb", sort="newest", limit=8))
+    jobs = listings.search(conn, SearchParams(category="jobb", sort="newest", limit=8), count=False)
     return render(
         request,
         conn,
@@ -183,7 +183,7 @@ def home(request: Request, conn: Conn) -> Response:
         {
             "recent": recent.items,
             "jobs": jobs.items,
-            "jobs_total": jobs.total,
+            "jobs_total": counts.get("jobb", 0),
             "counts": counts,
             "total": sum(counts.get(group, 0) for group in taxonomy.GROUPS),
             "website_jsonld": serializers.jsonld_script(website),
@@ -272,7 +272,7 @@ def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
             selected_attrs[f"{flt.key}.min"] = flt.min
         if flt.max is not None:
             selected_attrs[f"{flt.key}.max"] = flt.max
-    pages = max(1, -(-result.total // params.limit))
+    pages = max(1, -(-result.total // params.limit), page + 1 if result.has_more else page)
     user = current_user(request, conn)
     save_query = saved_searches.canonical_query(params)
     return render(
@@ -306,7 +306,7 @@ def _search(request: Request, conn: sqlite3.Connection, fmt: str) -> Response:
             "leaf": leaf,
             "selected_attrs": selected_attrs,
             "page": page,
-            "pages": pages,
+            "pages": min(pages, MAX_PAGE),
             "page_url": lambda n: url_with_query(
                 "", "/sok", replace_params(request, side=n if n > 1 else None)
             ),
@@ -360,7 +360,7 @@ def listing_page(listing_id: int, request: Request, conn: Conn) -> Response:
     more = (
         []
         if listing.is_imported
-        else listings.search(conn, SearchParams(user_id=listing.user_id, limit=5)).items
+        else listings.search(conn, SearchParams(user_id=listing.user_id, limit=5), count=False).items
     )
     is_owner = viewer == listing.user_id
     counter = request.app.state.views
@@ -398,7 +398,7 @@ def _similar(conn: sqlite3.Connection, listing: listings.Listing, count: int = 4
     if listing.county:
         searches.insert(0, SearchParams(category=listing.category, county=listing.county, limit=count + 5))
     for params in searches:
-        for item in listings.search(conn, params).items:
+        for item in listings.search(conn, params, count=False).items:
             same_seller = item.user_id == listing.user_id and not listing.is_imported
             if item.id != listing.id and not same_seller and item.id not in {f.id for f in found}:
                 found.append(item)

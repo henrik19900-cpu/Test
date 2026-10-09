@@ -28,9 +28,11 @@ def backup(settings: Settings, destination: Path) -> Path:
     uploads = destination / "uploads"
     uploads.mkdir(exist_ok=True)
     if settings.uploads_dir.exists():
-        for file in settings.uploads_dir.iterdir():
-            if file.is_file() and not file.name.startswith(".") and not (uploads / file.name).exists():
-                shutil.copy2(file, uploads / file.name)
+        for file in settings.uploads_dir.rglob("*"):  # one folder per two first letters of the name
+            target_file = uploads / file.relative_to(settings.uploads_dir)
+            if file.is_file() and not file.name.startswith(".") and not target_file.exists():
+                target_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(file, target_file)
     key = Path(settings.data_dir) / "secret_key"
     if key.exists():
         shutil.copy2(key, destination / "secret_key")

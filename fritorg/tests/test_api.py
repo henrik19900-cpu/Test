@@ -234,7 +234,7 @@ def test_image_upload_and_delete(client, auth, settings):
         client.delete(f"/api/v1/listings/{listing['id']}/images/{image['id']}", headers=auth).status_code
         == 204
     )
-    assert not list(settings.uploads_dir.glob("*.webp"))  # the image and its thumbnail
+    assert not list(settings.uploads_dir.rglob("*.webp"))  # the image and its thumbnail
 
 
 def test_register_login_and_tokens(client):

@@ -188,6 +188,7 @@ def _search_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     result = listings.search(ctx.conn, params)
     return {
         "total": result.total,
+        "total_exact": result.total_exact,
         "offset": result.params.offset,
         "returned": len(result.items),
         "has_more": result.has_more,

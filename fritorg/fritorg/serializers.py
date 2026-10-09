@@ -187,6 +187,7 @@ def saved_search_dict(saved: SavedSearch, base: str) -> dict[str, Any]:
 def search_dict(result: SearchResult, base: str, next_url: str | None) -> dict[str, Any]:
     return {
         "total": result.total,
+        "total_exact": result.total_exact,
         "limit": result.params.limit,
         "offset": result.params.offset,
         "next": next_url,
@@ -369,7 +370,7 @@ def listing_markdown(listing: Listing, base: str) -> str:
 def search_markdown(
     result: SearchResult, base: str, title: str, next_url: str | None, json_url: str | None = None
 ) -> str:
-    lines = [f"# {title}", "", f"{result.total} treff."]
+    lines = [f"# {title}", "", f"{result.total_label().capitalize()} treff."]
     query = search_query_dict(result)
     if query:
         lines += ["", "Søkeparametere: " + ", ".join(f"`{k}={v}`" for k, v in query.items())]

@@ -27,6 +27,9 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass
 class Settings:
     data_dir: Path = Path("data")
+    # Uploaded photos; by default data_dir/uploads. Its own folder lets a web server (Caddy in
+    # deploy/) serve the photos without access to the database.
+    uploads_path: Path | None = None
     # Public base URL, e.g. "https://fritorg.no". When unset it is derived from each request.
     base_url: str | None = None
     site_name: str = "Fritorg"
@@ -111,7 +114,7 @@ class Settings:
 
     @property
     def uploads_dir(self) -> Path:
-        return self.data_dir / "uploads"
+        return self.uploads_path or self.data_dir / "uploads"
 
     @property
     def bankid_required(self) -> bool:
@@ -133,6 +136,7 @@ class Settings:
         secure = _env("SECURE_COOKIES")
         return cls(
             data_dir=Path(_env("DATA_DIR", str(defaults.data_dir))),
+            uploads_path=Path(uploads) if (uploads := _env("UPLOADS_DIR")) else None,
             base_url=(_env("BASE_URL") or "").rstrip("/") or None,
             site_name=_env("SITE_NAME", defaults.site_name),
             contact_email=_env("CONTACT_EMAIL"),

@@ -1,7 +1,22 @@
 # Caddy gets and renews HTTPS certificates automatically for $DOMAIN.
 {$DOMAIN} {
 	encode zstd gzip
-	reverse_proxy app:8000
+
+	# Photos are served straight from the data volume, so the app only builds pages. Their names are
+	# random and never reused, so browsers and CDNs may keep them forever.
+	handle_path /uploads/* {
+		root * /srv/uploads
+		header Cache-Control "public, max-age=31536000, immutable"
+		header X-Content-Type-Options nosniff
+		file_server {
+			hide .*
+		}
+	}
+
+	handle {
+		reverse_proxy app:8000
+	}
+
 	log {
 		output stdout
 		format console

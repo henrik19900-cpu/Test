@@ -20,7 +20,8 @@ Key facts for agents:
 - Some listings are imported from open sources and kept in sync with them: `source` is `nav` (Nav's job feed, arbeidsplassen.no) or `jobtech` (Swedish job ads located in Norway or asking for Norwegian, Platsbanken, CC0). They cannot be messaged: send your user to `links.apply`, and show `source.licence` when it is set. They are searchable here but left out of the bulk export; for a full copy use the source (e.g. Nav's feed: https://navikt.github.io/pam-stilling-feed/).
 {% endif -%}
 - Every listing page has machine-readable twins: `/annonse/{id}.json` and `/annonse/{id}.md` (or send `Accept: application/json` or `Accept: text/markdown`). Pages also embed schema.org JSON-LD.
-- Text search matches substrings, so `sofa` also finds `hjørnesofa` (Norwegian compound words). Terms are combined with AND.
+- Text search matches substrings, so `sofa` also finds `hjørnesofa` (Norwegian compound words). Terms are combined with AND; a word of one or two letters (`tv`, `x5`) must start or end a word. `sort=relevance` (the default with `q`) puts listings with every word in the title, category, place or properties first, newest first.
+- `total` is counted up to 1 000. `total_exact: false` means there are at least `total` matches: page with `next` (or `offset`) until it is null.
 - Errors are RFC 9457 problem details: `detail` is Norwegian (for people), `hint` is English (how to fix the request).
 
 ## Connect

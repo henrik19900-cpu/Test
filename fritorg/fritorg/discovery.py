@@ -124,27 +124,71 @@ def robots_txt(request: Request) -> PlainTextResponse:
     return PlainTextResponse("\n".join(lines) + "\n")
 
 
+SITEMAP_LISTINGS = 50_000  # the most URLs one sitemap file may hold
+_SITEMAP_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
+
+
+def _xml(root: ET.Element) -> Response:
+    body = ET.tostring(root, encoding="unicode", xml_declaration=False)
+    return Response(
+        '<?xml version="1.0" encoding="UTF-8"?>\n' + body,
+        media_type="application/xml",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
 @router.get("/sitemap.xml")
 def sitemap(request: Request, conn: Conn) -> Response:
+    """A sitemap index: the pages, and the listings in files of up to 50 000 (by listing id)."""
     base = base_url(request)
-    urlset = ET.Element("urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9")
+    index = ET.Element("sitemapindex", xmlns=_SITEMAP_NS)
+    ET.SubElement(ET.SubElement(index, "sitemap"), "loc").text = f"{base}/sitemap-sider.xml"
+    # "+status": read the listings in id order (the status indexes would sort them all first).
+    public = "SELECT id FROM listings WHERE +status IN ('active', 'sold') ORDER BY id"
+    first = conn.execute(f"{public} LIMIT 1").fetchone()
+    last = conn.execute(f"{public} DESC LIMIT 1").fetchone()
+    if first and last:
+        for part in range(first[0] // SITEMAP_LISTINGS, last[0] // SITEMAP_LISTINGS + 1):
+            low = part * SITEMAP_LISTINGS
+            if conn.execute(
+                "SELECT 1 FROM listings l WHERE l.id >= ? AND l.id < ? AND +l.status IN ('active', 'sold') LIMIT 1",
+                (low, low + SITEMAP_LISTINGS),
+            ).fetchone():
+                ET.SubElement(
+                    ET.SubElement(index, "sitemap"), "loc"
+                ).text = f"{base}/sitemap-annonser-{part}.xml"
+    return _xml(index)
 
-    def add(loc: str, lastmod: str | None = None) -> None:
+
+@router.get("/sitemap-sider.xml")
+def sitemap_pages(request: Request) -> Response:
+    base = base_url(request)
+    urlset = ET.Element("urlset", xmlns=_SITEMAP_NS)
+    paths = ["/", "/sok", "/hjelp", "/for-agenter", "/for-bedrifter", "/trygg-handel", "/om", "/vilkar"]
+    paths += [f"/sok?category={slug}" for slug in taxonomy.ALL_SLUGS]
+    for path in paths:
+        ET.SubElement(ET.SubElement(urlset, "url"), "loc").text = base + path
+    return _xml(urlset)
+
+
+@router.get("/sitemap-annonser-{part:int}.xml")
+def sitemap_listings(part: int, request: Request, conn: Conn) -> Response:
+    """Public listings with ids from part * 50 000 up to the next part, in id order."""
+    base = base_url(request)
+    low = part * SITEMAP_LISTINGS
+    rows = conn.execute(
+        "SELECT l.id, l.updated_at FROM listings l WHERE l.id >= ? AND l.id < ? "
+        f"AND +l.status IN ('active', 'sold') AND {listings.SELLER_OK} ORDER BY l.id",
+        (low, low + SITEMAP_LISTINGS),
+    ).fetchall()
+    if not rows:
+        raise NotFound("Det finnes ingen slik sitemap.")
+    urlset = ET.Element("urlset", xmlns=_SITEMAP_NS)
+    for row in rows:
         url = ET.SubElement(urlset, "url")
-        ET.SubElement(url, "loc").text = loc
-        if lastmod:
-            ET.SubElement(url, "lastmod").text = lastmod
-
-    for path in ("/", "/sok", "/hjelp", "/for-agenter", "/for-bedrifter", "/trygg-handel", "/om", "/vilkar"):
-        add(base + path)
-    for slug in taxonomy.ALL_SLUGS:
-        add(f"{base}/sok?category={slug}")
-    for count, listing in enumerate(listings.iter_public_listings(conn)):
-        if count >= 45_000:
-            break
-        add(listing_url(base, listing.id), listing.updated_at)
-    body = ET.tostring(urlset, encoding="unicode", xml_declaration=False)
-    return Response('<?xml version="1.0" encoding="UTF-8"?>\n' + body, media_type="application/xml")
+        ET.SubElement(url, "loc").text = listing_url(base, row["id"])
+        ET.SubElement(url, "lastmod").text = row["updated_at"]
+    return _xml(urlset)
 
 
 def atom_feed(
@@ -186,7 +230,7 @@ def feed(request: Request, conn: Conn) -> Response:
 
     params = search_params_from_request(request)
     params.sort, params.limit, params.offset = "newest", 50, 0
-    result = listings.search(conn, params)
+    result = listings.search(conn, params, count=False)
     query = request.url.query
     base = base_url(request)
     title = f"{request.app.state.settings.site_name}: " + (f"«{params.q}»" if params.q else "nyeste annonser")
@@ -253,4 +297,6 @@ def healthz(conn: Conn) -> JSONResponse:
 
 def recent_listings(conn: sqlite3.Connection, limit: int = 12) -> listings.SearchResult:
     """Newest listings posted on the site itself; imported job ads would crowd them out."""
-    return listings.search(conn, SearchParams(sort="newest", limit=limit, include_imported=False))
+    return listings.search(
+        conn, SearchParams(sort="newest", limit=limit, include_imported=False), count=False
+    )

@@ -107,3 +107,21 @@ def test_the_image_trusts_forwarded_addresses_only_from_private_networks():
     assert client_seen("172.18.0.3", "203.0.113.7") == "203.0.113.7"  # Caddy on the compose network
     assert client_seen("172.18.0.3", "10.9.9.9, 203.0.113.7") == "203.0.113.7"  # the nearest untrusted
     assert client_seen("198.51.100.9", "203.0.113.7") == "198.51.100.9"  # straight to the port: ignored
+
+
+def test_access_logs_leave_out_keys_and_photo_links():
+    import logging
+
+    from fritorg.app import RedactTokens
+
+    record = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        "",
+        0,
+        '%s - "%s %s HTTP/%s" %d',
+        ("1.2.3.4", "GET", "/annonse/5/bilder?t=1760000000.0123456789abcdef0123456789abcdef", "1.1", 200),
+        None,
+    )
+    RedactTokens().filter(record)
+    assert "0123456789abcdef" not in record.getMessage() and "bilder?t=***" in record.getMessage()

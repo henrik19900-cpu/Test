@@ -728,6 +728,57 @@ def upload_images(listing_id: int, request: Request, conn: Conn, form: Form) -> 
     return redirect(f"/annonse/{listing_id}/rediger#bilder", flash=flash)
 
 
+def _photo_link_listing(request: Request, conn: sqlite3.Connection, listing_id: int, token: str):
+    """The listing and its owner for a photo link (images.photo_link_token), or the error page to show."""
+    listing = listings.get_listing(conn, listing_id)
+    owner = users.get_user(conn, listing.user_id)
+    if owner is None or not images.photo_link_valid(
+        request.app.state.secret_key, token, listing.id, owner.id
+    ):
+        return render_error(
+            request,
+            403,
+            "Lenken er utløpt eller ugyldig. Be assistenten om en ny lenke, eller legg til bildene under "
+            "«Rediger annonsen» når du er logget inn.",
+        )
+    if listing.status == "removed" or listing.is_imported:
+        return render_error(request, 403, "Denne annonsen kan ikke få flere bilder.")
+    return listing, owner
+
+
+@router.get("/annonse/{listing_id:int}/bilder")
+def photo_link_page(listing_id: int, request: Request, conn: Conn) -> Response:
+    token = request.query_params.get("t", "")
+    found = _photo_link_listing(request, conn, listing_id, token)
+    if isinstance(found, Response):
+        return found
+    listing, _ = found
+    response = render(
+        request,
+        conn,
+        "photo_upload.html",
+        {"listing": listing, "token": token, "max_images": request.app.state.settings.max_images_per_listing},
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"  # the link works like a key
+    return response
+
+
+@router.post("/annonse/{listing_id:int}/bilder/lenke")
+def photo_link_upload(listing_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    token = str(form.get("t") or "")
+    found = _photo_link_listing(request, conn, listing_id, token)
+    if isinstance(found, Response):
+        return found
+    listing, owner = found
+    problems = _upload_images(request, conn, owner, listing.id, form.getlist("images"), listing.title)
+    flash = (
+        "Bildene er lagt til." if not problems else "Noen bilder ble ikke lagt til: " + "; ".join(problems)
+    )
+    return redirect(url_with_query("", f"/annonse/{listing.id}/bilder", [("t", token)]), flash=flash)
+
+
 @router.post("/annonse/{listing_id:int}/bilder/{image_id:int}/hovedbilde")
 def make_main_image(listing_id: int, image_id: int, request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)

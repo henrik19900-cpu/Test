@@ -143,3 +143,33 @@ def call_tools(client, headers=None):
         json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
         headers={**HEADERS, **(headers or {})},
     ).json()["result"]["tools"]
+
+
+def test_a_photo_link_lets_the_user_add_photos_from_the_phone(app, client, auth):
+    from conftest import PHOTO as photo
+    from fastapi.testclient import TestClient
+
+    created = call(client, "create_listing", SOFA, headers=auth)["structuredContent"]
+    link = created["photo_upload_url"]
+    assert "photo_upload_url" in created["next_steps"]
+    path = link.removeprefix("http://testserver")
+    with TestClient(app) as phone:  # not logged in
+        page = phone.get(path)
+        assert page.status_code == 200 and "IKEA Ektorp sofa" in page.text
+        assert page.headers["referrer-policy"] == "no-referrer"
+        token = path.split("t=")[1]
+        sent = phone.post(
+            f"/annonse/{created['id']}/bilder/lenke",
+            data={"csrf_token": phone.cookies["ft_csrf"], "t": token},
+            files={"images": ("sofa.png", photo, "image/png")},
+        )
+        assert sent.status_code == 200 and "Bildene er lagt til" in sent.text
+        assert phone.get(f"/annonse/{created['id']}/bilder?t=1.forged").status_code == 403
+        assert phone.get(f"/annonse/{created['id'] + 1}/bilder?t={token}").status_code in (403, 404)
+    assert len(client.get(f"/api/v1/listings/{created['id']}").json()["images"]) == 1
+    owner_view = call(client, "get_listing", {"listing_id": created["id"]}, headers=auth)["structuredContent"]
+    assert owner_view["photo_upload_url"].startswith(f"http://testserver/annonse/{created['id']}/bilder?t=")
+    assert (
+        "photo_upload_url"
+        not in call(client, "get_listing", {"listing_id": created["id"]})["structuredContent"]
+    )

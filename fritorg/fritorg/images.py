@@ -17,11 +17,13 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import hmac
 import io
 import os
 import re
 import secrets
 import sqlite3
+import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -286,3 +288,29 @@ def remove_files(uploads_dir: Path, filenames: list[str]) -> None:
                 candidate.unlink()
             except FileNotFoundError:
                 pass
+
+
+# --- Photo links ---------------------------------------------------------------------------------
+#
+# A chat assistant sees the person's photos but cannot send them on. It can give the person a link instead:
+# whoever has the link can add photos to that one listing for a day, without logging in, from the phone
+# where the photos are.
+
+PHOTO_LINK_HOURS = 24
+
+
+def photo_link_token(secret: str, listing_id: int, owner_id: int) -> str:
+    expires = int(time.time()) + PHOTO_LINK_HOURS * 3600
+    return f"{expires}.{_photo_signature(secret, listing_id, owner_id, expires)}"
+
+
+def photo_link_valid(secret: str, token: str | None, listing_id: int, owner_id: int) -> bool:
+    expires, _, signature = (token or "").partition(".")
+    if not expires.isdecimal() or int(expires) < time.time():
+        return False
+    return hmac.compare_digest(signature, _photo_signature(secret, listing_id, owner_id, int(expires)))
+
+
+def _photo_signature(secret: str, listing_id: int, owner_id: int, expires: int) -> str:
+    message = f"photos:{listing_id}:{owner_id}:{expires}".encode()
+    return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()[:32]

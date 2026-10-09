@@ -221,7 +221,10 @@ def _get_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     viewer = ctx.user.id if ctx.user else None
     admin = bool(ctx.user and ctx.user.is_admin)
     listing = listings.get_visible_listing(ctx.conn, listing_id, viewer, admin)
-    return serializers.listing_detail(listing, ctx.base, owner_view=admin or listing.user_id == viewer)
+    detail = serializers.listing_detail(listing, ctx.base, owner_view=admin or listing.user_id == viewer)
+    if viewer is not None and listing.user_id == viewer:  # the owner can hand out a link to add photos
+        detail["photo_upload_url"] = _photo_upload_url(ctx, listing)
+    return detail
 
 
 def _list_categories(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -345,8 +348,17 @@ def _create_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     )
     listing = listings.get_listing(ctx.conn, listing_id)
     detail = serializers.listing_detail(listing, ctx.base, owner_view=True)
+    detail["photo_upload_url"] = _photo_upload_url(ctx, listing)
     detail["next_steps"] = _listing_next_steps(ctx, listing)
     return detail
+
+
+def _photo_upload_url(ctx: ToolContext, listing: listings.Listing) -> str | None:
+    """A link the user opens to add photos without logging in (images.photo_link_token)."""
+    if listing.status == "removed" or listing.is_imported or not ctx.secret_key:
+        return None
+    token = images.photo_link_token(ctx.secret_key, listing.id, listing.user_id)
+    return f"{ctx.base}/annonse/{listing.id}/bilder?t={token}"
 
 
 def _listing_next_steps(ctx: ToolContext, listing: listings.Listing) -> str:
@@ -387,8 +399,9 @@ def _listing_next_steps(ctx: ToolContext, listing: listings.Listing) -> str:
         )
     if not listing.images:
         steps.append(
-            "Add photos with add_listing_image, or ask the user to add them on the website: "
-            f"{ctx.base}/annonse/{listing.id}/rediger."
+            "No photos yet. If you have the image files, use add_listing_image. Otherwise give the user "
+            f"photo_upload_url: they open it on the phone or computer where the photos are and pick them (no "
+            f"login needed, valid {images.PHOTO_LINK_HOURS} hours)."
         )
     if listing.status == "active":
         steps.append("When it is sold: update_listing(listing_id, status='sold').")
@@ -417,6 +430,7 @@ def _update_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         active_days=ctx.settings.listing_days,
     )
     detail = serializers.listing_detail(listing, ctx.base, owner_view=True)
+    detail["photo_upload_url"] = _photo_upload_url(ctx, listing)
     detail["next_steps"] = _listing_next_steps(ctx, listing)
     return detail
 
@@ -931,7 +945,10 @@ TOOLS: list[Tool] = [
     Tool(
         "add_listing_image",
         "Add image to listing",
-        "Attach a JPEG, PNG, WebP or GIF image (max 8 MB) to one of the user's listings.",
+        "Attach a JPEG, PNG, WebP or GIF image (max 8 MB) to one of the user's listings. If you cannot pass "
+        "the image bytes (a photo the user showed you in the chat), give the user the listing's "
+        "photo_upload_url instead (from create_listing, update_listing or get_listing): they pick the photos "
+        "on their phone.",
         {
             "listing_id": _LISTING_ID,
             "image_base64": {"type": "string", "description": "Base64 image data or a data: URL."},

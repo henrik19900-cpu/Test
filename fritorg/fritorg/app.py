@@ -71,14 +71,16 @@ OPENAPI_TAGS = [
 
 
 class RedactTokens(logging.Filter):
-    """Keep personal MCP URLs (/mcp/ft_...) and other tokens out of access logs."""
+    """Keep personal MCP URLs (/mcp/ft_...), photo links (/bilder?t=...) and other tokens out of access logs."""
 
     pattern = re.compile(r"ft_[A-Za-z0-9_\-]{20,}")
+    photo_link = re.compile(r"([?&]t=)\d+\.[0-9a-f]{32}")
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple):
             record.args = tuple(
-                self.pattern.sub("ft_***", a) if isinstance(a, str) else a for a in record.args
+                self.photo_link.sub(r"\1***", self.pattern.sub("ft_***", a)) if isinstance(a, str) else a
+                for a in record.args
             )
         return True
 
@@ -261,7 +263,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "/api/docs"
         ):
             response.headers.setdefault("Content-Security-Policy", CSP)  # a page may widen form-action
-            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
             response.headers["X-Frame-Options"] = "DENY"
         if new_csrf:
             response.set_cookie(

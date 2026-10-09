@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+
+{% block title %}Min side – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Hei, {{ user.first_name }}!</h1>
+  <form method="post" action="/logg-ut">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button">Logg ut</button>
+  </form>
+</div>
+
+{% if needs_verification %}
+<section class="panel verify-panel" aria-labelledby="verify-title">
+  <h2 id="verify-title">Bekreft mobilnummeret ditt</h2>
+  <p>Før du kan legge ut annonser og sende meldinger, bekrefter du et norsk mobilnummer med en kode på SMS. Det gjør {{ site_name }} tryggere for alle, og hvert nummer kan bare brukes på én konto.</p>
+  <a class="button button-primary" href="/verifiser-telefon">Bekreft mobilnummer</a>
+</section>
+{% endif %}
+
+<section aria-labelledby="mine">
+  <div class="section-head">
+    <h2 id="mine" class="section-title">Mine annonser</h2>
+    <a class="button button-primary" href="/ny-annonse">{{ icon("plus", 18) }} Ny annonse</a>
+  </div>
+  {% if my_listings %}
+  <ul class="my-listings">
+    {% for item in my_listings %}
+    <li>
+      <a class="my-listing-title" href="/annonse/{{ item.id }}">{{ item.title }}</a>
+      <span class="tag tag-status-{{ item.status }}">{{ item.shown_status }}</span>
+      <span class="muted small">{{ item.price_text(NBSP) or item.type_label }} · {{ item.created_at|date_no }}{% if item.status == "active" and item.expires_at %} · aktiv til {{ item.expires_at|date_no }}{% endif %} · sett {{ views[item.id]|number }} {{ "gang" if views[item.id] == 1 else "ganger" }}{% if item.created_via == "mcp" %} · via AI-agent{% endif %}</span>
+      {% if item.status in ("review", "removed") or item.deletes_at %}
+      <span class="small status-note{% if item.status == 'removed' or item.deletes_at %} status-note-danger{% endif %}">
+        {%- if item.status == "review" %}Venter på godkjenning fra moderator.{% elif item.status == "removed" %}Fjernet av moderator{% if item.moderation_note %}: {{ item.moderation_note }}{% endif %} (<a href="/annonse/{{ item.id }}#klage">klag</a>){% endif %}
+        {%- if item.status in ("review", "removed") and item.deletes_at %} · {% endif %}
+        {%- if item.deletes_at %}Slettes {{ item.deletes_at|date_no }} fordi den ikke har vært aktiv eller endret på lenge{% if item.status in ("sold", "inactive") %}. Gjør den aktiv igjen eller endre den for å beholde den{% endif %}.{% endif -%}
+      </span>
+      {% endif %}
+      <span class="my-listing-actions">
+        {% if item.status != "removed" %}<a href="/annonse/{{ item.id }}/rediger">Rediger</a>{% endif %}
+        <form method="post" action="/annonse/{{ item.id }}/status">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="neste" value="/min-side">
+          {% if item.status == "active" %}
+            {% if item.expires_soon %}<button class="link-button" name="status" value="active">Forny</button>{% endif %}
+            <button class="link-button" name="status" value="sold">{{ item.words.mark_done }}</button>
+            <button class="link-button" name="status" value="inactive">Skjul</button>
+          {% elif item.status in ("sold", "inactive") %}
+            <button class="link-button" name="status" value="active">Aktiver</button>
+          {% endif %}
+        </form>
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if delete_after_days %}<p class="small muted">Annonser som ikke har vært aktive eller endret på {{ delete_after_days|days_no }}, slettes automatisk med bildene. Du får beskjed{% if mail_enabled %} på e-post{% endif %} {{ DELETION_NOTICE_DAYS|days_no }} før.</p>{% endif %}
+  {% else %}
+    <p class="empty">Du har ingen annonser ennå. <a href="/ny-annonse">Legg ut din første – det er gratis.</a></p>
+  {% endif %}
+</section>
+
+<section id="nokler" class="panel agent-panel" aria-labelledby="agent-title">
+  <h2 id="agent-title">{{ icon("robot", 24) }} Koble til AI-assistenten din</h2>
+  <p>Enklest: legg til <code>{{ base }}/mcp/konto</code> i assistenten din (Claude, ChatGPT, Cursor og andre), og logg inn når den ber om det. Da kan den søke, legge ut annonser og sende meldinger for deg. Alt assistenten lager, merkes som «via AI-agent». Assistenter du har koblet til, står i listen under, og du kan slette dem når som helst.</p>
+  <p class="small">Støtter ikke assistenten innlogging, lager du en personlig nøkkel her.</p>
+
+  {% if new_token %}
+  <div class="token-box" role="status">
+    <p><strong>Ny nøkkel laget. Kopier den nå – den vises bare én gang.</strong></p>
+    <pre><code>{{ new_token }}</code></pre>
+    <h3>Claude Code</h3>
+    <pre><code>claude mcp add --transport http fritorg {{ base }}/mcp --header "Authorization: Bearer {{ new_token }}"</code></pre>
+    <h3>Claude.ai, ChatGPT og andre apper med «egendefinert connector»</h3>
+    <p>Lim inn denne personlige adressen. Den fungerer som et passord, så ikke del den.</p>
+    <pre><code>{{ base }}/mcp/{{ new_token }}</code></pre>
+    <h3>Cursor, VS Code og andre MCP-klienter (JSON)</h3>
+    <pre><code>{"mcpServers": {"fritorg": {"url": "{{ base }}/mcp", "headers": {"Authorization": "Bearer {{ new_token }}"}}}}</code></pre>
+    <h3>REST-API</h3>
+    <pre><code>curl -H "Authorization: Bearer {{ new_token }}" {{ base }}/api/v1/me</code></pre>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/min-side/nokler" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="token-name">Navn på nøkkelen</label>
+    <input id="token-name" name="name" type="text" maxlength="60" placeholder="F.eks. Claude på mobilen" required>
+    <button type="submit" class="button button-primary">Lag ny nøkkel</button>
+  </form>
+
+  {% if tokens %}
+  <table class="token-table">
+    <thead><tr><th>Navn</th><th>Nøkkel</th><th>Laget</th><th>Sist brukt</th><th><span class="visually-hidden">Handling</span></th></tr></thead>
+    <tbody>
+      {% for token in tokens %}
+      <tr>
+        <td>{{ token.name }}</td>
+        <td><code>{{ token.hint }}</code></td>
+        <td>{{ token.created_at|date_no }}</td>
+        <td>{{ token.last_used_at|datetime_no if token.last_used_at else "Aldri" }}</td>
+        <td>
+          <form method="post" action="/min-side/nokler/{{ token.id }}/slett">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link-button">Slett</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <p class="small">Agenter som bruker REST-API-et, kan også be om tilgang selv: de viser deg en kode som du godkjenner på <a href="/koble-til">{{ base }}/koble-til</a>. Uten nøkkel kan assistenten fortsatt søke og lese annonser via <code>{{ base }}/mcp</code>. Se <a href="/for-agenter">veiledningen</a>.</p>
+</section>
+
+<section class="panel" aria-labelledby="konto">
+  <h2 id="konto">Konto</h2>
+  <dl class="facts">
+    <div><dt>Visningsnavn</dt><dd>{{ user.name }}{% if user.is_verified %} <span class="tag tag-verified" title="{{ user.verification_title }}">{{ user.verification_label }}</span>{% endif %}</dd></div>
+    {% if verification_mode == "sms" %}<div><dt>Mobilnummer (vises aldri)</dt><dd>{% if user.phone_hint %}{{ user.phone_hint }} <span class="tag tag-verified">Bekreftet</span> <a class="small" href="/verifiser-telefon">Bytt nummer</a>{% else %}<span class="tag tag-new">Ikke bekreftet</span> <a href="/verifiser-telefon">Bekreft nå</a>{% endif %}</dd></div>{% endif %}
+    <div><dt>E-post (vises aldri)</dt><dd>{{ user.email }}{% if mail_enabled %}{% if user.email_verified_at %} <span class="tag tag-verified">Bekreftet</span>{% else %} <span class="tag tag-new">Ikke bekreftet</span>{% endif %}{% endif %}</dd></div>
+    <div><dt>Medlem siden</dt><dd>{{ user.created_at|date_no }}</dd></div>
+  </dl>
+  {% if mail_enabled and not user.email_verified_at %}
+    <p class="small">Bekreft e-postadressen din for å få varsel når noen sender deg en melding.</p>
+  {% endif %}
+  {% if user.verification != "bankid" %}
+  <form method="post" action="/min-side/navn" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="new-name">Visningsnavn</label>
+    <input id="new-name" name="name" type="text" autocomplete="name" value="{{ user.name }}" minlength="2" maxlength="60" required>
+    <button type="submit" class="button">Endre</button>
+  </form>
+  {% endif %}
+  <form method="post" action="/min-side/epost" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="new-email">E-post for varsler</label>
+    <input id="new-email" name="email" type="email" autocomplete="email" value="{{ user.email }}" required>
+    <button type="submit" class="button">{% if mail_enabled and not user.email_verified_at %}Send bekreftelse{% else %}Lagre{% endif %}</button>
+  </form>
+  <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a> · <a href="/min-side/data.json" download>Last ned dataene dine (JSON)</a></p>
+  {% if user.has_password %}
+  <details id="passord">
+    <summary>Bytt passord</summary>
+    <form method="post" action="/min-side/passord">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="current-password">Nåværende passord</label>
+        <input id="current-password" name="current" type="password" autocomplete="current-password" required>
+      </div>
+      <div class="field">
+        <label for="new-password">Nytt passord</label>
+        <input id="new-password" name="password" type="password" autocomplete="new-password" required minlength="8">
+        <p class="hint">Minst 8 tegn. Andre steder du er logget inn, blir logget ut.</p>
+      </div>
+      <button type="submit" class="button">Bytt passord</button>
+    </form>
+  </details>
+  {% endif %}
+  {% if blocked %}
+  <details id="blokkert">
+    <summary>Blokkerte brukere ({{ blocked|length }})</summary>
+    <ul class="blocked-list">
+      {% for person in blocked %}
+      <li>
+        <span>{{ person.name }} <span class="muted small">siden {{ person.created_at|date_no }}</span></span>
+        <form method="post" action="/min-side/blokkert/{{ person.id }}/opphev">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-button">Opphev blokkering</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+  <details id="slett" class="danger-zone">
+    <summary>Slett kontoen min</summary>
+    <form method="post" action="/min-side/slett-konto">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <p class="small">Alle annonsene, bildene, meldingene og API-nøklene dine slettes for godt.</p>
+      {% if user.has_password %}
+      <div class="field">
+        <label for="delete-password">Bekreft med passordet ditt</label>
+        <input id="delete-password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      {% else %}
+      <div class="field">
+        <label for="delete-confirm">Skriv SLETT for å bekrefte</label>
+        <input id="delete-confirm" name="confirm" type="text" autocomplete="off" required>
+      </div>
+      {% endif %}
+      <button type="submit" class="button button-danger">Slett kontoen for godt</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

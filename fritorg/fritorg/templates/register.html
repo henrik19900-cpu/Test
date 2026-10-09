@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "macros.html" import field_error %}
+{% from "icons.html" import icon %}
+
+{% block title %}Lag konto – {{ site_name }}{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>Lag en gratis konto</h1>
+  <p class="lead">Med konto kan du legge ut annonser, sende meldinger og gi AI-assistenten din tilgang.</p>
+  {% if bankid_mode != "off" %}
+    <div class="panel">
+      <h2>Kontoen lages med BankID</h2>
+      <ul>
+        <li>Én person kan bare ha én konto, og alle er ekte personer.</li>
+        <li>Navnet ditt vises som fornavn og forbokstav i etternavnet, for eksempel «Kari N.».</li>
+        <li>Fødselsnummeret ditt lagres aldri.</li>
+      </ul>
+      <a class="button button-block bankid-button" href="/bankid/start{% if next %}?neste={{ next|urlencode }}{% endif %}">{{ icon("shield", 20) }} Fortsett med BankID</a>
+    </div>
+    <p>Har du konto? <a href="/logg-inn">Logg inn</a>.</p>
+  {% else %}
+  {% if verification_mode == "sms" %}
+  <p class="notice">Etterpå bekrefter du et norsk mobilnummer med en kode på SMS. Hvert nummer kan bare brukes på én konto, og alle selgere er bekreftet. Det gjør det mye vanskeligere å svindle.</p>
+  {% endif %}
+  <form method="post" action="/registrer" class="panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if next %}<input type="hidden" name="neste" value="{{ next }}">{% endif %}
+    <div class="field">
+      <label for="name">Visningsnavn</label>
+      <input id="name" name="name" type="text" autocomplete="nickname" required minlength="2" maxlength="60" value="{{ values.name or '' }}">
+      <p class="hint">Vises på annonsene dine. E-postadressen din vises aldri.</p>
+      {{ field_error(errors, "name") }}
+    </div>
+    <div class="field">
+      <label for="email">E-post</label>
+      <input id="email" name="email" type="email" autocomplete="email" required value="{{ values.email or '' }}">
+      {{ field_error(errors, "email") }}
+    </div>
+    <div class="field">
+      <label for="password">Passord</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+      <p class="hint">Minst 8 tegn.</p>
+      {{ field_error(errors, "password") }}
+    </div>
+    <div class="field">
+      <label class="checkbox"><input type="checkbox" name="terms" value="1" required> Jeg er minst 18 år og godtar <a href="/vilkar">vilkårene og personvernerklæringen</a></label>
+      {{ field_error(errors, "terms") }}
+    </div>
+    <button type="submit" class="button button-primary button-block">Lag konto</button>
+  </form>
+  <p>Har du konto? <a href="/logg-inn">Logg inn</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid with context %}
+{% from "icons.html" import icon %}
+
+{% block title %}{{ seller.name }} – {{ site_name }}{% endblock %}
+{% block head %}<link rel="alternate" type="application/json" href="/api/v1/listings?seller_id={{ seller.id }}&amp;status=any">{% endblock %}
+
+{% block content %}
+<h1>{{ seller.name }}</h1>
+{% if seller.is_verified %}<p><span class="tag tag-verified" title="{{ seller.verification_title }}">{{ seller.verification_label }}</span></p>{% endif %}
+{% if response_time %}<p class="small response-time">{{ icon("chat", 16) }} {{ response_time }}</p>{% endif %}
+<p class="muted">Medlem siden {{ seller.created_at|date_no }} · {{ result.total_label(NBSP) }} {{ "annonse" if result.total == 1 and result.total_exact else "annonser" }}</p>
+{% if rating.count %}<p class="rating-summary"><a href="#vurderinger"><span class="stars" aria-hidden="true">★</span> {{ rating.average_text }} av 5</a> · {{ rating.count }} {{ "vurdering" if rating.count == 1 else "vurderinger" }}</p>{% endif %}
+{% if result.items %}
+  {{ listing_grid(result.items, heading=2) }}
+{% else %}
+  <p class="empty">Ingen aktive annonser.</p>
+{% endif %}
+
+<section aria-labelledby="vurderinger" class="ratings-section">
+  <h2 id="vurderinger">Vurderinger</h2>
+  {% if ratings %}
+  <ul class="ratings">
+    {% for r in ratings %}
+    <li>
+      <p><span class="stars" aria-hidden="true">{{ r.score|stars }}</span> <span class="visually-hidden">{{ r.score }} av 5.</span> {% if r.comment %}{{ r.comment }}{% else %}<span class="muted">{{ SCORE_LABELS[r.score] }}</span>{% endif %}</p>
+      <p class="small muted">{{ r.rater_name }} · {{ r.created_at|date_no }} · «{{ r.listing_title }}»</p>
+      {% if user and user.id != r.rater_id %}
+      <details class="report">
+        <summary>Rapporter vurderingen</summary>
+        <form method="post" action="/vurdering/{{ r.id }}/rapporter">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field">
+            <label for="rating-reason-{{ r.id }}">Hva er galt?</label>
+            <select id="rating-reason-{{ r.id }}" name="reason" required>
+              {% for key, label in REPORT_REASONS.items() if key != "wrong_category" %}<option value="{{ key }}" {% if key == "other" %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label for="rating-comment-{{ r.id }}">Kommentar (valgfritt)</label>
+            <textarea id="rating-comment-{{ r.id }}" name="comment" rows="2" maxlength="2000"></textarea>
+          </div>
+          <button type="submit" class="button button-small">Send rapport</button>
+        </form>
+      </details>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">Ingen vurderinger ennå. Etter en handel kan kjøper og selger vurdere hverandre.</p>
+  {% endif %}
+</section>
+{% endblock %}

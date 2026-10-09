@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Legg til bilder – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>Legg til bilder</h1>
+  <p>Til annonsen <a href="/annonse/{{ listing.id }}"><strong>{{ listing.title }}</strong></a>. Lenken virker i ett døgn, og du trenger ikke logge inn.</p>
+  {% if listing.images %}
+    <ul class="image-admin">
+      {% for image in listing.images %}
+      <li><img src="{{ image.thumb_path }}" alt="{{ image.alt_text or listing.title }}">{% if loop.first %}<span class="tag">Hovedbilde</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if listing.images|length < max_images %}
+  <form method="post" enctype="multipart/form-data" action="/annonse/{{ listing.id }}/bilder/lenke" class="panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="t" value="{{ token }}">
+    <div class="field">
+      <label for="photos">Velg bilder fra mobilen eller PC-en</label>
+      <input id="photos" name="images" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple required>
+      <p class="hint">Opptil {{ max_images }} bilder. Posisjonen (GPS) fjernes fra bildene før de lagres.</p>
+    </div>
+    <button type="submit" class="button button-primary button-block">Last opp</button>
+  </form>
+  {% else %}
+    <p>Annonsen har allerede {{ max_images }} bilder, som er det meste den kan ha.</p>
+  {% endif %}
+  <p class="small muted">Vil du fjerne et bilde eller velge hovedbilde, gjør du det under «Rediger annonsen» når du er logget inn.</p>
+</div>
+{% endblock %}

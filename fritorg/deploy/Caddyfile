@@ -1,0 +1,47 @@
+# Caddy gets and renews HTTPS certificates automatically for $DOMAIN.
+#
+# Visitors' addresses: Caddy sets X-Forwarded-For itself and ignores what visitors send. Behind a CDN or
+# another proxy, every visitor would get that proxy's address and share its rate limits; then add the
+# proxy's address ranges both here (`trusted_proxies static ...` under `servers` in the global options)
+# and to FORWARDED_ALLOW_IPS in .env.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Photos are served straight from the data volume, so the app only builds pages. Their names are
+	# random and never reused, so browsers and CDNs may keep them forever.
+	handle_path /uploads/* {
+		root * /srv/uploads
+		header Cache-Control "public, max-age=31536000, immutable"
+		header X-Content-Type-Options nosniff
+		file_server {
+			hide .*
+		}
+	}
+
+	handle {
+		reverse_proxy app:8000
+	}
+
+	# Who visited what, for operations and security, kept for 14 days (the privacy policy says so).
+	# Keys, one-time links and e-mail addresses in the address are replaced with ***, the referring page
+	# is left out, and Caddy never logs passwords, tokens in headers or cookies.
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 10
+			roll_keep_for 336h
+		}
+		format filter {
+			wrap console
+			fields {
+				request>uri regexp "ft_[A-Za-z0-9_-]{20,}|([?&](?i:t|token|kode|code|epost|email)=)[^&]*" "${1}***"
+				request>headers>Referer delete
+			}
+		}
+	}
+}
+
+# Send www to the main domain.
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

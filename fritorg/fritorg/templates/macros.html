@@ -1,0 +1,131 @@
+{% from "icons.html" import icon %}
+
+{% macro listing_card(item, new_after=None, heading=3) -%}
+<article class="card" id="a{{ item.id }}">
+  <a class="card-link" href="/annonse/{{ item.id }}">
+    <div class="card-media">
+      {% if item.thumbnail %}
+        <img src="{{ item.thumbnail.thumb_path }}" alt="{{ item.thumbnail.alt_text or item.title }}" loading="lazy">
+      {% else %}
+        <div class="placeholder placeholder-{{ item.group.slug }}">{{ icon(item.group.slug, 40) }}</div>
+      {% endif %}
+      {% if item.status == "sold" %}
+        <span class="tag tag-sold">{{ item.shown_status }}</span>
+      {% elif item.status in ("inactive", "review", "removed") %}
+        <span class="tag tag-hidden">{{ item.status_label }}</span>
+      {% elif item.type not in ("sell", "job", "service") %}
+        <span class="tag tag-{{ item.type }}">{{ item.type_label }}</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <p class="card-meta">{% if new_after and item.id > new_after %}<span class="card-new">Ny</span> {% endif %}{{ item.place or item.category_obj.name }} · <time datetime="{{ item.created_at }}">{{ item.created_at|ago }}</time></p>
+      <h{{ heading }} class="card-title">{{ item.title }}</h{{ heading }}>
+      {% set price = item.price_text(NBSP) %}
+      {% if price %}<p class="card-price">{{ price }}{% if item.price_drop %} <span class="card-drop"><span class="visually-hidden">Satt ned fra </span><s>{{ item.price_drop|nok }}</s></span>{% endif %}</p>{% elif item.type == "job" %}<p class="card-price card-price-muted">{{ item.attributes.get("employer") or "Ledig stilling" }}</p>{% endif %}
+      {% if item.type == "job" and item.attributes.get("deadline") %}<p class="card-deadline">Søknadsfrist {{ item.attributes.get("deadline")|date_no }}</p>{% endif %}
+      {% if item.is_imported %}<p class="card-source">Fra {{ item.source_name }}</p>{% endif %}
+    </div>
+  </a>
+  {% if user %}{{ favorite_button(item, compact=True) }}{% endif %}
+</article>
+{%- endmacro %}
+
+{# heading: the level of the card titles, one below the section's heading. #}
+{% macro listing_grid(items, new_after=None, heading=3) -%}
+<div class="grid">
+  {% for item in items %}{{ listing_card(item, new_after, heading) }}{% endfor %}
+</div>
+{%- endmacro %}
+
+{# Save or remove a favourite; the page comes back to the same place. Needs the page context. #}
+{% macro favorite_button(item, compact=False) -%}
+{% set saved = item.id in favorite_ids %}
+<form class="{{ 'card-fav' if compact else 'fav-form' }}" method="post" action="/annonse/{{ item.id }}/favoritt">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="neste" value="{{ here }}{% if compact %}#a{{ item.id }}{% endif %}">
+  {% if saved %}
+    <button type="submit" class="fav-button is-saved{% if not compact %} button{% endif %}" name="action" value="remove" title="Fjern fra favoritter" aria-label="Fjern fra favoritter: {{ item.title }}">{{ icon("heart-filled", 20) }}{% if not compact %} Lagret{% endif %}</button>
+  {% else %}
+    <button type="submit" class="fav-button{% if not compact %} button{% endif %}" name="action" value="add" title="Lagre som favoritt" aria-label="Lagre som favoritt: {{ item.title }}">{{ icon("heart", 20) }}{% if not compact %} Lagre{% endif %}</button>
+  {% endif %}
+</form>
+{%- endmacro %}
+
+{% macro saved_tabs(active) -%}
+<nav class="tabs" aria-label="Det du har lagret">
+  <a href="/favoritter"{% if active == "favoritter" %} aria-current="page"{% endif %}>{{ icon("heart", 18) }} Favoritter</a>
+  <a href="/lagrede-sok"{% if active == "lagrede-sok" %} aria-current="page"{% endif %}>{{ icon("bell", 18) }} Lagrede søk</a>
+</nav>
+{%- endmacro %}
+
+{% macro pagination(page, pages, page_url, exact=True) -%}
+{% if pages > 1 %}
+<nav class="pagination" aria-label="Sider">
+  {% if page > 1 %}<a class="button" rel="prev" href="{{ page_url(page - 1) }}">← Forrige</a>{% endif %}
+  <span>Side {{ page }}{% if exact %} av {{ pages }}{% endif %}</span>
+  {% if page < pages %}<a class="button" rel="next" href="{{ page_url(page + 1) }}">Neste →</a>{% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{% macro field_error(errors, name) -%}
+{% if errors and errors.get(name) %}<p class="field-error" id="{{ name|replace('.', '-') }}-error">{{ errors.get(name) }}</p>{% endif %}
+{%- endmacro %}
+
+{# Marks an input that has an error and points it to the message (for screen readers). #}
+{% macro invalid(errors, name) -%}
+{% if errors and errors.get(name) %} aria-invalid="true" aria-describedby="{{ name|replace('.', '-') }}-error"{% endif %}
+{%- endmacro %}
+
+{% macro attribute_input(attr, value, errors) -%}
+{% set name = "attr." ~ attr.key %}
+{% set field_id = "attr-" ~ attr.key %}
+<div class="field">
+  {% if attr.type == "boolean" %}
+    <label class="checkbox"><input type="checkbox" name="{{ name }}" value="true" {% if value %}checked{% endif %}> {{ attr.label }}</label>
+  {% else %}
+    <label for="{{ field_id }}">{{ attr.label }}{% if attr.unit %} <span class="muted">({{ attr.unit }})</span>{% endif %}</label>
+    {% if attr.type == "enum" %}
+      <select id="{{ field_id }}" name="{{ name }}"{{ invalid(errors, "attributes." ~ attr.key) }}>
+        <option value="">Velg …</option>
+        {% for option in attr.options %}
+          <option value="{{ option.value }}" {% if value == option.value %}selected{% endif %}>{{ option.label }}</option>
+        {% endfor %}
+      </select>
+    {% elif attr.type == "integer" %}
+      <input id="{{ field_id }}" name="{{ name }}" type="number" inputmode="numeric"{{ invalid(errors, "attributes." ~ attr.key) }} {% if attr.min is not none %}min="{{ attr.min }}"{% endif %} {% if attr.max is not none %}max="{{ attr.max }}"{% endif %} value="{{ value if value is not none else '' }}">
+    {% elif attr.type == "date" %}
+      <input id="{{ field_id }}" name="{{ name }}" type="date"{{ invalid(errors, "attributes." ~ attr.key) }} value="{{ value or '' }}">
+    {% else %}
+      <input id="{{ field_id }}" name="{{ name }}" type="text"{{ invalid(errors, "attributes." ~ attr.key) }} maxlength="{{ attr.max_length }}" value="{{ value or '' }}">
+    {% endif %}
+  {% endif %}
+  {{ field_error(errors, "attributes." ~ attr.key) }}
+</div>
+{%- endmacro %}
+
+{% macro attribute_filter(attr, selected) -%}
+{% set name = "a." ~ attr.key %}
+<div class="field">
+  {% if attr.type == "enum" %}
+    <label for="f-{{ attr.key }}">{{ attr.label }}</label>
+    <select id="f-{{ attr.key }}" name="{{ name }}">
+      <option value="">Alle</option>
+      {% for option in attr.options %}
+        <option value="{{ option.value }}" {% if selected.get(attr.key) == option.value %}selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+  {% elif attr.type == "integer" or attr.type == "date" %}
+    <span class="label">{{ attr.label }}{% if attr.unit %} <span class="muted">({{ attr.unit }})</span>{% endif %}</span>
+    <div class="range">
+      <input aria-label="{{ attr.label }} fra" name="{{ name }}.min" type="{{ 'date' if attr.type == 'date' else 'number' }}" placeholder="Fra" value="{{ selected.get(attr.key ~ '.min', '') }}">
+      <input aria-label="{{ attr.label }} til" name="{{ name }}.max" type="{{ 'date' if attr.type == 'date' else 'number' }}" placeholder="Til" value="{{ selected.get(attr.key ~ '.max', '') }}">
+    </div>
+  {% elif attr.type == "boolean" %}
+    <label class="checkbox"><input type="checkbox" name="{{ name }}" value="true" {% if selected.get(attr.key) %}checked{% endif %}> {{ attr.label }}</label>
+  {% else %}
+    <label for="f-{{ attr.key }}">{{ attr.label }}</label>
+    <input id="f-{{ attr.key }}" name="{{ name }}" type="text" value="{{ selected.get(attr.key, '') }}">
+  {% endif %}
+</div>
+{%- endmacro %}

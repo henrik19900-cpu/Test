@@ -1,0 +1,96 @@
+{% from "icons.html" import icon %}<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }} – gratis markedsplass for mennesker og AI-agenter{% endblock %}</title>
+  <meta name="description" content="{% block description %}Kjøp, selg og gi bort gratis. {{ site_name }} er en åpen markedsplass for hele Norge – like enkel å bruke for AI-assistenter som for mennesker.{% endblock %}">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/style.css?v={{ version }}">
+  <link rel="service-desc" type="application/openapi+json" href="/openapi.json">
+  <link rel="service-doc" href="/api/docs">
+  <link rel="help" type="text/markdown" href="/llms.txt" title="Dokumentasjon for AI-agenter">
+  <meta name="theme-color" content="#0b6b4f">
+  <meta property="og:site_name" content="{{ site_name }}">
+  <meta property="og:locale" content="nb_NO">
+  {% block og %}
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ self.title() }}">
+  <meta property="og:description" content="{{ self.description() }}">
+  <meta property="og:url" content="{{ base }}{{ path }}">
+  <meta property="og:image" content="{{ base }}/static/og.png">
+  <meta name="twitter:card" content="summary">
+  {% endblock %}
+  <script src="/static/app.js?v={{ version }}" defer></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#innhold">Hopp til innhold</a>
+  {% if bankid_mode == "simulated" %}<div class="test-banner">Testmodus: BankID er simulert. Kontoer og innlogging her er ikke ekte.</div>
+  {% elif sms_test_mode %}<div class="test-banner">Testmodus: SMS-koder sendes ikke, men vises på skjermen. Kontoer her er ikke bekreftet.</div>{% endif %}
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="logo" href="/" aria-label="{{ site_name }} – til forsiden">
+        <img src="/static/logo.svg" alt="" width="34" height="34">
+        <span>{{ site_name }}</span>
+      </a>
+      <form class="header-search" action="/sok" method="get" role="search">
+        <label class="visually-hidden" for="header-q">Søk i annonser</label>
+        <input id="header-q" type="search" name="q" placeholder="Hva leter du etter?" value="{{ header_q or '' }}">
+        <button type="submit" class="button">Søk</button>
+      </form>
+      <nav class="header-nav" aria-label="Hovedmeny">
+        <a class="button button-primary" href="/ny-annonse">{{ icon("plus", 18) }} Ny annonse</a>
+        {% if user %}
+          {% if user.is_admin %}<a class="nav-link" href="/moderering" title="Moderering">{{ icon("shield", 20) }}<span class="nav-label">Moderering</span></a>{% endif %}
+          <a class="nav-link" href="/favoritter" title="Favoritter og lagrede søk">{{ icon("heart", 20) }}<span class="nav-label">Favoritter</span></a>
+          <a class="nav-link" href="/meldinger" title="Meldinger">{{ icon("chat", 20) }}<span class="nav-label">Meldinger</span>{% if unread %} <span class="badge" aria-label="{{ unread }} uleste">{{ unread }}</span>{% endif %}</a>
+          <a class="nav-link" href="/min-side" title="Min side">{{ icon("user", 20) }}<span class="nav-label">Min side</span></a>
+        {% else %}
+          <a class="nav-link" href="/logg-inn">Logg inn</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  {% if flash %}
+  <div class="container"><p class="flash" role="status">{{ flash }}</p></div>
+  {% endif %}
+
+  <main id="innhold" class="container main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <p class="footer-brand">{{ site_name }}</p>
+        <p>Gratis markedsplass for hele Norge. Ingen annonsekostnader, ingen reklame og ingen sporingskapsler.</p>
+        {% if operator %}<p>Drives av {{ operator }}.</p>{% endif %}
+        {% if contact_email %}<p>Kontakt: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a></p>{% endif %}
+      </div>
+      <div>
+        <p class="footer-heading">Tjenesten</p>
+        <ul>
+          <li><a href="/hjelp">Hjelp</a></li>
+          <li><a href="/om">Om {{ site_name }}</a></li>
+          <li><a href="/trygg-handel">Trygg handel</a></li>
+          <li><a href="/for-bedrifter">For bedrifter</a></li>
+          <li><a href="/vilkar">Vilkår og personvern</a></li>
+          <li><a href="/sok">Alle annonser</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer-heading">For AI-agenter og utviklere</p>
+        <ul>
+          <li><a href="/for-agenter">Koble til din AI-assistent</a></li>
+          <li><a href="/llms.txt">llms.txt</a> · <a href="/api/docs">API-dokumentasjon</a></li>
+          <li><a href="/openapi.json">OpenAPI</a> · <a href="/mcp">MCP-server</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

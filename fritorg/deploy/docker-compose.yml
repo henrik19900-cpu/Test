@@ -1,0 +1,47 @@
+# Production: Fritorg behind Caddy (automatic HTTPS). Usage:
+#   cp .env.example .env   # fill in domain, SMS provider, e-mail and secret key
+#   docker compose up -d --build
+# Container logs (errors and the app's own messages) are rotated, so they cannot grow without end.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    logging: *logging
+    env_file: .env
+    environment:
+      FRITORG_UPLOADS_DIR: /uploads
+    volumes:
+      - fritorg-data:/data
+      - fritorg-uploads:/uploads  # photos: a volume of their own, which Caddy serves
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    logging: *logging
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - fritorg-uploads:/srv/uploads:ro  # only the photos, not the database
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  fritorg-data:
+  fritorg-uploads:
+  caddy-data:
+  caddy-config:

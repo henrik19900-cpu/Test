@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "macros.html" import saved_tabs with context %}
+{% from "icons.html" import icon %}
+
+{% block title %}Lagrede søk – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+{{ saved_tabs("lagrede-sok") }}
+<div class="page-head">
+  <div>
+    <h1>Lagrede søk</h1>
+    <p class="muted">Se hvor mange nye annonser som har kommet siden sist{% if mail_enabled %}, og få dem på e-post{% endif %}.</p>
+  </div>
+</div>
+
+{% if mail_enabled and not user.email_verified_at %}
+<p class="notice">Bekreft e-postadressen din på <a href="/min-side#konto">Min side</a> for å få nye treff på e-post.</p>
+{% endif %}
+
+{% if searches %}
+<ul class="saved-searches">
+  {% for s in searches %}
+  <li id="s{{ s.id }}" class="saved-search">
+    <div class="saved-search-main">
+      <a class="saved-search-name" href="/lagrede-sok/{{ s.id }}">{{ s.name }}</a>
+      {% if s.new_count %}<span class="badge badge-new">{{ s.new_count|number }} {{ "ny" if s.new_count == 1 else "nye" }}</span>{% endif %}
+      <p class="muted small">Lagret {{ s.created_at|date_no }}{% if mail_enabled %} · E-postvarsel {{ "på" if s.notify else "av" }}{% endif %}</p>
+    </div>
+    <div class="saved-search-actions">
+      <a class="button button-small" href="/lagrede-sok/{{ s.id }}">Se treff</a>
+      {% if mail_enabled %}
+      <form method="post" action="/lagrede-sok/{{ s.id }}/varsel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if s.notify %}<button class="link-button" name="notify" value="0">Slå av e-post</button>{% else %}<button class="link-button" name="notify" value="1">Slå på e-post</button>{% endif %}
+      </form>
+      {% endif %}
+      <form method="post" action="/lagrede-sok/{{ s.id }}/slett">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="link-button link-danger" aria-label="Slett søket {{ s.name }}">Slett</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+<p class="small muted">Du kan ha opptil {{ max_saved }} lagrede søk. {% if mail_enabled %}Vi sender høyst én e-post i timen per søk.{% endif %}</p>
+{% else %}
+  <div class="empty">
+    <p><strong>Du har ingen lagrede søk ennå.</strong></p>
+    <p>Søk etter noe, for eksempel en sykkel i fylket ditt, og trykk på «Lagre søket». Da sier vi fra når det kommer nye annonser som passer.</p>
+    <p><a class="button" href="/sok">Til søket</a></p>
+  </div>
+{% endif %}
+{% endblock %}

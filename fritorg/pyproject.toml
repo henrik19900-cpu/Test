@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",
-    "uvicorn>=0.30",
+    "uvicorn>=0.31",  # 0.31: trusted proxies given as networks
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
     "markdown>=3.5",

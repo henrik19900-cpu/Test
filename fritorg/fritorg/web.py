@@ -454,8 +454,9 @@ def report_listing(listing_id: int, request: Request, conn: Conn, form: Form) ->
             str(form.get("reason") or ""),
             str(form.get("comment") or ""),
             user.id if user else None,
+            verified_only=listings.reports_need_verified(request.app.state.settings),
         )
-    except ValidationProblem as exc:
+    except (ValidationProblem, RateLimited) as exc:
         return redirect(f"/annonse/{listing_id}", flash=exc.message)
     return redirect(f"/annonse/{listing_id}", flash="Takk! Vi ser på annonsen.")
 
@@ -1211,7 +1212,9 @@ def delete_account(request: Request, conn: Conn, form: Form) -> Response:
         return login_redirect(request)
     if user.has_password:
         try:
-            users.authenticate(conn, user.email, str(form.get("password") or ""))
+            users.check_password(conn, request.app.state.limiter, user.email, str(form.get("password") or ""))
+        except RateLimited as exc:
+            return redirect("/min-side#slett", flash=exc.message)
         except AppError:
             return redirect("/min-side#slett", flash="Feil passord. Kontoen ble ikke slettet.")
     elif str(form.get("confirm") or "").strip().upper() != "SLETT":
@@ -1265,7 +1268,7 @@ def login(request: Request, conn: Conn, form: Form) -> Response:
             "For mange innloggingsforsøk. Vent litt og prøv igjen.", retry_after=decision.reset_in
         )
     try:
-        user = users.authenticate(conn, email, str(form.get("password") or ""))
+        user = users.check_password(conn, request.app.state.limiter, email, str(form.get("password") or ""))
     except AppError as exc:
         error = exc.message
         if isinstance(exc, Forbidden) and settings.contact_email:  # a closed account can still complain
@@ -1275,7 +1278,7 @@ def login(request: Request, conn: Conn, form: Form) -> Response:
             conn,
             "login.html",
             {"next": target, "error": error, "values": {"email": email}},
-            status=401,
+            status=exc.status,
         )
     return _start_session(request, conn, user, target, f"Velkommen tilbake, {user.first_name}!")
 
@@ -1313,7 +1316,15 @@ def register(request: Request, conn: Conn, form: Form) -> Response:
             request, conn, "register.html", {"values": values, "errors": errors, "next": target}, status=422
         )
     try:
-        user = users.create_user(conn, values["email"], values["name"], str(form.get("password") or ""))
+        user = users.register(
+            conn,
+            request.app.state.limiter,
+            client_ip(request),
+            values["email"],
+            values["name"],
+            str(form.get("password") or ""),
+            "web",
+        )
     except AppError as exc:
         errors = _errors_by_field(exc) if isinstance(exc, ValidationProblem) else {"email": exc.message}
         return render(
@@ -1525,6 +1536,7 @@ def reset_with_code(request: Request, conn: Conn, form: Form) -> Response:
         return render(request, conn, "reset_code.html", {"email": email, "errors": errors}, status=422)
     assert user is not None
     users.set_password(conn, user.id, password)
+    users.forget_wrong_passwords(state.limiter, user.email)
     return _start_session(request, conn, user, "/min-side", "Passordet er endret, og du er logget inn.")
 
 
@@ -1555,6 +1567,7 @@ def set_new_password(request: Request, conn: Conn, form: Form) -> Response:
     except ValidationProblem as exc:
         context = {"token": token, "account": account, "errors": {"password": _problem_text(exc)}}
         return render(request, conn, "new_password.html", context, status=422)
+    users.forget_wrong_passwords(request.app.state.limiter, account.email)
     return _start_session(request, conn, account, "/min-side", "Passordet er endret, og du er logget inn.")
 
 
@@ -1571,7 +1584,9 @@ def change_password(request: Request, conn: Conn, form: Form) -> Response:
     if not decision.allowed:
         raise RateLimited("For mange forsøk. Vent litt og prøv igjen.", retry_after=decision.reset_in)
     try:
-        users.authenticate(conn, user.email, str(form.get("current") or ""))
+        users.check_password(conn, request.app.state.limiter, user.email, str(form.get("current") or ""))
+    except RateLimited as exc:
+        return redirect("/min-side#passord", flash=exc.message)
     except AppError:
         return redirect("/min-side#passord", flash="Feil nåværende passord. Passordet ble ikke endret.")
     try:

@@ -1,4 +1,9 @@
 # Caddy gets and renews HTTPS certificates automatically for $DOMAIN.
+#
+# Visitors' addresses: Caddy sets X-Forwarded-For itself and ignores what visitors send. Behind a CDN or
+# another proxy, every visitor would get that proxy's address and share its rate limits; then add the
+# proxy's address ranges both here (`trusted_proxies static ...` under `servers` in the global options)
+# and to FORWARDED_ALLOW_IPS in .env.
 {$DOMAIN} {
 	encode zstd gzip
 

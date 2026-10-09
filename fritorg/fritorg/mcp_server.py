@@ -38,7 +38,7 @@ from . import (
 )
 from .config import Settings
 from .deps import base_url, client_ip
-from .errors import AppError, Unauthorized, ValidationProblem
+from .errors import AppError, RateLimited, Unauthorized, ValidationProblem
 from .listings import SORTS, SearchParams
 from .mailer import Mailer, notify_new_message, notify_rating, notify_trade
 from .schemas import ListingCreate, ListingUpdate
@@ -56,6 +56,7 @@ METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
 UNSUPPORTED_PROTOCOL_VERSION = -32022
+MAX_BATCH = 20  # calls in one JSON-RPC batch; each counts against the read rate limit
 
 router = APIRouter(include_in_schema=False)
 
@@ -187,6 +188,12 @@ def _search_listings(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     params.sort = _str(args, "sort")
     params.limit = min(_int(args, "limit") or 10, 50)
     params.offset = _int(args, "offset") or 0
+    if params.offset > listings.MAX_OFFSET:
+        raise ValidationProblem.field(
+            "offset",
+            f"Maks offset er {listings.MAX_OFFSET}.",
+            hint="Narrow the search, or use the bulk export (GET /api/v1/export/listings.ndjson) for everything.",
+        )
     result = listings.search(ctx.conn, params)
     return {
         "total": result.total,
@@ -560,6 +567,10 @@ def _delete_saved_search(ctx: ToolContext, args: dict[str, Any]) -> dict[str, An
 def _report_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     listing_id = _int(args, "listing_id", required=True)
     assert listing_id is not None
+    if ctx.limiter is not None:
+        decision = ctx.limiter.hit("report", ctx.client_ip, 20, 3600)
+        if not decision.allowed:
+            raise RateLimited("For mange rapporter. Prøv igjen senere.", retry_after=decision.reset_in)
     report_id = listings.create_report(
         ctx.conn,
         listing_id,
@@ -567,6 +578,7 @@ def _report_listing(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         _str(args, "comment"),
         ctx.user.id if ctx.user else None,
         via="mcp",
+        verified_only=listings.reports_need_verified(ctx.settings),
     )
     return {"report_id": report_id, "status": "received"}
 
@@ -734,7 +746,7 @@ TOOLS: list[Tool] = [
                 "description": "Default: relevance with query, else newest.",
             },
             "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Default 10."},
-            "offset": {"type": "integer", "minimum": 0},
+            "offset": {"type": "integer", "minimum": 0, "maximum": listings.MAX_OFFSET},
         },
         _search_listings,
     ),
@@ -1321,6 +1333,23 @@ async def _handle_post(request: Request, path_token: str | None) -> Response:
         payload = json.loads(await request.body())
     except (ValueError, UnicodeDecodeError):
         return JSONResponse(_error(None, PARSE_ERROR, "Parse error: body must be JSON"), status_code=400)
+
+    if isinstance(payload, list):
+        if len(payload) > MAX_BATCH:
+            return JSONResponse(
+                _error(None, INVALID_REQUEST, f"Batch too large: at most {MAX_BATCH} calls per request"),
+                status_code=400,
+            )
+        # The gateway counted the request once; every further call in the batch counts too.
+        settings, limiter, ip = request.app.state.settings, request.app.state.limiter, client_ip(request)
+        for _ in payload[1:]:
+            decision = limiter.hit("read", ip, settings.rate_limit_read_per_minute, 60)
+            if not decision.allowed:  # answered like the gateway's own limit
+                raise RateLimited(
+                    "For mange forespørsler. Vent litt og prøv igjen.",
+                    retry_after=decision.reset_in,
+                    hint="Send fewer calls per batch, or use GET /api/v1/export/listings.ndjson for bulk data.",
+                )
 
     base = base_url(request)
     token = path_token or _bearer(request)

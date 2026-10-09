@@ -18,12 +18,13 @@ RUN pip install . \
     && chown fritorg:fritorg /data /uploads
 
 USER fritorg
-# The app sits behind a reverse proxy (Caddy in deploy/docker-compose.yml) that sets
-# X-Forwarded-For; the container port must not be exposed to the internet directly.
+# The app sits behind a reverse proxy (Caddy in deploy/docker-compose.yml) that sets X-Forwarded-For.
+# The header is trusted only from private addresses (the proxy's container network), so visitors who
+# reach the port directly cannot pick the address that rate limits count against.
 ENV FRITORG_DATA_DIR=/data \
     HOST=0.0.0.0 \
     PORT=8000 \
-    FORWARDED_ALLOW_IPS=*
+    FORWARDED_ALLOW_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7
 VOLUME ["/data"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \

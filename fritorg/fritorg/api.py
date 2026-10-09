@@ -446,7 +446,9 @@ def appeal_removal(listing_id: int, body: AppealIn, request: Request, conn: Conn
     tags=["listings"],
     summary="Report a listing",
 )
-def report_listing(listing_id: int, body: ReportIn, request: Request, conn: Conn, user: OptionalUser) -> dict:
+def report_listing(
+    listing_id: int, body: ReportIn, request: Request, conn: Conn, user: OptionalUser, settings: SettingsDep
+) -> dict:
     """Flag fraud, spam or illegal content for moderation. No account needed."""
     _limit(
         request.app.state.limiter,
@@ -457,7 +459,13 @@ def report_listing(listing_id: int, body: ReportIn, request: Request, conn: Conn
         "For mange rapporter. Prøv igjen senere.",
     )
     report_id = listings.create_report(
-        conn, listing_id, body.reason, body.comment, user.id if user else None, via=_channel(request)
+        conn,
+        listing_id,
+        body.reason,
+        body.comment,
+        user.id if user else None,
+        via=_channel(request),
+        verified_only=listings.reports_need_verified(settings),
     )
     return {"id": report_id, "status": "received"}
 
@@ -566,7 +574,9 @@ def register(body: RegisterIn, request: Request, conn: Conn, settings: SettingsD
         3600,
         "For mange nye kontoer fra denne adressen. Prøv igjen om en time.",
     )
-    user = users.create_user(conn, body.email, body.name, body.password, via=_channel(request))
+    user = users.register(
+        conn, limiter, client_ip(request), body.email, body.name, body.password, _channel(request)
+    )
     token, record = users.create_api_token(conn, user.id, body.token_name)
     base = base_url(request)
     send_verification(
@@ -589,7 +599,7 @@ def login(body: LoginIn, request: Request, conn: Conn, settings: SettingsDep) ->
         600,
         "For mange innloggingsforsøk. Vent litt og prøv igjen.",
     )
-    user = users.authenticate(conn, body.email, body.password)
+    user = users.check_password(conn, request.app.state.limiter, body.email, body.password)
     token, record = users.create_api_token(conn, user.id, body.token_name)
     return {
         "account": _account(conn, user, request.app.state.settings),

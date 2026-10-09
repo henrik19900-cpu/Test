@@ -125,11 +125,20 @@ def test_expired_codes_are_refused(app, client):
     assert expired.status_code == 422 and "utløpt" in expired.json()["detail"]
 
 
-def test_one_account_per_number(client):
+def test_one_account_per_number(app, client):
     verify(client, bearer(register(client)))
     other = register(client, email="ola@example.no", name="Ola Hansen")
+    # The same answer as for any number, so nobody can test which numbers have accounts.
     taken = send_code(client, bearer(other), "+47 912 34 567")
-    assert taken.status_code == 409 and "en annen konto" in taken.json()["detail"]
+    assert taken.status_code == 202 and taken.json()["phone_hint"] == "+47 •••••567"
+    assert taken.json()["test_code"] is None
+    # The owner of the number gets an explanation instead of a code.
+    to, message = app.state.sms.outbox[-1]
+    assert to == "+4791234567" and "allerede knyttet til en konto" in message
+    assert not re.search(r"\d{6}", message)
+    guess = client.post("/api/v1/me/phone/verify", json={"code": "123456"}, headers=bearer(other))
+    assert guess.status_code in (409, 422)  # a lucky guess still meets the check in confirm()
+    assert client.get("/api/v1/me", headers=bearer(other)).json()["verified"] is False
 
 
 def test_code_requests_are_rate_limited(client):

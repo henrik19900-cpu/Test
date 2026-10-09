@@ -18,10 +18,14 @@ Alle kontoer er knyttet til en ekte person, og hver person kan bare ha én konto
 {% elif settings.phone_verification_required %}### Hvorfor må jeg bekrefte mobilnummeret?
 
 Før du legger ut annonser eller sender meldinger, bekrefter du et norsk mobilnummer med en kode på SMS. Hvert nummer kan bare brukes på én konto, og det gjør det mye vanskeligere å lage falske kontoer. Nummeret vises aldri for andre, og vi lagrer det ikke i klartekst. {{ site_name }} ringer deg aldri og spør aldri om koden.
+
+Er nummeret allerede brukt på en annen konto, får du en SMS om det i stedet for en kode. Da logger du inn med den kontoen.
 {% endif %}
 ### Jeg har glemt passordet
 
 Bruk «Glemt passordet?» på innloggingssiden. Du får en lenke på e-post{% if settings.phone_verification_required %} eller en kode på SMS til nummeret du har bekreftet{% endif %}.
+
+Etter 10 feil passord på et kvarter stenges innloggingen for kontoen en liten stund, så ingen kan prøve seg fram. Med «Glemt passordet?» kommer du likevel inn med en gang.
 
 ## Kjøpe
 

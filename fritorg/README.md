@@ -254,6 +254,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_NAV_IMPORT_INTERVAL` | `120` | Sekunder mellom hver sjekk av feeden. |
 | `FRITORG_JOBTECH_IMPORT` | av | Hent svenske stillinger i Norge eller som krever norsk. |
 | `FRITORG_SEED_DEMO` | av | Legg inn demo-data ved første oppstart. |
+| `FORWARDED_ALLOW_IPS` | private adresser i Docker | Proxyer som får oppgi den besøkendes IP-adresse (`X-Forwarded-For`). Bak en CDN legger du til CDN-ens adresser her og i Caddy (se `deploy/Caddyfile`). |
 
 ## Utvikling
 

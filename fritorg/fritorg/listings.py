@@ -1164,6 +1164,29 @@ def category_counts(conn: sqlite3.Connection) -> dict[str, int]:
     return dict(counts)
 
 
+REPORTS_PER_DAY = 30  # per account
+
+
+def check_report_quota(conn: sqlite3.Connection, reporter_id: int | None) -> None:
+    if reporter_id is None:
+        return
+    recent = conn.execute(
+        "SELECT COUNT(*) FROM reports WHERE reporter_id = ? AND created_at > ?",
+        (reporter_id, iso_ago(days=1)),
+    ).fetchone()[0]
+    if recent >= REPORTS_PER_DAY:
+        raise RateLimited(
+            f"Du har sendt {recent} rapporter siste døgn. Prøv igjen senere.",
+            retry_after=3600,
+            hint="Reports per account are limited; a moderator handles the ones already sent.",
+        )
+
+
+def reports_need_verified(settings: Any) -> bool:
+    """Whether only reports from verified people count towards hiding a listing (see create_report)."""
+    return bool(settings.bankid_required or settings.phone_verification_required)
+
+
 def create_report(
     conn: sqlite3.Connection,
     listing_id: int | None,
@@ -1174,8 +1197,12 @@ def create_report(
     *,
     reported_user_id: int | None = None,
     conversation_id: int | None = None,
+    verified_only: bool = False,
 ) -> int:
-    """Report a listing (or a user in a conversation). Enough reports hide a listing until reviewed."""
+    """Report a listing (or a user in a conversation). Reports from AUTO_REVIEW_REPORTS different people hide
+    a listing until a moderator has looked at it; with `verified_only`, only verified people count, so a few
+    throwaway accounts cannot take a listing down."""
+    check_report_quota(conn, reporter_id)
     if listing_id is not None:
         listing = get_listing(conn, listing_id)
         reported_user_id = reported_user_id or listing.user_id
@@ -1191,9 +1218,10 @@ def create_report(
             (listing_id, reported_user_id, conversation_id, reporter_id, reason, comment, via, now_iso()),
         )
     if listing_id is not None and conversation_id is None:
+        verified = " AND u.verified_at IS NOT NULL AND u.banned_at IS NULL" if verified_only else ""
         reporters = conn.execute(
-            "SELECT COUNT(DISTINCT reporter_id) FROM reports WHERE listing_id = ? AND resolved_at IS NULL "
-            "AND reporter_id IS NOT NULL",
+            "SELECT COUNT(DISTINCT r.reporter_id) FROM reports r JOIN users u ON u.id = r.reporter_id "
+            f"WHERE r.listing_id = ? AND r.resolved_at IS NULL{verified}",
             (listing_id,),
         ).fetchone()[0]
         if reporters >= fraud.AUTO_REVIEW_REPORTS:
@@ -1225,7 +1253,7 @@ SORTS = {
 }
 SEARCH_STATUSES = ("active", "sold", "any")
 MAX_LIMIT = 100
-MAX_OFFSET = 1_000_000
+MAX_OFFSET = 25_000  # deeper pages cost more to find (the web shows 1 000 pages); the export has everything
 MAX_ATTR_FILTERS = 20
 MAX_SQL_INT = 2**63 - 1  # the largest number SQLite stores
 COUNT_LIMIT = 1_000

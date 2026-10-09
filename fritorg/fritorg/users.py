@@ -7,7 +7,8 @@ import sqlite3
 from dataclasses import dataclass
 
 from .db import transaction
-from .errors import Conflict, Forbidden, NotFound, Unauthorized, ValidationProblem
+from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized, ValidationProblem
+from .ratelimit import RateLimiter
 from .security import hash_password, hash_token, new_token, token_hint, verify_password
 from .util import iso_ago, iso_in, now_iso
 
@@ -210,6 +211,34 @@ def create_user(
     return get_user(conn, cursor.lastrowid)  # type: ignore[return-value]
 
 
+TAKEN_PER_HOUR = 5  # "already has an account" answers per IP address
+
+
+def register(
+    conn: sqlite3.Connection,
+    limiter: RateLimiter,
+    client_ip: str,
+    email: str,
+    name: str,
+    password: str,
+    via: str,
+) -> User:
+    """create_user() for the sign-up forms. The answer "this address already has an account" tells whether
+    someone is registered, so after a few of those in an hour the IP address may not sign up at all for a
+    while: then neither answer tells anything."""
+    allowed = limiter.peek("taken", client_ip, TAKEN_PER_HOUR, 3600)
+    if not allowed.allowed:
+        raise RateLimited(
+            "For mange forsøk med adresser som allerede har en konto. Logg inn i stedet, eller prøv igjen senere.",
+            retry_after=allowed.reset_in,
+        )
+    try:
+        return create_user(conn, email, name, password, via)
+    except Conflict:
+        limiter.hit("taken", client_ip, TAKEN_PER_HOUR, 3600)
+        raise
+
+
 def update_email(conn: sqlite3.Connection, user_id: int, email: str) -> None:
     """Change the address; it has to be verified again before notifications are sent to it."""
     email = email.strip()
@@ -234,6 +263,37 @@ def authenticate(conn: sqlite3.Connection, email: str, password: str) -> User:
     if row["banned_at"]:
         raise Forbidden("Kontoen er stengt av en moderator.")
     return _user(row)
+
+
+WRONG_PASSWORDS = 10  # per address and 15 minutes
+
+
+def check_password(conn: sqlite3.Connection, limiter: RateLimiter, email: str, password: str) -> User:
+    """authenticate(), with at most WRONG_PASSWORDS tries per address in 15 minutes, so guessing spread
+    over many IP addresses stops too. Addresses without an account count the same way, so the limit does
+    not tell which ones exist. The right password starts the count again."""
+    key = _password_key(email)
+    decision = limiter.hit("password", key, WRONG_PASSWORDS, 900)
+    if not decision.allowed:
+        raise RateLimited(
+            "For mange feil passord for denne kontoen. Vent litt, eller lag et nytt passord med "
+            "«Glemt passordet?».",
+            retry_after=decision.reset_in,
+            hint="Too many wrong passwords for this account. Wait for Retry-After, or let the person reset "
+            "the password on the website.",
+        )
+    user = authenticate(conn, email, password)
+    limiter.clear("password", key)
+    return user
+
+
+def forget_wrong_passwords(limiter: RateLimiter, email: str) -> None:
+    """After a password reset the new password works everywhere at once."""
+    limiter.clear("password", _password_key(email))
+
+
+def _password_key(email: str) -> str:
+    return email.strip().casefold()
 
 
 def get_user(conn: sqlite3.Connection, user_id: int) -> User | None:

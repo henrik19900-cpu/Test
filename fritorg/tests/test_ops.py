@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import re
 import sqlite3
+from pathlib import Path
 
 from conftest import PHOTO, make_listing
 from fastapi.testclient import TestClient
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from fritorg import ops
 from fritorg.app import create_app
@@ -80,3 +84,26 @@ def test_prohibited_items_go_to_review(client, auth):
     )
     assert listing["status"] == "review"
     assert "prohibited_item" in {r["code"] for r in listing["moderation"]["reasons"]}
+
+
+def test_the_image_trusts_forwarded_addresses_only_from_private_networks():
+    """Rate limits count per address, so only the proxy in front of the app may say who the visitor is."""
+    trusted = re.search(r"FORWARDED_ALLOW_IPS=(\S+)", (Path(__file__).parents[1] / "Dockerfile").read_text())
+
+    def client_seen(peer: str, forwarded: str) -> str:
+        seen = {}
+
+        async def app(scope, receive, send):
+            seen["host"] = scope["client"][0]
+
+        scope = {
+            "type": "http",
+            "client": (peer, 4321),
+            "headers": [(b"x-forwarded-for", forwarded.encode())],
+        }
+        asyncio.run(ProxyHeadersMiddleware(app, trusted_hosts=trusted.group(1))(scope, None, None))
+        return seen["host"]
+
+    assert client_seen("172.18.0.3", "203.0.113.7") == "203.0.113.7"  # Caddy on the compose network
+    assert client_seen("172.18.0.3", "10.9.9.9, 203.0.113.7") == "203.0.113.7"  # the nearest untrusted
+    assert client_seen("198.51.100.9", "203.0.113.7") == "198.51.100.9"  # straight to the port: ignored

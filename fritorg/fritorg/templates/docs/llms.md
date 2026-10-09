@@ -62,7 +62,7 @@ Until an account has confirmed a Norwegian mobile number (8 digits starting with
 1. Ask your user for their mobile number. MCP: `verify_phone` with `phone`. REST: `POST {{ base }}/api/v1/me/phone` with `{"phone": "912 34 567"}`.
 2. Ask the user for the 6-digit code they received by SMS (valid 10 minutes, 5 attempts). MCP: `verify_phone` with `code`. REST: `POST {{ base }}/api/v1/me/phone/verify` with `{"code": "123456"}`.
 
-Each number can verify one account only. Never guess codes or use a number that is not your user's.
+Each number can verify one account only. A number that already belongs to another account gets an SMS saying so instead of a code, and the answer to you is the same as for any number; then your user should log in to that account. Never guess codes or use a number that is not your user's.
 {% endif %}
 ## Businesses: sync a whole inventory
 

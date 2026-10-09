@@ -223,14 +223,6 @@ def start(
         row = conn.execute("SELECT phone_hash FROM users WHERE id = ?", (user_id,)).fetchone()
         if row is None or not row["phone_hash"] or not hmac.compare_digest(row["phone_hash"], hashed):
             return None
-    taken = conn.execute(
-        "SELECT id FROM users WHERE phone_hash = ? AND id != ?", (hashed, user_id)
-    ).fetchone()
-    if taken:
-        raise Conflict(
-            "Nummeret er allerede knyttet til en annen konto.",
-            hint="Each mobile number can verify one account only. Log in to the existing account instead.",
-        )
     recent_user = conn.execute(
         "SELECT COUNT(*) FROM phone_codes WHERE user_id = ? AND created_at > ?", (user_id, iso_ago(hours=1))
     ).fetchone()[0]
@@ -251,6 +243,14 @@ def start(
             raise RateLimited(
                 "For mange SMS-koder fra denne adressen. Prøv igjen senere.", retry_after=decision.reset_in
             )
+    # A number already on another account gets an explanation instead of a code, and the caller gets the
+    # same answer as for any number, so nobody can test which numbers have accounts. It counts against the
+    # same limits (the row below), and the code stored for it is never sent.
+    taken = (
+        purpose == "verify"
+        and conn.execute("SELECT 1 FROM users WHERE phone_hash = ? AND id != ?", (hashed, user_id)).fetchone()
+        is not None
+    )
     code = f"{secrets.randbelow(10**6):06d}"
     with transaction(conn):
         conn.execute(
@@ -267,6 +267,14 @@ def start(
             ),
         )
     site = settings.site_name
+    if taken:
+        sender.send(
+            e164,
+            f"Noen prøvde å bekrefte en ny konto hos {site} med dette nummeret, men det er allerede knyttet til "
+            "en konto. Var det deg, logger du inn med den kontoen (velg «Glemt passordet?» om du trenger det). "
+            "Var det ikke deg, kan du se bort fra denne meldingen.",
+        )
+        return CodeSent(phone_hint(e164), CODE_MINUTES * 60)
     what = "koden for å lage nytt passord" if purpose == "reset" else "koden din"
     sender.send(
         e164,

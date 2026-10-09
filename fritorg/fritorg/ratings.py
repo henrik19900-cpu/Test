@@ -351,6 +351,7 @@ def report_rating(
 ) -> int:
     """Report a rating, e.g. because it is false or abusive. A moderator decides (moderation.py)."""
     rating = get_visible_rating(conn, rating_id)
+    listings.check_report_quota(conn, reporter_id)
     if reason not in REPORT_REASONS:
         raise ValidationProblem.field(
             "reason", "Ugyldig grunn.", hint=f"Valid reasons: {', '.join(REPORT_REASONS)}"

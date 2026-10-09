@@ -151,4 +151,4 @@ Mer om dette: [Trygg handel]({{ base }}/trygg-handel).
 
 ## Grenser
 
-Per IP-adresse: {{ settings.rate_limit_read_per_minute }} lesinger og {{ settings.rate_limit_write_per_minute }} endringer per minutt. Svarene har `RateLimit-*`-headere, og ved status 429 forteller `Retry-After` hvor lenge du skal vente.
+Per IP-adresse: {{ settings.rate_limit_read_per_minute }} lesinger og {{ settings.rate_limit_write_per_minute }} endringer per minutt. Svarene har `RateLimit-*`-headere, og ved status 429 forteller `Retry-After` hvor lenge du skal vente. En JSON-RPC-batch til MCP kan ha opptil 20 kall, og hvert kall teller som en lesing. Søk kan bla til og med `offset` 25 000; trenger du mer, bruk eksporten. Etter 10 feil passord på et kvarter avviser innloggingen for kontoen alle forsøk en stund.

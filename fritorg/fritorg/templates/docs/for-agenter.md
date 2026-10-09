@@ -58,6 +58,7 @@ Legg til en egendefinert connector («custom connector») med adressen over. For
 | `list_conversations` | Ja | Brukerens samtaler med uleste meldinger |
 | `get_conversation` | Ja | Les en samtale |
 | `report_conversation` | Ja | Rapporter den du skriver med (f.eks. falsk betalingslenke) |
+| `delete_conversation` | Ja | Slett en samtale fra brukerens innboks |
 | `save_favorite` | Ja | Lagre en annonse i brukerens favoritter, eller fjern den |
 | `list_favorites` | Ja | Brukerens favoritter |
 | `save_search` | Ja | Følg med på et søk, med e-postvarsel om nye treff hvis brukeren vil |

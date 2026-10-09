@@ -37,7 +37,7 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         serializers.conversation_dict(
             messages.get_conversation(conn, c.id, user.id, mark_read=False), user.id, base, with_messages=True
         )
-        for c in messages.list_conversations(conn, user.id)
+        for c in messages.list_conversations(conn, user.id, include_hidden=True)
     ]
     tokens = [
         {"name": t.name, "hint": t.hint, "created_at": t.created_at, "last_used_at": t.last_used_at}

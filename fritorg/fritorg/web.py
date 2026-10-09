@@ -889,6 +889,16 @@ def reply(conversation_id: int, request: Request, conn: Conn, form: Form) -> Res
     return redirect(f"/meldinger/{conversation_id}#siste")
 
 
+@router.post("/meldinger/{conversation_id:int}/slett")
+def delete_conversation(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    messages.hide_conversation(conn, conversation_id, user.id)
+    return redirect("/meldinger", flash="Samtalen er slettet fra innboksen din.")
+
+
 @router.post("/meldinger/{conversation_id:int}/rapporter")
 def report_conversation(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
     check_csrf(request, form)

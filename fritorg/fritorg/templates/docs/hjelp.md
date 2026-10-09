@@ -69,6 +69,10 @@ Du kan holde hele lageret oppdatert automatisk fra ditt eget system. Se [For bed
 
 ## Meldinger
 
+### Kan jeg slette en samtale?
+
+Ja. Åpne samtalen og velg **Slett samtalen**. Den andre beholder sin kopi, og skriver en av dere igjen, kommer samtalen tilbake. Når dere begge har slettet den, slettes den for godt.
+
 ### Noen plager meg. Hva gjør jeg?
 
 Åpne samtalen og velg **Blokker**. Da kan dere ikke sende meldinger til hverandre, og personen får ikke beskjed. Er det svindel eller trusler, bør du også **rapportere** samtalen, så ser en moderator på den.

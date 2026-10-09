@@ -131,7 +131,11 @@ def _insert_message(
             json.dumps(assessment.codes),
         ),
     )
-    conn.execute("UPDATE conversations SET last_message_at = ? WHERE id = ?", (now, conversation_id))
+    # A new message brings the conversation back to inboxes it was deleted from.
+    conn.execute(
+        "UPDATE conversations SET last_message_at = ?, buyer_hidden_at = NULL, seller_hidden_at = NULL WHERE id = ?",
+        (now, conversation_id),
+    )
     return cursor.lastrowid  # type: ignore[return-value]
 
 
@@ -325,14 +329,50 @@ def get_conversation(
 
 
 def list_conversations(
-    conn: sqlite3.Connection, user_id: int, *, unread_only: bool = False
+    conn: sqlite3.Connection, user_id: int, *, unread_only: bool = False, include_hidden: bool = False
 ) -> list[Conversation]:
+    """The person's inbox, newest first, without the conversations they deleted (unless include_hidden)."""
+    shown = (
+        ""
+        if include_hidden
+        else " AND NOT ((c.buyer_id = :me AND c.buyer_hidden_at IS NOT NULL)"
+        " OR (c.seller_id = :me AND c.seller_hidden_at IS NOT NULL))"
+    )
     rows = conn.execute(
-        _SELECT + " WHERE c.buyer_id = :me OR c.seller_id = :me ORDER BY c.last_message_at DESC, c.id DESC",
+        _SELECT + f" WHERE (c.buyer_id = :me OR c.seller_id = :me){shown} "
+        "ORDER BY c.last_message_at DESC, c.id DESC",
         {"me": user_id},
     ).fetchall()
     conversations = [_conversation(row) for row in rows]
     return [c for c in conversations if c.unread] if unread_only else conversations
+
+
+def hide_conversation(conn: sqlite3.Connection, conversation_id: int, user_id: int) -> bool:
+    """Delete a conversation from the person's inbox. The other person keeps theirs, and a new message from
+    either brings it back. Once both have deleted it, it is deleted for good, unless moderators may need it:
+    a report about it is still open, or a message in it has strong fraud signals. Returns True when it was
+    deleted for good."""
+    conversation = _get(conn, conversation_id, user_id)
+    column = "seller_hidden_at" if conversation.role(user_id) == "seller" else "buyer_hidden_at"
+    other = "buyer_hidden_at" if column == "seller_hidden_at" else "seller_hidden_at"
+    with transaction(conn):
+        conn.execute(f"UPDATE conversations SET {column} = ? WHERE id = ?", (now_iso(), conversation_id))
+        conn.execute(
+            "UPDATE messages SET read_at = ? WHERE conversation_id = ? AND sender_id != ? AND read_at IS NULL",
+            (now_iso(), conversation_id, user_id),
+        )
+        both = conn.execute(
+            f"SELECT {other} IS NOT NULL FROM conversations WHERE id = ?", (conversation_id,)
+        ).fetchone()[0]
+        evidence = conn.execute(
+            "SELECT 1 FROM reports WHERE conversation_id = :id AND resolved_at IS NULL UNION ALL "
+            "SELECT 1 FROM messages WHERE conversation_id = :id AND risk_score >= :flagged LIMIT 1",
+            {"id": conversation_id, "flagged": fraud.REVIEW_THRESHOLD},
+        ).fetchone()
+        if both and evidence is None:
+            conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))  # messages go with it
+            return True
+    return False
 
 
 def unread_count(conn: sqlite3.Connection, user_id: int) -> int:

@@ -975,6 +975,16 @@ def get_conversation(conversation_id: int, request: Request, conn: Conn, user: C
     return serializers.conversation_dict(conversation, user.id, base_url(request), with_messages=True)
 
 
+@router.delete(
+    "/conversations/{conversation_id}", status_code=204, tags=["messages"], summary="Delete a conversation"
+)
+def delete_conversation(conversation_id: int, conn: Conn, user: CurrentUser) -> Response:
+    """Delete the conversation from your inbox. The other person keeps their copy, and a new message from
+    either of you brings it back. Once both have deleted it, it is deleted for good."""
+    messages.hide_conversation(conn, conversation_id, user.id)
+    return Response(status_code=204)
+
+
 @router.post(
     "/conversations/{conversation_id}/messages",
     status_code=201,

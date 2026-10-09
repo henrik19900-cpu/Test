@@ -450,6 +450,14 @@ def _get_conversation(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     return serializers.conversation_dict(conversation, ctx.user.id, ctx.base, with_messages=True)
 
 
+def _delete_conversation(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    assert ctx.user is not None
+    conversation_id = _int(args, "conversation_id", required=True)
+    assert conversation_id is not None
+    gone = messages.hide_conversation(ctx.conn, conversation_id, ctx.user.id)
+    return {"conversation_id": conversation_id, "deleted": True, "deleted_for_both": gone}
+
+
 def _search_params(args: dict[str, Any]) -> SearchParams:
     """The filters shared by search_listings and save_search."""
     return SearchParams(
@@ -976,6 +984,18 @@ TOOLS: list[Tool] = [
         _get_conversation,
         required=("conversation_id",),
         requires_auth=True,
+    ),
+    Tool(
+        "delete_conversation",
+        "Delete a conversation",
+        "Delete a conversation from the user's inbox (ask first). The other person keeps their copy, and a new "
+        "message from either brings it back. Once both have deleted it, it is gone for good.",
+        {"conversation_id": {"type": "integer"}},
+        _delete_conversation,
+        required=("conversation_id",),
+        requires_auth=True,
+        read_only=False,
+        destructive=True,
     ),
     Tool(
         "get_user_ratings",

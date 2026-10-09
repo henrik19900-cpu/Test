@@ -464,6 +464,14 @@ CREATE INDEX idx_reports_rating ON reports(rating_id) WHERE rating_id IS NOT NUL
 """
 
 
+# Each person can delete a conversation from their own inbox (messages.hide_conversation): it comes back if
+# either of them writes again, and it is deleted for good once both have deleted it.
+SCHEMA_V8 = """
+ALTER TABLE conversations ADD COLUMN buyer_hidden_at TEXT;
+ALTER TABLE conversations ADD COLUMN seller_hidden_at TEXT;
+"""
+
+
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
     conn.execute("PRAGMA analysis_limit = 1000")
@@ -480,6 +488,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     _migrate_v5,
     SCHEMA_V6,
     SCHEMA_V7,
+    SCHEMA_V8,
 ]
 
 

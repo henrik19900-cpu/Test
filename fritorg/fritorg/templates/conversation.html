@@ -117,6 +117,15 @@
 {% endif %}
 
 <details class="report">
+  <summary>Slett samtalen</summary>
+  <form method="post" action="/meldinger/{{ conversation.id }}/slett">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <p class="small">Samtalen forsvinner fra innboksen din. {{ other }} beholder sin kopi, og skriver en av dere igjen, kommer den tilbake. Når dere begge har slettet den, slettes den for godt.</p>
+    <button type="submit" class="button">Slett samtalen</button>
+  </form>
+</details>
+
+<details class="report">
   <summary>Rapporter {{ other }}</summary>
   <form method="post" action="/meldinger/{{ conversation.id }}/rapporter">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

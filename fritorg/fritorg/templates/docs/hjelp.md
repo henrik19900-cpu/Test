@@ -79,7 +79,7 @@ Du kan holde hele lageret oppdatert automatisk fra ditt eget system. Se [For bed
 
 ### Kan jeg slette en samtale?
 
-Ja. Åpne samtalen og velg **Slett samtalen**. Den andre beholder sin kopi, og skriver en av dere igjen, kommer samtalen tilbake. Når dere begge har slettet den, slettes den for godt.
+Ja. Åpne samtalen og velg **Slett samtalen**. Den andre beholder sin kopi, og skriver en av dere igjen, kommer samtalen tilbake. Når dere begge har slettet den, slettes den for godt, men ikke mens en rapport om den behandles, eller mens handelen dere registrerte i den kan vurderes (se [vilkårene]({{ base }}/vilkar)).
 
 ### Noen plager meg. Hva gjør jeg?
 
@@ -95,8 +95,8 @@ Ja. Assistenten kan søke, følge med på nye annonser og legge ut annonser for 
 
 ### Hva lagrer dere om meg?
 
-Bare det som trengs for å drive tjenesten. Under **Min side** kan du laste ned alt vi har lagret om deg. Les mer i [vilkårene]({{ base }}/vilkar).
+Bare det som trengs for å drive tjenesten. Under **Min side** kan du laste ned en kopi av opplysningene vi har lagret om deg, og endre visningsnavnet og e-postadressen. Hvor lenge vi lagrer hva, og rettighetene dine, står i [vilkårene og personvernerklæringen]({{ base }}/vilkar).
 
 ### Hvordan sletter jeg kontoen min?
 
-Under **Min side**, nederst. Annonsene, bildene og meldingene dine slettes for godt.
+Under **Min side**, nederst. Annonsene, bildene, meldingene og vurderingene dine slettes for godt, og samtalene forsvinner også for dem du skrev med. Behandler en moderator en rapport om deg eller annonsene dine, kan kontoen slettes når saken er avgjort.

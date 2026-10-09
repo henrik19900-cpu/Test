@@ -158,7 +158,12 @@ Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.c
 - [ ] Minst én moderator, og en plan for hvem som følger med på `/moderering` hver dag.
 - [ ] `fritorg doctor` viser ingen FEIL.
 - [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er testet.
-- [ ] Juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), databehandleravtaler med SMS- og e-postleverandøren og en oversikt over behandlingen av personopplysninger.
+- [ ] Personvern:
+  - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år) og lagringstidene
+  - protokoll over behandlingene (personvernforordningen artikkel 30) og en vurdering av personvernkonsekvenser (DPIA, artikkel 35), fordi alle meldinger sjekkes automatisk for svindel og annonsene deles åpent med AI-agenter
+  - databehandleravtaler med server-, SMS- og e-postleverandøren (og BankID-megleren), en vurdering av overføringen til USA hvis SMS går gjennom Twilio, og `FRITORG_PROCESSORS` satt
+  - rutiner for avvik (melding til Datatilsynet innen 72 timer), for henvendelser som kommer på e-post (`fritorg export-user` og `fritorg delete-user`) og for hvem som får være moderator
+  - sikkerhetskopiene lagres kryptert i EØS, slettes etter 30 dager, og `FRITORG_SECRET_KEY` er lagret et annet sted
 - [ ] `FRITORG_SEED_DEMO` er av, så det ikke ligger demo-annonser på den ekte siden.
 - [ ] Eget token for Navs stillingsfeed, hvis stillingene fra arbeidsplassen.no skal vises (se over).
 
@@ -239,7 +244,8 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_UPLOADS_DIR` | `data/uploads` | Mappe for bildene. I `deploy/` er det et eget volum, så Caddy kan servere bildene uten tilgang til databasen. |
 | `FRITORG_SECRET_KEY` | fil i datamappen | Hemmelig nøkkel (64 heksadesimale tegn). |
 | `FRITORG_SITE_NAME` | `Fritorg` | Navnet på siden. |
-| `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Hvem som driver siden og hvordan de nås. |
+| `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Behandlingsansvarlig og kontaktadresse for personvern (vises i vilkårene; `fritorg doctor` krever dem). |
+| `FRITORG_PROCESSORS` | – | Databehandlerne, slik personvernerklæringen skal nevne dem, f.eks. «Oracle Cloud (servere, Sverige), Twilio (SMS, USA)». |
 | `FRITORG_VERIFICATION` | `sms` | `sms` eller `none` (bare for testing). |
 | `FRITORG_SMS_PROVIDER` | `console` | `twilio`, `http` eller `console` (viser koden på skjermen, avvises på https-sider). |
 | `FRITORG_TWILIO_ACCOUNT_SID`, `_AUTH_TOKEN`, `_FROM` | – | Twilio-konto og avsender. |

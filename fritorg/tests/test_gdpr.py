@@ -156,3 +156,20 @@ def test_the_operator_can_export_and_delete_an_account(tmp_path, monkeypatch, ca
     assert main(["delete-user", "kari@example.no", "--yes"]) == 0
     with db.session() as conn:
         assert users.get_user_by_email(conn, "kari@example.no") is None
+
+
+def test_the_privacy_policy_names_the_controller_processors_and_rights(client, settings):
+    settings.operator = "Fritorg AS"
+    settings.contact_email = "post@fritorg.no"
+    settings.processors = "Oracle Cloud (servere, Sverige)"
+    page = client.get("/vilkar").text
+    for text in (
+        "Fritorg AS, som er behandlingsansvarlig",
+        "Oracle Cloud (servere, Sverige)",
+        "artikkel 6 nr. 1 b",
+        "Datatilsynet",
+        "minst 18 år",
+        "Tilgangsloggen slettes etter 14 dager",
+        "Personopplysninger om meg",
+    ):
+        assert text in page, text

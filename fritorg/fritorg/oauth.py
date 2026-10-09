@@ -322,9 +322,7 @@ def authorize(request: Request, conn: Conn) -> Response:
     user = current_user(request, conn)
     if user is None:
         target = request.url.path + "?" + request.url.query
-        return redirect(
-            "/logg-inn?" + urlencode({"neste": target}), flash="Logg inn for å koble til assistenten."
-        )
+        return redirect("/logg-inn?" + urlencode({"neste": target}))  # the login page says to log in first
     response = render(
         request,
         conn,

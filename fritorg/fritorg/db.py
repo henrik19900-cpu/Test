@@ -565,6 +565,9 @@ class Database:
         conn.create_function("casefold", 1, _casefold, deterministic=True)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute(
+            "PRAGMA secure_delete = ON"
+        )  # deleted personal data is overwritten, not left in the file
         # Read the file through the operating system's cache directly (each request has a fresh connection,
         # so SQLite's own per-connection cache starts empty), and sort in memory.
         conn.execute(f"PRAGMA mmap_size = {MMAP_BYTES}")
@@ -576,6 +579,10 @@ class Database:
         conn = self.connect()
         try:
             conn.execute("PRAGMA journal_mode = WAL")
+            try:  # only the app's own user may read it (SQLite gives the -wal and -shm files the same mode)
+                self.path.chmod(0o600)
+            except OSError:
+                pass
             version = conn.execute("PRAGMA user_version").fetchone()[0]
             for number, migration in enumerate(MIGRATIONS[version:], start=version + 1):
                 if isinstance(migration, str):

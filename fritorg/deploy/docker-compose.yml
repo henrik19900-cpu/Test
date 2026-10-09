@@ -1,10 +1,18 @@
 # Production: Fritorg behind Caddy (automatic HTTPS). Usage:
 #   cp .env.example .env   # fill in domain, SMS provider, e-mail and secret key
 #   docker compose up -d --build
+# Container logs (errors and the app's own messages) are rotated, so they cannot grow without end.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   app:
     build: ..
     restart: unless-stopped
+    logging: *logging
     env_file: .env
     environment:
       FRITORG_UPLOADS_DIR: /uploads
@@ -17,6 +25,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     depends_on:
       - app
     ports:

@@ -38,7 +38,7 @@ from .db import Database
 from .deps import client_ip
 from .errors import AppError, PayloadTooLarge, RateLimited
 from .ratelimit import RateLimiter
-from .templating import CSP, CSRF_COOKIE, render_error, templates
+from .templating import CSP, CSRF_COOKIE, SESSION_COOKIE, render_error, templates
 
 logger = logging.getLogger("fritorg")
 
@@ -70,18 +70,22 @@ OPENAPI_TAGS = [
 ]
 
 
-class RedactTokens(logging.Filter):
-    """Keep personal MCP URLs (/mcp/ft_...), photo links (/bilder?t=...) and other tokens out of access logs."""
+_TOKEN = re.compile(r"ft_[A-Za-z0-9_\-]{20,}")
+# Links that work like keys or carry an address: reset and confirmation links, photo links, ?epost=.
+_SECRET_PARAM = re.compile(r"([?&](?:t|token|kode|code|epost|email)=)[^&\s\"]+", re.IGNORECASE)
 
-    pattern = re.compile(r"ft_[A-Za-z0-9_\-]{20,}")
-    photo_link = re.compile(r"([?&]t=)\d+\.[0-9a-f]{32}")
+
+def redact(text: str) -> str:
+    """A URL or log line without API tokens (/mcp/ft_...), one-time links or e-mail addresses in it."""
+    return _SECRET_PARAM.sub(r"\1***", _TOKEN.sub("ft_***", text))
+
+
+class RedactTokens(logging.Filter):
+    """Keep personal MCP URLs, one-time links and e-mail addresses out of access logs (see redact)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple):
-            record.args = tuple(
-                self.photo_link.sub(r"\1***", self.pattern.sub("ft_***", a)) if isinstance(a, str) else a
-                for a in record.args
-            )
+            record.args = tuple(redact(a) if isinstance(a, str) else a for a in record.args)
         return True
 
 
@@ -263,6 +267,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "/api/docs"
         ):
             response.headers.setdefault("Content-Security-Policy", CSP)  # a page may widen form-action
+            if request.cookies.get(SESSION_COOKIE):  # a page with the person's own data
+                response.headers.setdefault("Cache-Control", "private, no-store")
             response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
             response.headers["X-Frame-Options"] = "DENY"
         if new_csrf:
@@ -320,7 +326,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, exc: Exception):
-        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        logger.exception("Unhandled error on %s %s", request.method, redact(request.url.path))
         problem = AppError("Noe gikk galt hos oss. Prøv igjen senere.")
         problem.status, problem.code, problem.title = 500, "internal_error", "Internal server error"
         return _error_response(problem, request)

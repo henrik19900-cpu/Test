@@ -56,7 +56,7 @@ class Mailer:
         try:
             self.send_now(mail)
         except Exception:
-            logger.exception("Could not send e-mail to %s", mail.to)
+            logger.exception("Could not send e-mail to an address at %s", mail.to.rpartition("@")[2])
 
     def send_now(self, mail: Mail) -> None:
         s = self.settings

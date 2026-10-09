@@ -14,18 +14,31 @@ from fritorg.app import create_app
 from fritorg.config import Settings
 
 
-def test_backup_copies_database_images_and_key(app, client, auth, settings, tmp_path):
+def test_backup_copies_database_and_images_for_the_owner_only(app, client, auth, settings, tmp_path):
     listing = make_listing(client, auth)
     client.post(
         f"/api/v1/listings/{listing['id']}/images",
         files={"file": ("p.png", PHOTO, "image/png")},
         headers=auth,
     )
-    target = ops.backup(settings, tmp_path / "backup")
+    folder = tmp_path / "backup"
+    target = ops.backup(settings, folder)
     copy = sqlite3.connect(target)
     assert copy.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == 1
-    assert len(list((tmp_path / "backup" / "uploads").rglob("*.webp"))) == 2  # image and thumbnail
-    assert (tmp_path / "backup" / "secret_key").read_text() == app.state.secret_key
+    assert len(list((folder / "uploads").rglob("*.webp"))) == 2  # image and thumbnail
+    assert target.stat().st_mode & 0o777 == 0o600 and folder.stat().st_mode & 0o777 == 0o700
+    # Without the key a stolen backup does not give away phone numbers (they are hashed with it).
+    assert not (folder / "secret_key").exists()
+    ops.backup(settings, folder, with_key=True)
+    assert (folder / "secret_key").read_text() == app.state.secret_key
+
+    # A photo deleted on the site goes from the backup too, and old copies are pruned.
+    client.delete(f"/api/v1/listings/{listing['id']}", headers=auth)
+    for _ in range(3):
+        ops.backup(settings, folder, keep=2)
+    assert list((folder / "uploads").rglob("*.webp")) == []
+    assert len(list(folder.glob("fritorg-*.sqlite3"))) <= 2
+    assert not (folder / "secret_key").exists()
 
 
 def test_doctor_lists_what_is_missing(tmp_path):
@@ -125,3 +138,16 @@ def test_access_logs_leave_out_keys_and_photo_links():
     )
     RedactTokens().filter(record)
     assert "0123456789abcdef" not in record.getMessage() and "bilder?t=***" in record.getMessage()
+    from fritorg.app import redact
+
+    assert redact("/mcp/ft_abcdefghijklmnopqrstuvwxyz0123") == "/mcp/ft_***"
+    assert redact("/nytt-passord?token=abc.def&x=1") == "/nytt-passord?token=***&x=1"
+    assert redact("/glemt-passord/kode?epost=kari%40example.no") == "/glemt-passord/kode?epost=***"
+
+
+def test_pages_with_personal_data_are_not_cached(client, auth):
+    from conftest import web_login
+
+    assert "no-store" not in client.get("/").headers.get("cache-control", "")
+    web_login(client)
+    assert client.get("/min-side").headers["cache-control"] == "private, no-store"

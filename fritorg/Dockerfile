@@ -24,7 +24,8 @@ USER fritorg
 ENV FRITORG_DATA_DIR=/data \
     HOST=0.0.0.0 \
     PORT=8000 \
-    FORWARDED_ALLOW_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7
+    FORWARDED_ALLOW_IPS=127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7 \
+    FRITORG_ACCESS_LOG=0
 VOLUME ["/data"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \

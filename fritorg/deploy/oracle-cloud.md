@@ -111,16 +111,16 @@ Databasen oppgraderes automatisk når appen starter.
 En daglig sikkerhetskopi på maskinen (`crontab -e`):
 
 ```sh
-0 3 * * * cd ~/fritorg-kode/fritorg/deploy && docker compose exec -T app fritorg backup /data/backup && docker compose cp app:/data/backup ./backup
+0 3 * * * cd ~/fritorg-kode/fritorg/deploy && docker compose exec -T app fritorg backup /data/backup && rm -rf ./backup && docker compose cp app:/data/backup ./backup
 ```
 
-Kopier den videre til et annet sted, for eksempel til din egen PC:
+Kopier den videre til et annet sted, for eksempel til din egen PC, og ha den gjerne på en kryptert disk:
 
 ```sh
 scp -r ubuntu@<ip-adressen>:fritorg-kode/fritorg/deploy/backup ./fritorg-backup
 ```
 
-Prøv også en gjenoppretting en gang, så du vet at den virker.
+Slett kopier som er eldre enn 30 dager (det står i personvernerklæringen). Den hemmelige nøkkelen er ikke med i sikkerhetskopien: lagre `FRITORG_SECRET_KEY` fra `.env` i en passordbehandler. Prøv også en gjenoppretting en gang, så du vet at den virker.
 
 ## Feilsøking
 

@@ -14,9 +14,16 @@ from .mailer import Mail, Mailer
 from .util import utcnow
 
 
-def backup(settings: Settings, destination: Path) -> Path:
-    """Consistent copy of the database (safe while the app runs), new uploads and the secret key."""
+def backup(settings: Settings, destination: Path, *, keep: int = 7, with_key: bool = False) -> Path:
+    """Consistent copy of the database (safe while the app runs) and the images, readable only by the owner.
+
+    The images are mirrored, so a photo deleted on the site is gone from the backup too, and only the
+    `keep` newest database copies are kept. The secret key is left out unless `with_key`: with it, phone
+    numbers could be recovered from their hashes, so it is kept somewhere else (FRITORG_SECRET_KEY in .env,
+    and a password manager).
+    """
     destination.mkdir(parents=True, exist_ok=True)
+    destination.chmod(0o700)
     target = destination / f"fritorg-{utcnow():%Y%m%d-%H%M%S}.sqlite3"
     source = sqlite3.connect(settings.db_path)
     copy = sqlite3.connect(target)
@@ -25,18 +32,31 @@ def backup(settings: Settings, destination: Path) -> Path:
     finally:
         copy.close()
         source.close()
+    target.chmod(0o600)
+    for old in sorted(destination.glob("fritorg-*.sqlite3"))[:-keep]:
+        old.unlink()
     uploads = destination / "uploads"
     uploads.mkdir(exist_ok=True)
+    wanted = set()
     if settings.uploads_dir.exists():
         for file in settings.uploads_dir.rglob("*"):  # one folder per two first letters of the name
-            target_file = uploads / file.relative_to(settings.uploads_dir)
-            if file.is_file() and not file.name.startswith(".") and not target_file.exists():
+            if not file.is_file() or file.name.startswith("."):
+                continue
+            relative = file.relative_to(settings.uploads_dir)
+            wanted.add(relative)
+            target_file = uploads / relative
+            if not target_file.exists():
                 target_file.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(file, target_file)
+    for file in uploads.rglob("*"):
+        if file.is_file() and file.relative_to(uploads) not in wanted:
+            file.unlink()  # deleted on the site, so deleted here too
     key = Path(settings.data_dir) / "secret_key"
-    if key.exists():
+    if with_key and key.exists():
         shutil.copy2(key, destination / "secret_key")
         (destination / "secret_key").chmod(0o600)
+    elif not with_key:
+        (destination / "secret_key").unlink(missing_ok=True)
     return target
 
 
@@ -84,10 +104,12 @@ def doctor(
     else:
         checks.append(Check(None, "E-post (FRITORG_SMTP_HOST) er ikke satt opp: brukerne får ikke varsler"))
     checks.append(
-        Check(None if not settings.contact_email else True, "Kontaktadresse (FRITORG_CONTACT_EMAIL)")
+        Check(bool(settings.contact_email), "Kontaktadresse for personvern (FRITORG_CONTACT_EMAIL)")
     )
     checks.append(
-        Check(None if not settings.operator else True, "Driftsansvarlig (FRITORG_OPERATOR) for vilkårene")
+        Check(
+            bool(settings.operator), "Behandlingsansvarlig (FRITORG_OPERATOR) for vilkårene og personvernet"
+        )
     )
     db = Database(settings.db_path)
     db.init()

@@ -27,10 +27,12 @@ def main(argv: list[str] | None = None) -> int:
     admin = commands.add_parser("make-admin", help="give an existing user moderator rights")
     admin.add_argument("email")
 
-    backup = commands.add_parser(
-        "backup", help="copy the database, uploaded images and secret key to a folder"
-    )
+    backup = commands.add_parser("backup", help="copy the database and uploaded images to a folder")
     backup.add_argument("destination")
+    backup.add_argument("--keep", type=int, default=7, help="database copies to keep (default 7)")
+    backup.add_argument(
+        "--with-key", action="store_true", help="also copy the secret key (store such a backup encrypted)"
+    )
 
     nav = commands.add_parser(
         "import-nav", help="import job ads from Nav's open job feed (arbeidsplassen.no)"
@@ -95,8 +97,15 @@ def main(argv: list[str] | None = None) -> int:
 
         from .ops import backup as run_backup
 
-        target = run_backup(settings, Path(args.destination))
-        print(f"Sikkerhetskopi: {target} (+ bilder og hemmelig nøkkel i samme mappe)")
+        target = run_backup(settings, Path(args.destination), keep=max(1, args.keep), with_key=args.with_key)
+        print(f"Sikkerhetskopi: {target} (+ bildene i samme mappe)")
+        if not args.with_key:
+            print(
+                "Den hemmelige nøkkelen er ikke med. Ta vare på FRITORG_SECRET_KEY et annet sted, for eksempel"
+            )
+            print(
+                "i en passordbehandler: uten den må alle bekrefte mobilnummeret på nytt etter en gjenoppretting."
+            )
         return 0
 
     if args.command == "import-nav":
@@ -132,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
         port=getattr(args, "port", 8000),
         reload=getattr(args, "reload", False),
         proxy_headers=True,
+        # Behind Caddy the proxy logs each request (with secrets filtered out), so the app need not too.
+        access_log=os.environ.get("FRITORG_ACCESS_LOG", "1") != "0",
     )
     return 0
 

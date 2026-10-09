@@ -167,7 +167,7 @@ Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.c
 ```sh
 fritorg doctor [--send-test-mail ADRESSE] [--send-test-sms NUMMER]   # klar for lansering?
 fritorg make-admin E-POST                                            # gi moderatorrettigheter
-fritorg backup MAPPE                                                 # database, bilder og nøkkel
+fritorg backup MAPPE [--keep 7] [--with-key]                         # database og bilder (nøkkelen bare med --with-key)
 fritorg import-nav [--until-done]                                    # hent ledige stillinger fra Nav nå
 fritorg benchmark [--listings 1000000]                               # mål søket med oppdiktede annonser
 fritorg seed [--force]                                               # demo-data (ikke i produksjon)
@@ -176,10 +176,14 @@ fritorg seed [--force]                                               # demo-data
 Med Docker kjøres kommandoene med `docker compose exec app ...`. En enkel daglig sikkerhetskopi (crontab på serveren):
 
 ```sh
-0 3 * * * cd /sti/til/fritorg/deploy && docker compose exec -T app fritorg backup /data/backup && docker compose cp app:/data/backup ./backup
+0 3 * * * cd /sti/til/fritorg/deploy && docker compose exec -T app fritorg backup /data/backup && rm -rf ./backup && docker compose cp app:/data/backup ./backup
 ```
 
-Sikkerhetskopien tas mens appen kjører, og databasen blir konsistent. Kopier mappen videre til et annet sted (for eksempel objektlagring).
+Sikkerhetskopien tas mens appen kjører, og databasen blir konsistent. Den har de 7 nyeste kopiene av databasen og bildene slik de er nå, så et bilde som er slettet på siden, forsvinner også fra kopien. Bare eieren av filene kan lese dem. Kopier mappen videre til et annet sted, kryptert (for eksempel objektlagring), og slett kopier som er eldre enn 30 dager: personvernerklæringen sier at sikkerhetskopier slettes etter 30 dager.
+
+Den hemmelige nøkkelen er ikke med i sikkerhetskopien, fordi mobilnumrene kan finnes igjen fra hashene med den. Ta vare på `FRITORG_SECRET_KEY` (i `.env`) et annet sted, for eksempel i en passordbehandler. Uten den virker gjenopprettingen, men alle må bekrefte mobilnummeret på nytt, og BankID-kontoer kobles ikke lenger til personen.
+
+Loggene: Caddy fører en tilgangslogg med IP-adresse og side, uten nøkler, engangslenker og e-postadresser, og sletter den etter 14 dager. Appen logger bare feil, og Docker roterer loggene.
 
 ## Kapasitet og serverkrav
 

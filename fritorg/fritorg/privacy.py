@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from . import listings, messages, serializers, users
+from . import listings, messages, ratings, serializers, users
 from .util import now_iso
 
 
@@ -105,6 +105,10 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "account": account,
         "listings": own,
         "conversations": conversations,
+        # Trades with your rating and the other person's (once you may see it).
+        "trades": [
+            serializers.trade_dict(t, user.id) for t in ratings.trades_for_user(conn, user.id, limit=10_000)
+        ],
         "api_tokens": tokens,
         "logged_in_sessions": sessions,
         "favorites": favorites,

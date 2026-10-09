@@ -19,6 +19,7 @@ from . import (
     messages,
     phone,
     privacy,
+    ratings,
     saved_searches,
     serializers,
     taxonomy,
@@ -28,7 +29,7 @@ from .config import Settings
 from .deps import base_url, client_ip, get_conn, get_settings, replace_params, url_with_query
 from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized
 from .listings import SORTS, SearchParams
-from .mailer import notify_new_message, send_verification
+from .mailer import notify_new_message, notify_rating, notify_trade, send_verification
 from .ratelimit import RateLimiter
 from .schemas import (
     AccountOut,
@@ -55,6 +56,8 @@ from .schemas import (
     PhoneCodeOut,
     PhoneIn,
     Problem,
+    RatingIn,
+    RatingsOut,
     RegisterIn,
     ReplyIn,
     ReportIn,
@@ -65,6 +68,7 @@ from .schemas import (
     SearchOut,
     TokenCreateIn,
     TokenOut,
+    TradeOut,
     UserPublicOut,
 )
 
@@ -457,7 +461,45 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
         "member_since": user.created_at,
         "active_listings": active,
         "url": f"{base_url(request)}/bruker/{user.id}",
+        "rating": serializers.rating_summary_dict(ratings.summary(conn, user.id)),
     }
+
+
+@router.get(
+    "/users/{user_id}/ratings", response_model=RatingsOut, tags=["listings"], summary="Ratings of a user"
+)
+def user_ratings(user_id: int, conn: Conn) -> dict:
+    """Ratings from people who traded with the user, newest first. A rating is shown when both in the trade
+    have rated, or 14 days after the trade."""
+    if users.get_user(conn, user_id) is None:
+        raise NotFound(f"Bruker {user_id} finnes ikke.")
+    return {
+        "summary": serializers.rating_summary_dict(ratings.summary(conn, user_id)),
+        "items": [serializers.rating_dict(r) for r in ratings.ratings_for_user(conn, user_id)],
+    }
+
+
+@router.post(
+    "/ratings/{rating_id}/reports",
+    status_code=202,
+    response_model=ReportOut,
+    tags=["listings"],
+    summary="Report a rating",
+)
+def report_rating(rating_id: int, body: ReportIn, request: Request, conn: Conn, user: CurrentUser) -> dict:
+    """Flag a false or abusive rating for moderation."""
+    _limit(
+        request.app.state.limiter,
+        "report",
+        client_ip(request),
+        20,
+        3600,
+        "For mange rapporter. Prøv igjen senere.",
+    )
+    report_id = ratings.report_rating(
+        conn, rating_id, body.reason, body.comment, user.id, via=_channel(request)
+    )
+    return {"id": report_id, "status": "received"}
 
 
 @router.get("/export/listings.ndjson", tags=["listings"], summary="Bulk export (NDJSON)")
@@ -986,6 +1028,64 @@ def report_conversation(
         conversation_id=conversation.id,
     )
     return {"id": report_id, "status": "received"}
+
+
+@router.post(
+    "/conversations/{conversation_id}/trade",
+    status_code=201,
+    response_model=TradeOut,
+    tags=["messages"],
+    summary="Record a trade",
+)
+def record_trade(
+    conversation_id: int, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
+) -> dict:
+    """The seller records that the listing went to the other person in the conversation (both must have
+    written in it). The listing is marked as sold, and both may rate each other with POST /trades/{id}/rating.
+    Recording it again returns the same trade."""
+    new = ratings.trade_for_conversation(conn, conversation_id, user.id) is None
+    trade = ratings.record_trade(conn, conversation_id, user.id, active_days=settings.listing_days)
+    if new:
+        notify_trade(
+            request.app.state.mailer,
+            base_url(request),
+            conn,
+            conversation_id,
+            trade.seller_id,
+            trade.buyer_id,
+            trade.listing_title,
+            ratings.RATE_DAYS,
+        )
+    return serializers.trade_dict(trade, user.id)
+
+
+@router.get("/me/trades", response_model=list[TradeOut], tags=["account"], summary="Your trades and ratings")
+def my_trades(conn: Conn, user: CurrentUser) -> list[dict]:
+    """Trades you took part in, newest first. `can_rate` marks the ones you can still rate."""
+    return [serializers.trade_dict(t, user.id) for t in ratings.trades_for_user(conn, user.id)]
+
+
+@router.post(
+    "/trades/{trade_id}/rating",
+    status_code=201,
+    response_model=TradeOut,
+    tags=["account"],
+    summary="Rate a trade",
+)
+def rate_trade(trade_id: int, body: RatingIn, request: Request, conn: Conn, user: CurrentUser) -> dict:
+    """Rate the other person in a trade, once, within 30 days. The rating can't be changed. It is shown when
+    both have rated, or 14 days after the trade, so neither answers a rating they have read."""
+    trade = ratings.rate(conn, trade_id, user.id, body.score, body.comment, via=_channel(request))
+    if not trade.they_rated:
+        notify_rating(
+            request.app.state.mailer,
+            base_url(request),
+            conn,
+            trade.conversation_id,
+            user.id,
+            trade.other_id(user.id),
+        )
+    return serializers.trade_dict(trade, user.id)
 
 
 def _channel(request: Request) -> str:

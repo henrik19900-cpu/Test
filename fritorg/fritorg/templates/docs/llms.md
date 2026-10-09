@@ -26,7 +26,7 @@ Key facts for agents:
 
 ## Connect
 
-- [MCP server]({{ base }}/mcp): Streamable HTTP, stateless. Anonymous connections get the read-only tools `search_listings`, `get_listing`, `list_categories` and `report_listing`. With the header `Authorization: Bearer <token>` (or the personal URL `{{ base }}/mcp/<token>`) agents also get `create_listing`, `update_listing`, `delete_listing`, `add_listing_image`, `my_listings`, `send_message`, `list_conversations`, `get_conversation`, `report_conversation`, `save_favorite`, `list_favorites`, `save_search`, `check_saved_searches`, `delete_saved_search`{% if settings.phone_verification_required %}, `verify_phone`{% endif %} and `whoami`.
+- [MCP server]({{ base }}/mcp): Streamable HTTP, stateless. Anonymous connections get the read-only tools `search_listings`, `get_listing`, `list_categories`, `get_user_ratings` and `report_listing`. With the header `Authorization: Bearer <token>` (or the personal URL `{{ base }}/mcp/<token>`) agents also get `create_listing`, `update_listing`, `delete_listing`, `add_listing_image`, `my_listings`, `send_message`, `list_conversations`, `get_conversation`, `report_conversation`, `save_favorite`, `list_favorites`, `save_search`, `check_saved_searches`, `delete_saved_search`, `record_sale`, `list_trades`, `rate_trade`{% if settings.phone_verification_required %}, `verify_phone`{% endif %} and `whoami`.
 - [OpenAPI 3.1 specification]({{ base }}/openapi.json): the REST API under `/api/v1`.
 - [Interactive API documentation]({{ base }}/api/docs)
 - [Agent guide in Norwegian]({{ base }}/for-agenter.md): how to connect Claude, ChatGPT, Cursor and other clients.
@@ -40,6 +40,7 @@ Key facts for agents:
 - [Atom feeds]({{ base }}/feed.atom?q=sykkel): any search as a feed of new matches.
 - Blocking: `PUT`/`DELETE {{ base }}/api/v1/me/blocks/{user_id}` stops messages both ways (a blocked send returns 403). Owners also get `views` on their listings.
 - Following a search for your user: `POST {{ base }}/api/v1/me/saved-searches` (MCP `save_search`) with the same filters as a search. `GET {{ base }}/api/v1/me/saved-searches` (MCP `check_saved_searches`) returns `new_count` and `new_listings_url`; with `notify` the user also gets an e-mail about new matches, at most hourly. Favourites: `PUT`/`DELETE {{ base }}/api/v1/me/favorites/{id}` (MCP `save_favorite`).
+- Ratings: after a trade both people rate each other from 1 to 5. The seller records the trade from the conversation: `POST {{ base }}/api/v1/conversations/{id}/trade` (MCP `record_sale`). Then `POST {{ base }}/api/v1/trades/{id}/rating` (MCP `rate_trade`) once, within 30 days; `GET {{ base }}/api/v1/me/trades` (MCP `list_trades`) shows `can_rate`. Ratings are shown when both have rated, or after 14 days. A seller's ratings: `seller.rating` on a listing and `GET {{ base }}/api/v1/users/{id}/ratings` (MCP `get_user_ratings`). Ask your user for the score and the words.
 - [Sitemap]({{ base }}/sitemap.xml)
 
 ## Getting a token (device flow)

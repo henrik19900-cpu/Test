@@ -427,6 +427,43 @@ END;
 """
 
 
+# Ratings between buyers and sellers (ratings.py). The seller records a trade from the conversation, and then
+# both may rate the other once. Trades and ratings outlive the listing (it may be deleted later), and go with
+# the accounts of the people in them.
+SCHEMA_V7 = """
+CREATE TABLE trades (
+    id INTEGER PRIMARY KEY,
+    conversation_id INTEGER UNIQUE REFERENCES conversations(id) ON DELETE SET NULL,
+    listing_id INTEGER REFERENCES listings(id) ON DELETE SET NULL,
+    listing_title TEXT NOT NULL,
+    seller_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    buyer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX idx_trades_seller ON trades(seller_id, created_at);
+CREATE INDEX idx_trades_buyer ON trades(buyer_id, created_at);
+
+CREATE TABLE ratings (
+    id INTEGER PRIMARY KEY,
+    trade_id INTEGER NOT NULL REFERENCES trades(id) ON DELETE CASCADE,
+    rater_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rated_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+    comment TEXT,
+    created_via TEXT NOT NULL DEFAULT 'web',
+    created_at TEXT NOT NULL,
+    -- Set when a moderator removes a reported rating.
+    removed_at TEXT,
+    removal_note TEXT,
+    UNIQUE (trade_id, rater_id)
+);
+CREATE INDEX idx_ratings_rated ON ratings(rated_id, created_at);
+
+ALTER TABLE reports ADD COLUMN rating_id INTEGER REFERENCES ratings(id) ON DELETE CASCADE;
+CREATE INDEX idx_reports_rating ON reports(rating_id) WHERE rating_id IS NOT NULL;
+"""
+
+
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
     conn.execute("PRAGMA analysis_limit = 1000")
@@ -442,6 +479,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V4,
     _migrate_v5,
     SCHEMA_V6,
+    SCHEMA_V7,
 ]
 
 

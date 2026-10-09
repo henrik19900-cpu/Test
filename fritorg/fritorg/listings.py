@@ -14,7 +14,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from . import fraud, postcodes, taxonomy, users
 from .db import transaction
@@ -30,6 +30,9 @@ from .taxonomy import (
     Category,
 )
 from .util import format_number, iso_ago, iso_in, now_iso, parse_iso, to_iso
+
+if TYPE_CHECKING:
+    from .ratings import Summary
 
 CHANNELS = ("web", "api", "mcp", "import")
 
@@ -78,7 +81,8 @@ MAX_PRICE = 1_000_000_000
 
 class TypeWords(NamedTuple):
     """How a listing type is talked about: who posted it, how to contact them, a suggested first message,
-    what "sold" means for it, the button that marks it so, and quick replies for the poster."""
+    what "sold" means for it, the button that marks it so, quick replies for the poster, and the button that
+    records a trade with the person in a conversation (None: no trades, e.g. for jobs; see ratings.py)."""
 
     role: str
     contact: str
@@ -86,6 +90,7 @@ class TypeWords(NamedTuple):
     done: str
     mark_done: str
     replies: tuple[str, ...]
+    traded: str | None = None
 
 
 TYPE_WORDS = {
@@ -96,6 +101,7 @@ TYPE_WORDS = {
         "Solgt",
         "Merk som solgt",
         ("Ja, den er fortsatt til salgs.", "Beklager, den er solgt."),
+        "Solgt til {name}",
     ),
     "give": TypeWords(
         "Gis bort av",
@@ -104,6 +110,7 @@ TYPE_WORDS = {
         "Gitt bort",
         "Merk som gitt bort",
         ("Ja, den er fortsatt ledig. Når kan du hente?", "Beklager, den er gitt bort."),
+        "Gitt bort til {name}",
     ),
     "wanted": TypeWords(
         "Ønskes av",
@@ -112,6 +119,7 @@ TYPE_WORDS = {
         "Funnet",
         "Merk som funnet",
         ("Så bra! Har du bilder?", "Takk, men jeg har allerede funnet det jeg lette etter."),
+        "Fikk det av {name}",
     ),
     "rent": TypeWords(
         "Utleier",
@@ -120,6 +128,7 @@ TYPE_WORDS = {
         "Utleid",
         "Merk som utleid",
         ("Ja, den er fortsatt ledig.", "Beklager, den er utleid."),
+        "Utleid til {name}",
     ),
     "job": TypeWords(
         "Arbeidsgiver",
@@ -136,6 +145,7 @@ TYPE_WORDS = {
         "Avsluttet",
         "Merk som avsluttet",
         ("Ja, jeg har ledig kapasitet. Når passer det?", "Beklager, jeg har ikke kapasitet nå."),
+        "Utført for {name}",
     ),
 }
 
@@ -202,6 +212,7 @@ class Listing:
     # Seller statistics, only loaded for single-listing views (get_listing).
     seller_active: int | None = None
     seller_sold: int | None = None
+    seller_rating: Summary | None = None
     # Favourites: the price when the person saved it (only loaded for their favourites).
     saved_price: int | None = None
     views: int = 0  # how many times people looked at it (see views.py)
@@ -719,6 +730,9 @@ def get_listing(conn: sqlite3.Connection, listing_id: int) -> Listing:
         (listing.user_id,),
     ).fetchone()
     listing.seller_active, listing.seller_sold = stats["active"] or 0, stats["sold"] or 0
+    from .ratings import summary  # ratings builds on this module
+
+    listing.seller_rating = summary(conn, listing.user_id)
     return listing
 
 

@@ -1,4 +1,4 @@
-"""Moderation: the review queue, user reports, flagged messages and account bans.
+"""Moderation: the review queue, user reports, reported ratings, flagged messages and account bans.
 
 Moderators are users with is_admin set (`python -m fritorg make-admin EMAIL`). Every decision
 is written to moderation_log.
@@ -96,7 +96,7 @@ def open_reports(conn: sqlite3.Connection) -> list[ReportCase]:
         "LEFT JOIN listings l ON l.id = r.listing_id "
         "LEFT JOIN users ru ON ru.id = r.reported_user_id "
         "LEFT JOIN users rep ON rep.id = r.reporter_id "
-        "WHERE r.resolved_at IS NULL ORDER BY r.created_at"
+        "WHERE r.resolved_at IS NULL AND r.rating_id IS NULL ORDER BY r.created_at"
     ).fetchall()
     cases: dict[str, ReportCase] = {}
     for row in rows:
@@ -121,6 +121,66 @@ def open_reports(conn: sqlite3.Connection) -> list[ReportCase]:
             }
         )
     return sorted(cases.values(), key=lambda c: -len(c.reports))
+
+
+def reported_ratings(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Ratings with open reports, oldest report first (see ratings.py)."""
+    rows = conn.execute(
+        "SELECT rep.id AS report_id, rep.reason, rep.comment AS report_comment, rep.created_at AS reported_at, "
+        "reporter.name AS reporter_name, r.id, r.score, r.comment, r.created_at, r.rater_id, rater.name AS rater_name, "
+        "r.rated_id, rated.name AS rated_name, t.listing_title FROM reports rep "
+        "JOIN ratings r ON r.id = rep.rating_id JOIN trades t ON t.id = r.trade_id "
+        "JOIN users rater ON rater.id = r.rater_id JOIN users rated ON rated.id = r.rated_id "
+        "LEFT JOIN users reporter ON reporter.id = rep.reporter_id "
+        "WHERE rep.resolved_at IS NULL AND r.removed_at IS NULL ORDER BY rep.created_at"
+    ).fetchall()
+    found: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        rating = found.setdefault(
+            row["id"],
+            {
+                "id": row["id"],
+                "score": row["score"],
+                "comment": row["comment"],
+                "created_at": row["created_at"],
+                "rater_id": row["rater_id"],
+                "rater_name": row["rater_name"],
+                "rated_id": row["rated_id"],
+                "rated_name": row["rated_name"],
+                "listing_title": row["listing_title"],
+                "reports": [],
+            },
+        )
+        rating["reports"].append(
+            {
+                "id": row["report_id"],
+                "reason": REPORT_REASONS.get(row["reason"], row["reason"]),
+                "comment": row["report_comment"],
+                "reporter": row["reporter_name"] or "Anonym",
+                "created_at": row["reported_at"],
+            }
+        )
+    return list(found.values())
+
+
+def remove_rating(conn: sqlite3.Connection, moderator: users.User, rating_id: int, note: str) -> None:
+    """Hide a rating that breaks the rules; it no longer counts. Its reports are closed."""
+    note = " ".join(note.split())[:500]
+    if not note:
+        raise ValidationProblem.field("note", "Skriv en kort begrunnelse.")
+    row = conn.execute("SELECT rater_id FROM ratings WHERE id = ?", (rating_id,)).fetchone()
+    if row is None:
+        raise NotFound(f"Vurdering {rating_id} finnes ikke.")
+    with transaction(conn):
+        conn.execute(
+            "UPDATE ratings SET removed_at = ?, removal_note = ? WHERE id = ?", (now_iso(), note, rating_id)
+        )
+        conn.execute(
+            "UPDATE reports SET resolved_at = ?, resolution = 'removed', resolved_by = ? "
+            "WHERE rating_id = ? AND resolved_at IS NULL",
+            (now_iso(), moderator.id, rating_id),
+        )
+        _log(conn, moderator.id, "remove_rating", user_id=row["rater_id"], note=f"{rating_id}: {note}")
 
 
 def flagged_messages(conn: sqlite3.Connection, days: int = 14) -> list[dict[str, Any]]:

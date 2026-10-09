@@ -93,6 +93,39 @@
   {% endif %}
 </section>
 
+<section class="panel" aria-labelledby="vurderinger">
+  <h2 id="vurderinger">Rapporterte vurderinger ({{ reported_ratings|length }})</h2>
+  {% if reported_ratings %}
+  <ul class="mod-list">
+    {% for r in reported_ratings %}
+    <li>
+      <p><span class="stars" aria-hidden="true">{{ r.score|stars }}</span> {{ r.score }} av 5 fra <a href="/bruker/{{ r.rater_id }}">{{ r.rater_name }}</a> til <a href="/bruker/{{ r.rated_id }}">{{ r.rated_name }}</a> · «{{ r.listing_title }}» · {{ r.created_at|datetime_no }}</p>
+      {% if r.comment %}<p class="description small">{{ r.comment }}</p>{% endif %}
+      <ul class="reasons">
+        {% for report in r.reports %}
+        <li>{{ report.reason }}{% if report.comment %}: «{{ report.comment }}»{% endif %} <span class="muted small">– {{ report.reporter }}, {{ report.created_at|datetime_no }}</span></li>
+        {% endfor %}
+      </ul>
+      <div class="mod-actions">
+        <form method="post" action="/moderering/rapporter/avvis">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          {% for report in r.reports %}<input type="hidden" name="report_id" value="{{ report.id }}">{% endfor %}
+          <button class="button button-small">Avvis rapportene</button>
+        </form>
+        <form method="post" action="/moderering/vurdering/{{ r.id }}/fjern" class="inline-note">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input name="note" required maxlength="500" placeholder="Begrunnelse (logges)" aria-label="Begrunnelse">
+          <button class="button button-small">Fjern vurderingen</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">Ingen rapporterte vurderinger.</p>
+  {% endif %}
+</section>
+
 <section class="panel" aria-labelledby="meldinger">
   <h2 id="meldinger">Meldinger med sterke svindelsignaler (siste 14 dager)</h2>
   {% if flagged %}

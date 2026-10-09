@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import __version__, favorites, messages, phone, taxonomy, users
 from .listings import DELETION_NOTICE_DAYS, REPORT_REASONS, SORTS
+from .ratings import SCORE_LABELS, stars
 from .util import format_ago_no, format_date_no, format_datetime_no, format_days_no, format_number, truncate
 
 SESSION_COOKIE = "ft_session"
@@ -28,6 +29,7 @@ templates.env.filters.update(
     ago=format_ago_no,
     datetime_no=format_datetime_no,
     days_no=format_days_no,
+    stars=stars,
     shorten=truncate,
 )
 templates.env.globals.update(
@@ -42,6 +44,7 @@ templates.env.globals.update(
     SORTS=SORTS,
     REPORT_REASONS=REPORT_REASONS,
     DELETION_NOTICE_DAYS=DELETION_NOTICE_DAYS,
+    SCORE_LABELS=SCORE_LABELS,
 )
 
 

@@ -51,6 +51,10 @@ Se varen før du betaler, hold samtalen på {{ site_name }}, og oppgi aldri kort
 
 {% if settings.listing_days %}Etter {{ settings.listing_days }} dager skjules annonsen, og du kan gjøre den aktiv igjen med ett klikk. {% endif %}{% if settings.delete_after_days %}Annonser som ikke har vært aktive eller endret på {{ settings.delete_after_days|days_no }}, slettes automatisk med bildene. {{ DELETION_NOTICE_DAYS|days_no|capitalize }} før står det på **Min side**, og har du bekreftet e-postadressen, får du beskjed på e-post. Vil du beholde annonsen, gjør du den aktiv igjen eller endrer den.{% else %}Skjulte og solgte annonser blir liggende til du sletter dem.{% endif %}
 
+### Hvordan fungerer vurderinger?
+
+Når dere er enige om en handel, trykker selgeren **Solgt til …** i samtalen. Da blir annonsen merket som solgt, og dere kan gi hverandre en vurdering fra 1 til 5 med en kort kommentar, innen 30 dager. Vurderingene vises på profilen når dere begge har vurdert, eller etter 14 dager, så ingen kan svare på en vurdering de har lest. En vurdering kan ikke endres. Er en vurdering usann eller krenkende, kan du rapportere den på profilen.
+
 ### Hvorfor er annonsen min «til kontroll»?
 
 Noen annonser ligner på dem svindlere bruker, for eksempel med krav om depositum før visning eller betalingslenker. Da sjekker en moderator annonsen før den blir synlig. Det betyr ikke at vi tror du er en svindler. Grunnen står på annonsen.

@@ -1,4 +1,4 @@
-"""E-mail: verified addresses and notifications (new messages, moderation decisions).
+"""E-mail: verified addresses and notifications (new messages, trades and ratings, moderation decisions).
 
 Mail goes out through any SMTP server (FRITORG_SMTP_*). Without SMTP settings nothing is
 sent and nothing breaks. Messages are sent from a background thread so a slow mail server
@@ -203,6 +203,62 @@ def notify_new_message(
             f"på {site}.\n\nLes og svar her: {base}/meldinger/{conversation_id}\n\n"
             f"Husk: {site} sender aldri betalingslenker, og du skal aldri oppgi kortnummer eller BankID for å motta "
             "penger.\n",
+        )
+    )
+
+
+def notify_trade(
+    mailer: Mailer,
+    base: str,
+    conn: sqlite3.Connection,
+    conversation_id: int,
+    seller_id: int,
+    buyer_id: int,
+    title: str,
+    rate_days: int,
+) -> None:
+    """Ask the buyer to rate the seller, now that the seller has recorded the trade (ratings.py)."""
+    if not mailer.enabled:
+        return
+    address = _verified_address(conn, buyer_id)
+    seller = conn.execute("SELECT name FROM users WHERE id = ?", (seller_id,)).fetchone()
+    if address is None or seller is None:
+        return
+    email, name = address
+    mailer.send_later(
+        Mail(
+            email,
+            f"Hvordan gikk handelen med {seller['name']}?",
+            f"Hei {name}!\n\n{seller['name']} har registrert at dere har gjort en handel: «{title}». Gi gjerne "
+            f"{seller['name']} en vurdering innen {rate_days} dager:\n\n{base}/meldinger/{conversation_id}#vurdering"
+            "\n\nVurderingene vises når dere begge har vurdert hverandre, eller etter 14 dager. Var det ingen "
+            "handel, kan du se bort fra denne e-posten.\n",
+        )
+    )
+
+
+def notify_rating(
+    mailer: Mailer,
+    base: str,
+    conn: sqlite3.Connection,
+    conversation_id: int | None,
+    rater_id: int,
+    rated_id: int,
+) -> None:
+    """Tell someone they were rated, so they rate back (they see the rating once they have)."""
+    if not mailer.enabled or conversation_id is None:
+        return
+    address = _verified_address(conn, rated_id)
+    rater = conn.execute("SELECT name FROM users WHERE id = ?", (rater_id,)).fetchone()
+    if address is None or rater is None:
+        return
+    email, name = address
+    mailer.send_later(
+        Mail(
+            email,
+            f"{rater['name']} har vurdert handelen med deg",
+            f"Hei {name}!\n\n{rater['name']} har gitt deg en vurdering. Du ser den når du har vurdert "
+            f"{rater['name']}, eller om noen dager:\n\n{base}/meldinger/{conversation_id}#vurdering\n",
         )
     )
 

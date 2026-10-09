@@ -21,12 +21,13 @@ De fleste handler trygt på {{ site_name }}. Svindlere bruker likevel de samme t
 - **Stjålne bilder og kopiert tekst** fra andre selgere oppdages automatisk.
 - **Nye kontoer** kan legge ut færre annonser og sende færre meldinger det første døgnet.
 - **Rapportering.** Rapporterer flere brukere samme annonse, skjules den til den er kontrollert.
+- **Vurderinger.** Etter en handel kan kjøper og selger vurdere hverandre. Vurderingene står på profilen og ved annonsen, og bare de som faktisk har handlet, kan gi dem.
 - **Merking.** Annonser og meldinger laget av en AI-agent merkes, så du vet hvem du snakker med.
 
 ## Gode vaner
 
 1. Hold samtalen på {{ site_name }}.
-2. Møt selgeren og se varen før du betaler, gjerne et sted med andre folk.
+2. Se på vurderingene til selgeren, og møt selgeren og se varen før du betaler, gjerne et sted med andre folk.
 3. Betal med Vipps eller kontant når du får varen. Ved frakt bør du bruke en betalingsløsning med kjøperbeskyttelse.
 4. Ved leie: se boligen, signer kontrakt og bruk en depositumskonto i banken.
 5. Rapporter mistenkelige annonser og meldinger. Det hjelper alle.

@@ -12,6 +12,7 @@ from typing import Any
 from . import taxonomy
 from .listings import AttrFilter, Image, Listing, SearchResult
 from .messages import Conversation
+from .ratings import Rating, Summary, Trade
 from .saved_searches import SavedSearch
 from .taxonomy import LISTING_TYPES, Category
 from .util import format_date_no, truncate
@@ -107,6 +108,7 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
                 "new_account": listing.seller_is_new,
                 "active_listings": listing.seller_active,
                 "sold_listings": listing.seller_sold,
+                "rating": rating_summary_dict(listing.seller_rating) if listing.seller_rating else None,
             },
             "safety_warnings": listing.safety_warnings,
             "moderation": {
@@ -135,6 +137,39 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
     else:
         data["links"]["contact_seller"] = f"POST {base}/api/v1/conversations"
     return data
+
+
+def rating_summary_dict(summary: Summary) -> dict[str, Any]:
+    return {"count": summary.count, "average": summary.average}
+
+
+def rating_dict(rating: Rating) -> dict[str, Any]:
+    return {
+        "id": rating.id,
+        "score": rating.score,
+        "comment": rating.comment,
+        "rater": {"id": rating.rater_id, "name": rating.rater_name},
+        "listing_title": rating.listing_title,
+        "created_at": rating.created_at,
+    }
+
+
+def trade_dict(trade: Trade, user_id: int) -> dict[str, Any]:
+    return {
+        "id": trade.id,
+        "conversation_id": trade.conversation_id,
+        "listing_id": trade.listing_id,
+        "listing_title": trade.listing_title,
+        "role": trade.role(user_id),
+        "other_party": {"id": trade.other_id(user_id), "name": trade.other_name(user_id)},
+        "created_at": trade.created_at,
+        "can_rate": trade.can_rate,
+        "rate_until": trade.rate_until,
+        "reveal_at": trade.reveal_at,
+        "my_rating": rating_dict(trade.mine) if trade.mine and not trade.mine.removed else None,
+        "their_rating": rating_dict(trade.theirs) if trade.theirs else None,
+        "they_rated": trade.they_rated,
+    }
 
 
 def search_query_dict(result: SearchResult) -> dict[str, Any]:

@@ -63,6 +63,10 @@ Legg til en egendefinert connector («custom connector») med adressen over. For
 | `save_search` | Ja | Følg med på et søk, med e-postvarsel om nye treff hvis brukeren vil |
 | `check_saved_searches` | Ja | Nye treff i de lagrede søkene siden sist |
 | `delete_saved_search` | Ja | Slutt å følge et søk |
+| `get_user_ratings` | Nei | Vurderingene en selger eller kjøper har fått |
+| `record_sale` | Ja | For selgeren: registrer at annonsen gikk til den du skriver med |
+| `list_trades` | Ja | Brukerens handler, og hvilke som kan vurderes |
+| `rate_trade` | Ja | Vurder den du handlet med (1–5 og en kommentar), én gang |
 
 ## REST-API
 

@@ -82,7 +82,13 @@ def test_batch_requests(client):
 def test_anonymous_clients_get_read_only_tools(client):
     tools = rpc(client, "tools/list").json()["result"]["tools"]
     names = {tool["name"] for tool in tools}
-    assert names == {"search_listings", "get_listing", "list_categories", "report_listing"}
+    assert names == {
+        "search_listings",
+        "get_listing",
+        "list_categories",
+        "report_listing",
+        "get_user_ratings",
+    }
     search = next(t for t in tools if t["name"] == "search_listings")
     assert search["annotations"]["readOnlyHint"] is True
     assert "bil" in search["inputSchema"]["properties"]["category"]["enum"]

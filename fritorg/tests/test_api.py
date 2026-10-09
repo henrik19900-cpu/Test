@@ -329,6 +329,7 @@ def test_public_profile(client, auth):
         "member_since": profile["member_since"],
         "active_listings": 1,
         "url": f"http://testserver/bruker/{listing['seller_id']}",
+        "rating": {"count": 0, "average": None},
     }
     assert "email" not in json.dumps(profile)
 

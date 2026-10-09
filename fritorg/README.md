@@ -28,6 +28,7 @@ Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøre
 - **Gamle annonser slettes automatisk:** en annonse som ikke er aktiv og ikke er endret på ett år, slettes med bildene. Selgeren får beskjed på Min side og på e-post 14 dager før.
 - **Meldinger** mellom kjøper og selger, med e-postvarsel til bekreftede adresser, hurtigsvar for selgeren («Ja, den er fortsatt til salgs») og blokkering av brukere man ikke vil høre fra. Selgerens svartid vises på annonsen («Svarer vanligvis innen en time»).
 - **For selgere:** hvor mange som har sett annonsen og lagret den, og valg av hovedbilde.
+- **Vurderinger:** når selgeren har registrert handelen i samtalen («Solgt til Ola»), kan kjøper og selger vurdere hverandre fra 1 til 5 med en kommentar, innen 30 dager. Vurderingene vises når begge har vurdert, eller etter 14 dager, så ingen svarer på en vurdering de har lest. Snittet står på profilen og ved annonsen. Usanne eller krenkende vurderinger kan rapporteres og fjernes av en moderator.
 - **Favoritter og lagrede søk:** lagre annonser med hjertet, og lagre et søk for å se hvor mange nye treff som har kommet siden sist. Med bekreftet e-post kommer nye treff på e-post, høyst én gang i timen per søk, med lenke for å melde seg av uten å logge inn. Selgeren ser hvor mange som har lagret annonsen, men ikke hvem.
 - **Prisvarsel:** settes prisen på en favoritt ned med minst 5 %, vises den gamle prisen på favorittsiden, og man får e-post om det (høyst to ganger i døgnet, kan slås av).
 - **Deling:** «Del»-knappen åpner mobilens delemeny (eller kopierer lenken), og hver annonse har forhåndsvisning med bilde, tittel og pris når den deles i meldinger og sosiale medier (Open Graph). Annonsesiden viser også lignende annonser. Siden kan legges på hjemskjermen på mobilen med eget ikon.
@@ -60,7 +61,7 @@ Alt ligger i datamappen (`FRITORG_DATA_DIR`, standard `data/`):
 
 | Fil | Innhold |
 | --- | --- |
-| `fritorg.sqlite3` | SQLite-database i WAL-modus: brukere, annonser, meldinger, favoritter, lagrede søk, rapporter og modereringslogg. Fulltekstsøket bruker SQLite FTS5. Databasen oppgraderes automatisk når appen starter med en ny versjon (migreringene står i `fritorg/db.py`). |
+| `fritorg.sqlite3` | SQLite-database i WAL-modus: brukere, annonser, meldinger, handler og vurderinger, favoritter, lagrede søk, rapporter og modereringslogg. Fulltekstsøket bruker SQLite FTS5. Databasen oppgraderes automatisk når appen starter med en ny versjon (migreringene står i `fritorg/db.py`). |
 | `uploads/` | Bilder som WebP, i full størrelse (maks 1600 piksler) og som miniatyrbilde. Filnavnene er tilfeldige, og filene ligger i 256 undermapper etter de to første tegnene i navnet. Mappen kan legges et annet sted med `FRITORG_UPLOADS_DIR`. |
 | `secret_key` | Hemmelig nøkkel, opprettes automatisk hvis `FRITORG_SECRET_KEY` ikke er satt. Den trengs for å kjenne igjen mobilnumre, BankID-identiteter og lenker, så den må tas vare på. |
 

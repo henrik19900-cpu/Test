@@ -30,6 +30,52 @@
 </ol>
 
 {% set other = conversation.other_name(user.id) %}
+{% if trade_button %}
+<section class="panel trade-panel" id="vurdering" aria-labelledby="handel-tittel">
+  <h2 id="handel-tittel" class="panel-title">Ble det en avtale?</h2>
+  <p class="small">Registrer handelen, så kan dere gi hverandre en vurdering. Annonsen blir merket som {{ trade_done }}.</p>
+  <form method="post" action="/meldinger/{{ conversation.id }}/handel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button">{{ trade_button }}</button>
+  </form>
+</section>
+{% elif trade %}
+<section class="panel trade-panel" id="vurdering" aria-labelledby="vurdering-tittel">
+  <h2 id="vurdering-tittel" class="panel-title">Vurdering av handelen</h2>
+  {% if trade.mine %}
+    {% if trade.mine.removed %}
+    <p class="small">Vurderingen din ble fjernet av en moderator.</p>
+    {% else %}
+    <p>Du ga {{ other }} <span class="stars" aria-hidden="true">{{ trade.mine.score|stars }}</span> {{ trade.mine.score }} av 5{% if trade.mine.comment %}: «{{ trade.mine.comment }}»{% endif %}</p>
+    {% if not trade.mine_shown %}<p class="small muted">Den vises på profilen til {{ other }} når {{ other }} har vurdert deg, eller {{ trade.reveal_at|date_no }}.</p>{% endif %}
+    {% endif %}
+  {% elif trade.can_rate %}
+  <form method="post" action="/meldinger/{{ conversation.id }}/vurdering" class="rating-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <fieldset>
+      <legend>Hvordan var handelen med {{ other }}?</legend>
+      {% for score in range(5, 0, -1) %}
+      <label class="rating-choice"><input type="radio" name="score" value="{{ score }}" required> <span class="stars" aria-hidden="true">{{ score|stars }}</span> {{ score }} – {{ SCORE_LABELS[score] }}</label>
+      {% endfor %}
+    </fieldset>
+    <div class="field">
+      <label for="rating-comment">Kommentar (valgfritt)</label>
+      <textarea id="rating-comment" name="comment" rows="3" maxlength="500"></textarea>
+      <p class="hint">Vises på profilen til {{ other }}, sammen med navnet ditt. Ikke skriv lenker eller kontaktinformasjon.</p>
+    </div>
+    <button type="submit" class="button button-primary">Send vurderingen</button>
+    <p class="small muted">Vurderingen kan ikke endres. Den vises når dere begge har vurdert hverandre, eller {{ trade.reveal_at|date_no }}. Du kan vurdere til og med {{ trade.rate_until|date_no }}.</p>
+  </form>
+  {% else %}
+  <p class="small muted">Fristen for å vurdere {{ other }} gikk ut {{ trade.rate_until|date_no }}.</p>
+  {% endif %}
+  {% if trade.theirs %}
+  <p>{{ other }} ga deg <span class="stars" aria-hidden="true">{{ trade.theirs.score|stars }}</span> {{ trade.theirs.score }} av 5{% if trade.theirs.comment %}: «{{ trade.theirs.comment }}»{% endif %}</p>
+  {% elif trade.they_rated and not trade.mine %}
+  <p class="small muted">{{ other }} har vurdert deg. Du ser vurderingen når du har vurdert {{ other }}, eller {{ trade.reveal_at|date_no }}.</p>
+  {% endif %}
+</section>
+{% endif %}
 {% if blocked_by_me %}
 <div class="notice" role="status">
   <p>Du har blokkert {{ other }}. Dere kan ikke sende meldinger til hverandre.</p>

@@ -23,6 +23,7 @@ from . import (
     moderation,
     phone,
     privacy,
+    ratings,
     recovery,
     saved_searches,
     serializers,
@@ -32,7 +33,14 @@ from . import (
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
 from .errors import AppError, Conflict, Forbidden, NotFound, RateLimited, ValidationProblem
 from .listings import SearchParams
-from .mailer import notify_moderation, notify_new_message, send_verification, verify_email
+from .mailer import (
+    notify_moderation,
+    notify_new_message,
+    notify_rating,
+    notify_trade,
+    send_verification,
+    verify_email,
+)
 from .templating import (
     CSRF_COOKIE,
     SESSION_COOKIE,
@@ -736,12 +744,18 @@ def conversation_page(conversation_id: int, request: Request, conn: Conn) -> Res
     conversation = messages.get_conversation(conn, conversation_id, user.id)
     other = conversation.other_id(user.id)
     quick_replies: tuple[str, ...] = ()
+    trade_button = trade_done = None
     if conversation.role(user.id) == "seller" and conversation.listing_id:
         listing = conn.execute(
             "SELECT type, status FROM listings WHERE id = ?", (conversation.listing_id,)
         ).fetchone()
         if listing and listing["status"] in ("active", "sold", "inactive"):
-            quick_replies = listings.TYPE_WORDS.get(listing["type"], listings.TYPE_WORDS["sell"]).replies
+            words = listings.TYPE_WORDS.get(listing["type"], listings.TYPE_WORDS["sell"])
+            quick_replies = words.replies
+            if words.traded:
+                trade_button = words.traded.format(name=conversation.other_name(user.id))
+                trade_done = words.done.lower()
+    trade = ratings.trade_for_conversation(conn, conversation_id, user.id)
     return render(
         request,
         conn,
@@ -751,8 +765,68 @@ def conversation_page(conversation_id: int, request: Request, conn: Conn) -> Res
             "blocked_by_me": messages.has_blocked(conn, user.id, other),
             "blocked_me": messages.has_blocked(conn, other, user.id),
             "quick_replies": quick_replies,
+            "trade": trade,
+            "trade_button": trade_button
+            if trade is None and ratings.tradeable(conn, conversation, user.id)
+            else None,
+            "trade_done": trade_done,
         },
     )
+
+
+@router.post("/meldinger/{conversation_id:int}/handel")
+def record_trade(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    settings = request.app.state.settings
+    try:
+        trade = ratings.record_trade(conn, conversation_id, user.id, active_days=settings.listing_days)
+    except (ValidationProblem, Forbidden) as exc:
+        return redirect(f"/meldinger/{conversation_id}", flash=exc.message)
+    notify_trade(
+        request.app.state.mailer,
+        base_url(request),
+        conn,
+        conversation_id,
+        trade.seller_id,
+        trade.buyer_id,
+        trade.listing_title,
+        ratings.RATE_DAYS,
+    )
+    return redirect(
+        f"/meldinger/{conversation_id}#vurdering",
+        flash="Handelen er registrert. Nå kan dere gi hverandre en vurdering.",
+    )
+
+
+@router.post("/meldinger/{conversation_id:int}/vurdering")
+def rate_trade(conversation_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    trade = ratings.trade_for_conversation(conn, conversation_id, user.id)
+    if trade is None:
+        raise NotFound(f"Samtale {conversation_id} har ingen registrert handel.")
+    score = str(form.get("score") or "")
+    try:
+        trade = ratings.rate(
+            conn, trade.id, user.id, int(score) if score.isdigit() else 0, str(form.get("comment") or "")
+        )
+    except ValidationProblem as exc:
+        return redirect(f"/meldinger/{conversation_id}#vurdering", flash=exc.message)
+    if not trade.they_rated:
+        notify_rating(
+            request.app.state.mailer,
+            base_url(request),
+            conn,
+            conversation_id,
+            user.id,
+            trade.other_id(user.id),
+        )
+    return redirect(f"/meldinger/{conversation_id}#vurdering", flash="Takk for vurderingen!")
 
 
 @router.post("/meldinger/{conversation_id:int}/blokker")
@@ -1498,8 +1572,33 @@ def user_page(user_id: int, request: Request, conn: Conn) -> Response:
     result = listings.search(conn, SearchParams(user_id=user_id, status="any", limit=60))
     response_time = messages.response_time_text(messages.response_time_hours(conn, user_id))
     return render(
-        request, conn, "user.html", {"seller": seller, "result": result, "response_time": response_time}
+        request,
+        conn,
+        "user.html",
+        {
+            "seller": seller,
+            "result": result,
+            "response_time": response_time,
+            "rating": ratings.summary(conn, user_id),
+            "ratings": ratings.ratings_for_user(conn, user_id),
+        },
     )
+
+
+@router.post("/vurdering/{rating_id:int}/rapporter")
+def report_rating(rating_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    decision = request.app.state.limiter.hit("report", client_ip(request), 20, 3600)
+    if not decision.allowed:
+        raise RateLimited("For mange rapporter. Prøv igjen senere.", retry_after=decision.reset_in)
+    rating = ratings.get_visible_rating(conn, rating_id)
+    ratings.report_rating(
+        conn, rating_id, str(form.get("reason") or "other"), str(form.get("comment") or ""), user.id
+    )
+    return redirect(f"/bruker/{rating.rated_id}#vurderinger", flash="Takk! En moderator ser på vurderingen.")
 
 
 # --- Moderation ------------------------------------------------------------------------------
@@ -1525,6 +1624,7 @@ def moderation_page(request: Request, conn: Conn) -> Response:
             "stats": moderation.stats(conn),
             "queue": moderation.review_queue(conn),
             "cases": moderation.open_reports(conn),
+            "reported_ratings": moderation.reported_ratings(conn),
             "flagged": moderation.flagged_messages(conn),
         },
     )
@@ -1556,6 +1656,19 @@ def remove_listing(listing_id: int, request: Request, conn: Conn, form: Form) ->
         request.app.state.mailer, base_url(request), conn, listing_id, approved=False, note=note
     )
     return redirect("/moderering", flash=f"Annonse {listing_id} er fjernet.")
+
+
+@router.post("/moderering/vurdering/{rating_id:int}/fjern")
+def remove_rating(rating_id: int, request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    moderator = _require_moderator(request, conn)
+    if moderator is None:
+        return login_redirect(request)
+    try:
+        moderation.remove_rating(conn, moderator, rating_id, str(form.get("note") or ""))
+    except ValidationProblem as exc:
+        return redirect("/moderering#vurderinger", flash=exc.message)
+    return redirect("/moderering#vurderinger", flash="Vurderingen er fjernet.")
 
 
 @router.post("/moderering/rapporter/avvis")

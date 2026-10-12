@@ -73,11 +73,16 @@ body {
   line-height: 1.55;
   background: var(--bg);
   color: var(--text);
+  overflow-wrap: break-word; /* a long word or a link in a title or a message wraps instead of widening the page */
 }
 
 img {
   max-width: 100%;
   display: block;
+}
+
+.icon {
+  flex: none; /* keeps its size next to text that wraps */
 }
 
 a {
@@ -105,6 +110,7 @@ h3 {
 h1 {
   font-size: clamp(1.6rem, 2.6vw, 2.2rem);
   letter-spacing: -0.01em;
+  overflow-wrap: anywhere; /* also next to buttons, where 'break-word' would not let the title shrink */
 }
 
 h2 {
@@ -1009,6 +1015,7 @@ fieldset {
   gap: 0.35rem;
   color: var(--muted);
   margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 .facts {
@@ -1277,7 +1284,7 @@ section.panel {
 
 .inbox a {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto; /* a long word in a title or message wraps, not the page */
   gap: 0.15rem 1rem;
   padding: 0.9rem 1rem;
   color: inherit;
@@ -1293,7 +1300,7 @@ section.panel {
 }
 
 .inbox-listing {
-  grid-column: 1;
+  grid-column: 1 / -1; /* the whole width under the name and time, not a narrow column on a phone */
   font-size: 0.9rem;
   color: var(--muted);
 }

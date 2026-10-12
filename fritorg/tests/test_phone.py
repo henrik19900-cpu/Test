@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import io
+import logging
 import re
+import urllib.error
 import urllib.parse
 
 import pytest
@@ -335,6 +338,24 @@ def test_sms_providers(monkeypatch):
     url, data, headers = sent[-1]
     assert url == "https://sms.example/send" and data == b"nr=91234567&msg=Hei"
     assert headers["Content-Type"] == "application/x-www-form-urlencoded"
+
+
+def test_a_refusing_sms_provider_leaves_no_number_or_code_in_the_log(monkeypatch, caplog):
+    """Providers repeat the number, and sometimes the message with the code, when they refuse to send it. The
+    number itself is never stored, so it must not end up in the log either."""
+
+    def refuse(request, timeout):
+        body = (
+            b'{"code": 21211, "message": "The \'To\' number +4791234567 is not a valid phone number.", '
+            b'"body": "123456 er koden din"}'
+        )
+        raise urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, io.BytesIO(body))
+
+    monkeypatch.setattr(phone.urllib.request, "urlopen", refuse)
+    with caplog.at_level(logging.WARNING, logger="fritorg.phone"), pytest.raises(phone.SmsError):
+        phone.TwilioSms("AC123", "secret", "Fritorg").send("+4791234567", "123456 er koden din")
+    assert "21211" in caplog.text and "not a valid phone number" in caplog.text  # what went wrong
+    assert "1234567" not in caplog.text and "123456" not in caplog.text
 
 
 def test_sms_text_warns_against_sharing_the_code(app, client):

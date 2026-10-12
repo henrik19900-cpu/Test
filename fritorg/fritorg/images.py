@@ -39,7 +39,8 @@ PILImage.MAX_IMAGE_PIXELS = 40_000_000  # larger images are refused (decompressi
 MAX_SIDE = 1600
 THUMB_SIDE = 640
 SIMILAR_BITS = 5  # dHash distance below which two photos count as the same picture
-ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
+# MPO: a JPEG with more pictures in it (phones store depth and HDR maps that way); only the first is used.
+ALLOWED_FORMATS = {"JPEG", "MPO", "PNG", "WEBP", "GIF"}
 
 
 def sniff_image_type(data: bytes) -> str | None:

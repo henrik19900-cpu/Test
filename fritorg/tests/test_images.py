@@ -30,6 +30,20 @@ def test_gps_and_other_metadata_are_removed():
         assert "exif" not in cleaned.info and "xmp" not in cleaned.info
 
 
+def test_phone_photos_with_more_than_one_picture_are_accepted():
+    """Phones often store a second picture in the JPEG (a depth or HDR map), which Pillow reads as MPO."""
+    exif = PILImage.Exif()
+    exif[0x8825] = {1: "N", 2: (59.0, 54.0, 49.0), 3: "E", 4: (10.0, 45.0, 7.0)}
+    photo = io.BytesIO()
+    _open(make_image(3, fmt="JPEG")).save(
+        photo, format="MPO", save_all=True, append_images=[_open(make_image(4, fmt="JPEG"))], exif=exif
+    )
+    assert _open(photo.getvalue()).format == "MPO"
+    processed = images.process_image(photo.getvalue())
+    for data in (processed.full, processed.thumb):
+        assert _open(data).format == "WEBP" and not _open(data).getexif()
+
+
 def test_large_photos_are_downscaled_with_thumbnails():
     processed = images.process_image(make_image(4, size=(4000, 3000), fmt="JPEG"))
     assert (processed.width, processed.height) == (1600, 1200)

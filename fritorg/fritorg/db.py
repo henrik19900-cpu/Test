@@ -562,6 +562,28 @@ def analyze(conn: sqlite3.Connection) -> None:
     conn.execute("ANALYZE")
 
 
+SEARCH_MERGE_PAGES = 500  # pages of the search index written per transaction while it is merged
+
+
+def compact_search_index(conn: sqlite3.Connection) -> None:
+    """Merge the search index into one segment, which drops the words of deleted and changed listings.
+
+    FTS5 deletes by adding markers and keeps the old words, with their positions, in the segments written before,
+    until those are merged into the oldest one: for the largest segment that may be never. A step with a negative
+    page count starts a merge of every segment and positive steps carry it on, each in its own short transaction,
+    so writers wait only briefly. It stops when nothing is left to merge (fewer than two rows changed, as the FTS5
+    documentation suggests), or after about two passes over the index while others keep writing.
+    """
+    pages = conn.execute("SELECT COUNT(*) FROM listings_fts_data").fetchone()[0]
+    merge = "INSERT INTO listings_fts (listings_fts, rank) VALUES ('merge', ?)"
+    conn.execute(merge, (-SEARCH_MERGE_PAGES,))
+    for _ in range(2 * (pages // SEARCH_MERGE_PAGES) + 2):
+        changes = conn.total_changes
+        conn.execute(merge, (SEARCH_MERGE_PAGES,))
+        if conn.total_changes - changes < 2:
+            return
+
+
 # Append new migrations to the end; never edit one that has shipped. A migration is SQL run as one script,
 # or a function that gets the connection inside the migration's transaction.
 MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [

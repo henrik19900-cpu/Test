@@ -20,7 +20,7 @@ from typing import TypeVar
 
 from . import alerts, images, listings, messages, oauth, saved_searches, users
 from .config import Settings
-from .db import Database, analyze
+from .db import Database, analyze, compact_search_index
 from .mailer import Mail, Mailer
 from .util import format_date_no, format_days_no, iso_ago, iso_in, now_iso
 from .views import ViewCounter
@@ -284,6 +284,7 @@ def run(
         report.purged += step("sign-in codes", lambda: oauth.purge(conn)) or 0
         key = str(db.path)
         if time.monotonic() - _analyzed.get(key, -STATISTICS_SECONDS) >= STATISTICS_SECONDS:
+            step("search index", lambda: compact_search_index(conn))  # deleted text leaves the file
             step("statistics", lambda: analyze(conn))
             step("unused photos", lambda: images.remove_unused_files(conn, settings.uploads_dir))
             step("old safety copies", lambda: remove_old_safety_copies(settings))

@@ -145,6 +145,26 @@ def call_tools(client, headers=None):
     ).json()["result"]["tools"]
 
 
+def test_a_photo_link_stays_out_of_redirect_addresses(app, client, auth):
+    from fastapi.testclient import TestClient
+
+    created = call(client, "create_listing", SOFA, headers=auth)["structuredContent"]
+    path = created["photo_upload_url"].removeprefix("http://testserver")
+    with TestClient(app) as phone:
+        phone.get(path)
+        sent = phone.post(
+            f"/annonse/{created['id']}/bilder/lenke",
+            data={"csrf_token": phone.cookies["ft_csrf"], "t": path.split("t=")[1]},
+            files={"images": ("sofa.png", PHOTO, "image/png")},
+            follow_redirects=False,
+        )
+    # The page comes at once: a redirect to it would put the link, which works like a key, in the web
+    # server's log (it logs the Location header).
+    assert sent.status_code == 200 and "location" not in sent.headers and "Bildene er lagt til" in sent.text
+    assert sent.headers["cache-control"] == "no-store" and sent.headers["referrer-policy"] == "no-referrer"
+    assert sent.text.count('class="image-admin"') == 1 and "Hovedbilde" in sent.text  # with the new photo
+
+
 def test_a_photo_link_lets_the_user_add_photos_from_the_phone(app, client, auth):
     from conftest import PHOTO as photo
     from fastapi.testclient import TestClient

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import warnings
 
 import pytest
 from conftest import PHOTO, make_image, make_listing
@@ -27,6 +28,20 @@ def test_gps_and_other_metadata_are_removed():
         assert cleaned.format == "WEBP"
         assert not cleaned.getexif()
         assert "exif" not in cleaned.info and "xmp" not in cleaned.info
+
+
+def test_phone_photos_with_more_than_one_picture_are_accepted():
+    """Phones often store a second picture in the JPEG (a depth or HDR map), which Pillow reads as MPO."""
+    exif = PILImage.Exif()
+    exif[0x8825] = {1: "N", 2: (59.0, 54.0, 49.0), 3: "E", 4: (10.0, 45.0, 7.0)}
+    photo = io.BytesIO()
+    _open(make_image(3, fmt="JPEG")).save(
+        photo, format="MPO", save_all=True, append_images=[_open(make_image(4, fmt="JPEG"))], exif=exif
+    )
+    assert _open(photo.getvalue()).format == "MPO"
+    processed = images.process_image(photo.getvalue())
+    for data in (processed.full, processed.thumb):
+        assert _open(data).format == "WEBP" and not _open(data).getexif()
 
 
 def test_large_photos_are_downscaled_with_thumbnails():
@@ -71,6 +86,22 @@ def test_decompression_bombs_are_rejected(monkeypatch):
     monkeypatch.setattr(PILImage, "MAX_IMAGE_PIXELS", 10_000)
     with pytest.raises(ValidationProblem):
         images.process_image(make_image(6, size=(400, 300)))
+
+
+def test_photos_over_the_pixel_limit_are_refused_while_other_uploads_run(monkeypatch):
+    """Pillow only warns below twice the limit, and the filter that makes the warning an error is shared by all
+    threads: another upload leaving its warnings block in the meantime puts the old filters back."""
+    monkeypatch.setattr(PILImage, "MAX_IMAGE_PIXELS", 10_000)
+    real_open = PILImage.open
+
+    def open_as_filters_are_restored(*args, **kwargs):
+        warnings.resetwarnings()
+        warnings.simplefilter("ignore")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(PILImage, "open", open_as_filters_are_restored)
+    with pytest.raises(ValidationProblem):
+        images.process_image(make_image(6, size=(150, 100)))  # 15 000 pixels
 
 
 def test_perceptual_hash_survives_resizing_and_jpeg():

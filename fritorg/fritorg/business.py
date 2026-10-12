@@ -9,6 +9,7 @@ seller's own: pages say so, and link to the register so buyers can check.
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import sqlite3
@@ -23,6 +24,13 @@ from .util import now_iso
 REGISTRY_API = "https://data.brreg.no/enhetsregisteret/api/enheter/{}"
 REGISTRY_PAGE = "https://virksomhet.brreg.no/nb/oppslag/enheter/{}"
 _WEIGHTS = (3, 2, 7, 6, 5, 4, 3, 2)  # modulus 11 check digit of Norwegian organisation numbers
+# Names buyers trust at once, which scams pretend to be: parcels from Posten or Bring, payment with Vipps, the
+# police, Nav. Anyone can type any organisation number, so a business with such a name is not shown on the
+# seller's word alone (the display names are blocked in users.RESERVED_NAME for the same reason).
+TRUSTED_NAME = re.compile(
+    r"\b(?:posten|bring|postnord|vipps|finn\.no|bankid|skatteetaten|nav|gratis ?torget|fritorg)\b|\bpoliti",
+    re.IGNORECASE,
+)
 
 Lookup = Callable[[str], str]
 
@@ -55,7 +63,7 @@ def registry_name(org_number: str) -> str:
                 "Organisasjonsnummeret finnes ikke i Enhetsregisteret, eller enheten er slettet.",
             ) from None
         raise ServiceUnavailable("Enhetsregisteret svarer ikke akkurat nå. Prøv igjen om litt.") from None
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):  # e.g. an answer that breaks off
         raise ServiceUnavailable("Enhetsregisteret svarer ikke akkurat nå. Prøv igjen om litt.") from None
     if data.get("slettedato") or not data.get("navn"):
         raise ValidationProblem.field("org_number", "Enheten er slettet i Enhetsregisteret.")
@@ -79,6 +87,12 @@ def declare(
     else:
         shown = " ".join((name or user.name).split())[:200]
         checked = None
+    if TRUSTED_NAME.search(shown):
+        raise ValidationProblem.field(
+            "org_number",
+            f"«{shown}» kan forveksles med en kjent tjeneste, så den kan ikke vises her ut fra det du oppgir. "
+            "Er det din bedrift, kontakt oss.",
+        )
     conn.execute(
         "UPDATE users SET org_number = ?, business_name = ?, business_checked_at = ? WHERE id = ?",
         (number, shown, checked, user.id),

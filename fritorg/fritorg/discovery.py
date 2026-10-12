@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from . import listings, taxonomy
@@ -261,6 +262,31 @@ def security_txt(request: Request) -> PlainTextResponse:
         f"Contact: mailto:{contact}\nExpires: {expires}\nPreferred-Languages: no, en\n"
         f"Canonical: {base}/.well-known/security.txt\n"
     )
+
+
+# The interactive API documentation, with Swagger UI 5.32.15 (Apache-2.0, static/swagger-ui) served from this
+# site: FastAPI's own page fetches it from a CDN, and its icon from fastapi.tiangolo.com, which tells those
+# sites every visitor's IP address. Its own script runs inline, so that is allowed; nothing from elsewhere is.
+SWAGGER_UI = "/static/swagger-ui"
+API_DOCS_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
+)
+
+
+@router.get("/api/docs")
+def api_docs(request: Request) -> Response:
+    response = get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title=f"{request.app.state.settings.site_name} API",
+        swagger_js_url=f"{SWAGGER_UI}/swagger-ui-bundle.js",
+        swagger_css_url=f"{SWAGGER_UI}/swagger-ui.css",
+        swagger_favicon_url="/static/favicon.svg",
+        # By default Swagger UI sends the address of the specification to validator.swagger.io.
+        swagger_ui_parameters={"validatorUrl": None},
+    )
+    response.headers["Content-Security-Policy"] = API_DOCS_CSP
+    return response
 
 
 @router.get("/manifest.webmanifest")

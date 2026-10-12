@@ -20,7 +20,7 @@ from typing import TypeVar
 
 from . import alerts, images, listings, messages, oauth, saved_searches, users
 from .config import Settings
-from .db import Database, analyze
+from .db import Database, analyze, compact_search_index
 from .mailer import Mail, Mailer
 from .util import format_date_no, format_days_no, iso_ago, iso_in, now_iso
 from .views import ViewCounter
@@ -174,19 +174,22 @@ INACTIVE_NOTICE_DAYS = 30  # how long before deleting an unused account its owne
 INACTIVE_BATCH = 500
 
 
-def _unused_accounts(conn: sqlite3.Connection, condition: str, cutoff: str) -> list[sqlite3.Row]:
+def _unused_accounts(
+    conn: sqlite3.Connection, condition: str, *args: str, order: str = "id"
+) -> list[sqlite3.Row]:
     """Accounts that may be deleted for not being used: not closed accounts (the closure must stand), not
     moderators, and not the accounts that own listings from other sources."""
     return conn.execute(
         "SELECT id, email, name, email_verified_at FROM users WHERE banned_at IS NULL AND is_admin = 0 "
-        f"AND created_via != 'import' AND {condition} LIMIT {INACTIVE_BATCH}",
-        (cutoff,),
+        f"AND created_via != 'import' AND {condition} ORDER BY {order} LIMIT {INACTIVE_BATCH}",
+        args,
     ).fetchall()
 
 
 def _warn_unused(mailer: Mailer, base: str, row: sqlite3.Row, when: str) -> None:
+    """Sent at once, in this thread: the notice only counts once the mail server has taken it."""
     settings = mailer.settings
-    mailer.send_later(
+    mailer.send_now(
         Mail(
             row["email"],
             f"Kontoen din på {settings.site_name} slettes {when}",
@@ -203,25 +206,42 @@ def _delete_unused_accounts(
     conn: sqlite3.Connection, settings: Settings, mailer: Mailer | None, base: str, report: Report
 ) -> None:
     """Storage limitation (GDPR art. 5): accounts nobody has used for inactive_account_days are deleted, after a
-    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it."""
+    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it, and
+    so does turning the deletion off. Until an e-mail to a verified address has gone out, the account is kept."""
     days = settings.inactive_account_days
     if not days:
+        conn.execute("UPDATE users SET inactivity_notice_at = NULL WHERE inactivity_notice_at IS NOT NULL")
         return
+    unused = iso_ago(days=max(days - INACTIVE_NOTICE_DAYS, 1))
     when = format_date_no(iso_in(days=INACTIVE_NOTICE_DAYS))
+    # In random order, so that an address the mail server refuses does not hold up everybody after it.
     for row in _unused_accounts(
         conn,
         "inactivity_notice_at IS NULL AND COALESCE(last_active_at, created_at) < ?",
-        iso_ago(days=max(days - INACTIVE_NOTICE_DAYS, 1)),
+        unused,
+        order="random()",
     ):
-        conn.execute("UPDATE users SET inactivity_notice_at = ? WHERE id = ?", (now_iso(), row["id"]))
-        report.accounts_warned += 1
-        if mailer is not None and mailer.enabled and row["email_verified_at"]:
-            _warn_unused(mailer, base, row, when)
-    for row in _unused_accounts(conn, "inactivity_notice_at < ?", iso_ago(days=INACTIVE_NOTICE_DAYS)):
-        if users.under_review(conn, row["id"]):  # a report about them is being handled
-            continue
-        images.remove_files(settings.uploads_dir, users.delete_user(conn, row["id"]))
-        report.accounts_deleted += 1
+        if row["email_verified_at"]:
+            if mailer is None or not mailer.enabled:
+                continue  # without mail the owner cannot be told, so the account stays
+            try:
+                _warn_unused(mailer, base, row, when)
+            except Exception:  # e.g. the mail server is down: told in a later round, like the rest
+                logger.exception("Could not send the notice about an unused account")
+                break
+        report.accounts_warned += conn.execute(  # not if the account was used meanwhile
+            "UPDATE users SET inactivity_notice_at = ? WHERE id = ? AND inactivity_notice_at IS NULL "
+            "AND COALESCE(last_active_at, created_at) < ?",
+            (now_iso(), row["id"], unused),
+        ).rowcount
+    told, used = iso_ago(days=INACTIVE_NOTICE_DAYS), iso_ago(days=days)
+    for row in _unused_accounts(
+        conn, "inactivity_notice_at < ? AND COALESCE(last_active_at, created_at) < ?", told, used
+    ):
+        filenames = users.delete_unused(conn, row["id"], told, used)
+        if filenames is not None:  # None: used meanwhile, or a report about them is being handled
+            images.remove_files(settings.uploads_dir, filenames)
+            report.accounts_deleted += 1
 
 
 def run(
@@ -264,6 +284,7 @@ def run(
         report.purged += step("sign-in codes", lambda: oauth.purge(conn)) or 0
         key = str(db.path)
         if time.monotonic() - _analyzed.get(key, -STATISTICS_SECONDS) >= STATISTICS_SECONDS:
+            step("search index", lambda: compact_search_index(conn))  # deleted text leaves the file
             step("statistics", lambda: analyze(conn))
             step("unused photos", lambda: images.remove_unused_files(conn, settings.uploads_dir))
             step("old safety copies", lambda: remove_old_safety_copies(settings))

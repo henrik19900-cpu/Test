@@ -52,6 +52,9 @@ def _log(
     user_id: int | None = None,
     note: str | None = None,
 ) -> None:
+    """Write down a decision. `user_id` is the person it is about, also for a decision about one of their
+    listings: the listing may be deleted later, and the decision must still go with the person's data (their
+    copy of it, and deleting the account removes the note)."""
     conn.execute(
         "INSERT INTO moderation_log (moderator_id, listing_id, user_id, action, note, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
@@ -226,28 +229,28 @@ def _resolve_listing_reports(
 
 
 def approve_listing(conn: sqlite3.Connection, moderator: users.User, listing_id: int) -> None:
-    get_listing(conn, listing_id)
+    owner = get_listing(conn, listing_id).user_id
     with transaction(conn):
         conn.execute(
             "UPDATE listings SET status = 'active', reviewed_at = ?, moderation_note = NULL, updated_at = ? WHERE id = ?",
             (now_iso(), now_iso(), listing_id),
         )
         _resolve_listing_reports(conn, listing_id, moderator.id, "dismissed")
-        _log(conn, moderator.id, "approve_listing", listing_id=listing_id)
+        _log(conn, moderator.id, "approve_listing", listing_id=listing_id, user_id=owner)
 
 
 def remove_listing(conn: sqlite3.Connection, moderator: users.User, listing_id: int, note: str) -> None:
     note = " ".join(note.split())[:500]
     if not note:
         raise ValidationProblem.field("note", "Skriv en kort begrunnelse. Den vises for annonsøren.")
-    get_listing(conn, listing_id)
+    owner = get_listing(conn, listing_id).user_id
     with transaction(conn):
         conn.execute(
             "UPDATE listings SET status = 'removed', moderation_note = ?, reviewed_at = ?, updated_at = ? WHERE id = ?",
             (note, now_iso(), now_iso(), listing_id),
         )
         _resolve_listing_reports(conn, listing_id, moderator.id, "removed")
-        _log(conn, moderator.id, "remove_listing", listing_id=listing_id, note=note)
+        _log(conn, moderator.id, "remove_listing", listing_id=listing_id, user_id=owner, note=note)
 
 
 def dismiss_reports(conn: sqlite3.Connection, moderator: users.User, report_ids: list[int]) -> None:
@@ -331,6 +334,7 @@ def decide_appeal(
             moderator.id,
             "reverse_removal" if reverse else "uphold_removal",
             listing_id=row["listing_id"],
+            user_id=row["user_id"],
             note=note or None,
         )
     return {"listing_id": row["listing_id"], "reversed": reverse, "note": note or None}

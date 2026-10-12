@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from contextlib import closing
+
 from fritorg import listings, maintenance, users
 from fritorg.config import Settings
-from fritorg.db import Database
+from fritorg.db import Database, transaction
 from fritorg.listings import SearchParams
 
 
@@ -71,3 +73,30 @@ def test_text_of_deleted_and_changed_listings_leaves_the_search_index(tmp_path):
         assert not names & index_terms(conn)
         assert [item.id for item in listings.search(conn, SearchParams(q="eik")).items] == [kept]
         conn.execute("INSERT INTO listings_fts (listings_fts, rank) VALUES ('integrity-check', 1)")
+
+
+def test_deleted_messages_do_not_stay_in_the_write_ahead_log(tmp_path):
+    """After a checkpoint SQLite writes the -wal file from the start again, but keeps the rest of it, with pages as
+    they were before a delete, until something overwrites them. A busy server always has a connection open, so the
+    file is never removed either."""
+    db = Database(tmp_path / "fritorg.sqlite3")
+    db.init()
+    secret = "Ring meg på 912 34 567, jeg bor i Storgata 1"
+    with closing(db.connect()) as conn:
+        conn.execute(
+            "INSERT INTO users (email, name, password_hash, created_at) VALUES ('kari@example.no', 'Kari', '!', '2026')"
+        )
+        conn.execute(
+            "INSERT INTO conversations (listing_title, buyer_id, seller_id, created_at, last_message_at) "
+            "VALUES ('Sofa', 1, 1, '2026', '2026')"
+        )
+        with transaction(conn):
+            conn.executemany(
+                "INSERT INTO messages (conversation_id, sender_id, body, created_at) VALUES (1, 1, ?, '2026')",
+                [(f"{secret}. {n}" + "." * 400,) for n in range(500)],
+            )
+        conn.execute("DELETE FROM conversations")  # both people deleted it: the messages go with it
+        conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        conn.execute("UPDATE users SET name = 'Kari N.'")  # the next write starts the -wal file over
+        files = [db.path, db.path.with_name(db.path.name + "-wal")]
+        assert [file.name for file in files if secret.encode() in file.read_bytes()] == []

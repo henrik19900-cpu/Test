@@ -622,9 +622,10 @@ class Database:
         conn.create_function("casefold", 1, _casefold, deterministic=True)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA synchronous = NORMAL")
-        conn.execute(
-            "PRAGMA secure_delete = ON"
-        )  # deleted personal data is overwritten, not left in the file
+        # Deleted personal data is overwritten, not left in the file. The -wal file is cut back each time SQLite
+        # starts it over, instead of keeping its old end (pages as they were before a delete) until overwritten.
+        conn.execute("PRAGMA secure_delete = ON")
+        conn.execute("PRAGMA journal_size_limit = 0")
         # Read the file through the operating system's cache directly (each request has a fresh connection,
         # so SQLite's own per-connection cache starts empty), and sort in memory.
         conn.execute(f"PRAGMA mmap_size = {MMAP_BYTES}")

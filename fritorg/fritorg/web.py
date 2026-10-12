@@ -757,22 +757,33 @@ def _photo_link_listing(request: Request, conn: sqlite3.Connection, listing_id: 
     return listing, owner
 
 
+def _photo_link_page(
+    request: Request,
+    conn: sqlite3.Connection,
+    listing: listings.Listing,
+    token: str,
+    flash: str | None = None,
+) -> Response:
+    context: dict[str, Any] = {
+        "listing": listing,
+        "token": token,
+        "max_images": request.app.state.settings.max_images_per_listing,
+    }
+    if flash:
+        context["flash"] = flash
+    response = render(request, conn, "photo_upload.html", context)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"  # the link works like a key
+    return response
+
+
 @router.get("/annonse/{listing_id:int}/bilder")
 def photo_link_page(listing_id: int, request: Request, conn: Conn) -> Response:
     token = request.query_params.get("t", "")
     found = _photo_link_listing(request, conn, listing_id, token)
     if isinstance(found, Response):
         return found
-    listing, _ = found
-    response = render(
-        request,
-        conn,
-        "photo_upload.html",
-        {"listing": listing, "token": token, "max_images": request.app.state.settings.max_images_per_listing},
-    )
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Referrer-Policy"] = "no-referrer"  # the link works like a key
-    return response
+    return _photo_link_page(request, conn, found[0], token)
 
 
 @router.post("/annonse/{listing_id:int}/bilder/lenke")
@@ -787,7 +798,9 @@ def photo_link_upload(listing_id: int, request: Request, conn: Conn, form: Form)
     flash = (
         "Bildene er lagt til." if not problems else "Noen bilder ble ikke lagt til: " + "; ".join(problems)
     )
-    return redirect(url_with_query("", f"/annonse/{listing.id}/bilder", [("t", token)]), flash=flash)
+    # The page at once, not a redirect to it: the web server logs where a redirect goes, and the link works
+    # like a key. Sending the form again adds nothing (the same photo is the one already there).
+    return _photo_link_page(request, conn, listings.get_listing(conn, listing.id), token, flash)
 
 
 @router.post("/annonse/{listing_id:int}/bilder/{image_id:int}/hovedbilde")
@@ -1609,7 +1622,9 @@ def forgot_password(request: Request, conn: Conn, form: Form) -> Response:
         flash = "Hvis e-postadressen og mobilnummeret hører til samme konto, har vi sendt en kode på SMS."
         if sent and sent.test_code:
             flash += f" Testmodus, ingen SMS er sendt: koden er {sent.test_code}."
-        return redirect(url_with_query("", "/glemt-passord/kode", [("epost", email)]), flash=flash)
+        # The code form at once, not a redirect to it with the address: the web server logs where a redirect
+        # goes, and the address would stay in the browser's history.
+        return _reset_code_page(request, conn, email, flash=flash)
     if not state.mailer.enabled:
         error = "Vi kan ikke sende e-post her." + (" Bruk mobilnummeret ditt i stedet." if state.sms else "")
         return _forgot_page(request, conn, values, {"email": error}, status=422)
@@ -1622,10 +1637,25 @@ def forgot_password(request: Request, conn: Conn, form: Form) -> Response:
     )
 
 
+def _reset_code_page(
+    request: Request,
+    conn: sqlite3.Connection,
+    email: str,
+    errors: dict[str, str] | None = None,
+    status: int = 200,
+    flash: str | None = None,
+) -> Response:
+    context: dict[str, Any] = {"email": email, "errors": errors or {}}
+    if flash:
+        context["flash"] = flash
+    response = render(request, conn, "reset_code.html", context, status=status)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @router.get("/glemt-passord/kode")
 def reset_code_page(request: Request, conn: Conn) -> Response:
-    email = request.query_params.get("epost", "")
-    return render(request, conn, "reset_code.html", {"email": email, "errors": {}})
+    return _reset_code_page(request, conn, request.query_params.get("epost", ""))
 
 
 @router.post("/glemt-passord/kode")
@@ -1649,7 +1679,7 @@ def reset_with_code(request: Request, conn: Conn, form: Form) -> Response:
         except ValidationProblem as exc:
             errors["code"] = _problem_text(exc)
     if errors:
-        return render(request, conn, "reset_code.html", {"email": email, "errors": errors}, status=422)
+        return _reset_code_page(request, conn, email, errors, status=422)
     assert user is not None
     users.set_password(conn, user.id, password)
     users.forget_wrong_passwords(state.limiter, user.email)

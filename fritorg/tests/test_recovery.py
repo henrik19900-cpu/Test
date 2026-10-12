@@ -138,6 +138,23 @@ def test_reset_by_sms_code(tmp_path):
         assert can_log_in(app, "kari@example.no", "nyttpassord1")
 
 
+def test_reset_by_sms_keeps_the_address_out_of_web_addresses(tmp_path):
+    with TestClient(create_app(Settings(data_dir=tmp_path, verification="sms"))) as client:
+        headers = {"Authorization": f"Bearer {register(client)['token']['token']}"}
+        code = client.post("/api/v1/me/phone", json={"phone": "91234567"}, headers=headers).json()
+        client.post("/api/v1/me/phone/verify", json={"code": code["test_code"]}, headers=headers)
+        sent = client.post(
+            "/glemt-passord",
+            data={"csrf_token": csrf(client), "email": "kari@example.no", "phone": "91234567"},
+            follow_redirects=False,
+        )
+    # The code form comes at once: a redirect to it with the address would put the address in the web
+    # server's log (it logs the Location header) and in the browser's history.
+    assert sent.status_code == 200 and "location" not in sent.headers
+    assert 'value="kari@example.no"' in sent.text and "har vi sendt en kode" in sent.text
+    assert sent.headers["cache-control"] == "no-store"
+
+
 def test_change_password_on_my_page(app, client):
     register(client)
     web_login(client)

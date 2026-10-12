@@ -252,3 +252,20 @@ def test_accounts_without_a_verified_address_are_deleted_without_an_email(app, c
     _a_month_passes(app)
     assert maintenance.run(app.state.db, settings, memory).accounts_deleted == 1
     assert memory.outbox == []
+
+
+def test_an_account_used_while_unused_ones_are_deleted_is_kept(app, client, auth, settings, monkeypatch):
+    _unused_for_long(app, settings)
+    maintenance.run(app.state.db, settings, MemoryMailer(settings))
+    _a_month_passes(app)
+    found = maintenance._unused_accounts
+
+    def used_just_after_it_was_found(conn, *args, **kwargs):
+        rows = found(conn, *args, **kwargs)
+        if rows:
+            client.get("/api/v1/me", headers=auth)  # the owner logs in while the job is busy deleting
+        return rows
+
+    monkeypatch.setattr(maintenance, "_unused_accounts", used_just_after_it_was_found)
+    assert maintenance.run(app.state.db, settings, MemoryMailer(settings)).accounts_deleted == 0
+    assert client.get("/api/v1/me", headers=auth).status_code == 200

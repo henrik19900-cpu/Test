@@ -228,13 +228,19 @@ def _delete_unused_accounts(
             except Exception:  # e.g. the mail server is down: told in a later round, like the rest
                 logger.exception("Could not send the notice about an unused account")
                 break
-        conn.execute("UPDATE users SET inactivity_notice_at = ? WHERE id = ?", (now_iso(), row["id"]))
-        report.accounts_warned += 1
-    for row in _unused_accounts(conn, "inactivity_notice_at < ?", iso_ago(days=INACTIVE_NOTICE_DAYS)):
-        if users.under_review(conn, row["id"]):  # a report about them is being handled
-            continue
-        images.remove_files(settings.uploads_dir, users.delete_user(conn, row["id"]))
-        report.accounts_deleted += 1
+        report.accounts_warned += conn.execute(  # not if the account was used meanwhile
+            "UPDATE users SET inactivity_notice_at = ? WHERE id = ? AND inactivity_notice_at IS NULL "
+            "AND COALESCE(last_active_at, created_at) < ?",
+            (now_iso(), row["id"], unused),
+        ).rowcount
+    told, used = iso_ago(days=INACTIVE_NOTICE_DAYS), iso_ago(days=days)
+    for row in _unused_accounts(
+        conn, "inactivity_notice_at < ? AND COALESCE(last_active_at, created_at) < ?", told, used
+    ):
+        filenames = users.delete_unused(conn, row["id"], told, used)
+        if filenames is not None:  # None: used meanwhile, or a report about them is being handled
+            images.remove_files(settings.uploads_dir, filenames)
+            report.accounts_deleted += 1
 
 
 def run(

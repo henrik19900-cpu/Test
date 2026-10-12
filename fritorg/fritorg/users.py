@@ -344,26 +344,48 @@ def get_user_by_email(conn: sqlite3.Connection, email: str) -> User | None:
 
 def delete_user(conn: sqlite3.Connection, user_id: int) -> list[str]:
     """Delete an account with its listings, images, messages and tokens. Returns image files to remove."""
+    with transaction(conn):
+        return _delete(conn, user_id)
+
+
+def delete_unused(
+    conn: sqlite3.Connection, user_id: int, told_before: str, used_before: str
+) -> list[str] | None:
+    """delete_user() for an account nobody uses (maintenance.py): only if its owner was told before `told_before`
+    and it has not been used since `used_before`. That is checked in the transaction that deletes, so using the
+    account at the last moment keeps it. Returns None when it is kept."""
+    with transaction(conn):
+        unused = conn.execute(
+            "SELECT 1 FROM users WHERE id = ? AND banned_at IS NULL AND is_admin = 0 "
+            "AND inactivity_notice_at < ? AND COALESCE(last_active_at, created_at) < ?",
+            (user_id, told_before, used_before),
+        ).fetchone()
+        if unused is None or under_review(conn, user_id):
+            return None
+        return _delete(conn, user_id)
+
+
+def _delete(conn: sqlite3.Connection, user_id: int) -> list[str]:
+    """delete_user() inside the caller's transaction."""
     rows = conn.execute(
         "SELECT i.filename FROM listing_images i JOIN listings l ON l.id = i.listing_id WHERE l.user_id = ?",
         (user_id,),
     ).fetchall()
-    with transaction(conn):
-        # Moderators' notes about the person or their listings go; what was decided, and when, stays.
-        conn.execute(
-            "UPDATE moderation_log SET user_id = NULL, note = NULL WHERE user_id = ? "
-            "OR listing_id IN (SELECT id FROM listings WHERE user_id = ?)",
-            (user_id, user_id),
-        )
-        # Deleted one by one, so triggers remove them from the search index (the account takes the rest).
-        conn.execute("DELETE FROM listings WHERE user_id = ?", (user_id,))
-        # Remembered (id and creation time only), so a restore from a backup deletes the account again.
-        conn.execute(
-            "INSERT OR IGNORE INTO deleted_accounts (user_id, created_at, deleted_at) "
-            "SELECT id, created_at, ? FROM users WHERE id = ?",
-            (now_iso(), user_id),
-        )
-        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    # Moderators' notes about the person or their listings go; what was decided, and when, stays.
+    conn.execute(
+        "UPDATE moderation_log SET user_id = NULL, note = NULL WHERE user_id = ? "
+        "OR listing_id IN (SELECT id FROM listings WHERE user_id = ?)",
+        (user_id, user_id),
+    )
+    # Deleted one by one, so triggers remove them from the search index (the account takes the rest).
+    conn.execute("DELETE FROM listings WHERE user_id = ?", (user_id,))
+    # Remembered (id and creation time only), so a restore from a backup deletes the account again.
+    conn.execute(
+        "INSERT OR IGNORE INTO deleted_accounts (user_id, created_at, deleted_at) "
+        "SELECT id, created_at, ? FROM users WHERE id = ?",
+        (now_iso(), user_id),
+    )
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     return [row["filename"] for row in rows]
 
 

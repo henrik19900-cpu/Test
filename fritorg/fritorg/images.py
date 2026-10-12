@@ -106,6 +106,10 @@ def process_image(data: bytes) -> ProcessedImage:
             with PILImage.open(io.BytesIO(data)) as opened:
                 if opened.format not in ALLOWED_FORMATS:
                     raise ValueError(f"format {opened.format}")
+                # Checked here too: the warning filter above is shared by every thread, so a parallel upload
+                # can undo it while this one is read.
+                if opened.width * opened.height > PILImage.MAX_IMAGE_PIXELS:
+                    raise ValueError("too many pixels")
                 opened.seek(0)  # first frame of animations
                 image = ImageOps.exif_transpose(opened)  # respect the phone's rotation flag
                 image.load()

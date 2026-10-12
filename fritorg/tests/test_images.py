@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import warnings
 
 import pytest
 from conftest import PHOTO, make_image, make_listing
@@ -71,6 +72,22 @@ def test_decompression_bombs_are_rejected(monkeypatch):
     monkeypatch.setattr(PILImage, "MAX_IMAGE_PIXELS", 10_000)
     with pytest.raises(ValidationProblem):
         images.process_image(make_image(6, size=(400, 300)))
+
+
+def test_photos_over_the_pixel_limit_are_refused_while_other_uploads_run(monkeypatch):
+    """Pillow only warns below twice the limit, and the filter that makes the warning an error is shared by all
+    threads: another upload leaving its warnings block in the meantime puts the old filters back."""
+    monkeypatch.setattr(PILImage, "MAX_IMAGE_PIXELS", 10_000)
+    real_open = PILImage.open
+
+    def open_as_filters_are_restored(*args, **kwargs):
+        warnings.resetwarnings()
+        warnings.simplefilter("ignore")
+        return real_open(*args, **kwargs)
+
+    monkeypatch.setattr(PILImage, "open", open_as_filters_are_restored)
+    with pytest.raises(ValidationProblem):
+        images.process_image(make_image(6, size=(150, 100)))  # 15 000 pixels
 
 
 def test_perceptual_hash_survives_resizing_and_jpeg():

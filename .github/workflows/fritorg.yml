@@ -30,18 +30,36 @@ jobs:
       - run: pytest
 
   docker:
+    name: docker${{ matrix.arch == 'arm64' && ' (arm64)' || '' }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oracle Cloud's free servers are ARM (Ampere A1). That image is built and started under QEMU.
+        include:
+          - arch: amd64
+            machine: x86_64
+          - arch: arm64
+            machine: aarch64
+    env:
+      PLATFORM: linux/${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v4
+      - if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          image: mirror.gcr.io/tonistiigi/binfmt:latest
+          platforms: arm64
       - name: Build image
         # Docker Hub sometimes refuses anonymous pulls from shared runners (429, 504); then use Google's mirror.
         run: |
-          docker build -t fritorg fritorg || docker build -t fritorg fritorg \
+          docker build --platform $PLATFORM -t fritorg fritorg || docker build --platform $PLATFORM -t fritorg fritorg \
             --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.12-slim
       - name: Start with demo data and check that it answers
         run: |
-          docker run -d --name fritorg -p 8000:8000 -e FRITORG_SEED_DEMO=1 fritorg
-          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
+          docker run -d --platform $PLATFORM --name fritorg -p 8000:8000 -e FRITORG_SEED_DEMO=1 fritorg
+          for i in $(seq 1 120); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
+          test "$(docker exec fritorg uname -m)" = ${{ matrix.machine }}
           curl -fsS http://127.0.0.1:8000/llms.txt | head -n 3
           curl -fsS "http://127.0.0.1:8000/api/v1/listings?q=sykkel" | python3 -c "import json, sys; assert json.load(sys.stdin)['total'] > 0"
           curl -fsS -X POST http://127.0.0.1:8000/mcp -H 'Content-Type: application/json' \

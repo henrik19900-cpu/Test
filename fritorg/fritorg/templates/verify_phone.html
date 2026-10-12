@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "macros.html" import field_error %}
+{% from "icons.html" import icon %}
+
+{% block title %}Bekreft mobilnummeret – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>{{ icon("shield", 28) }} Bekreft mobilnummeret ditt</h1>
+  {% if user.verification == "phone" %}
+    <p class="lead">Kontoen din er allerede bekreftet med {{ user.phone_hint }}. Du kan bytte til et annet nummer her.</p>
+  {% else %}
+    <p class="lead">Før du legger ut annonser eller sender meldinger, bekrefter du et norsk mobilnummer med en kode på SMS. Det tar under ett minutt.</p>
+  {% endif %}
+
+  {% if pending_hint %}
+  <form method="post" action="/verifiser-telefon/kode" class="panel" id="kode">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="neste" value="{{ next }}">
+    <div class="field">
+      <label for="code">Koden fra SMS-en</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus>
+      <p class="hint">Sendt til {{ pending_hint }}. Koden gjelder i 10 minutter.</p>
+      {{ field_error(errors, "code") }}
+    </div>
+    <button type="submit" class="button button-primary button-block">Bekreft</button>
+  </form>
+  {% endif %}
+
+  <form method="post" action="/verifiser-telefon" class="panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="neste" value="{{ next }}">
+    <div class="field">
+      <label for="phone">{% if pending_hint %}Fikk du ikke koden? Send en ny til{% else %}Mobilnummer{% endif %}</label>
+      <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="912 34 567" maxlength="20" required value="{{ values.phone or '' }}"{% if not pending_hint %} autofocus{% endif %}>
+      <p class="hint">Norsk mobilnummer med 8 siffer.</p>
+      {{ field_error(errors, "phone") }}
+    </div>
+    <button type="submit" class="button{% if not pending_hint %} button-primary{% endif %} button-block">Send kode på SMS</button>
+  </form>
+
+  <div class="panel tips">
+    <h2 class="panel-title">Hvorfor?</h2>
+    <ul class="small">
+      <li>Norske mobilabonnement er registrert på en person. Det gjør det mye vanskeligere å lage falske kontoer og svindle.</li>
+      <li>Hvert nummer kan bare brukes på én konto.</li>
+      <li>Nummeret vises aldri for andre, og vi lagrer det ikke i klartekst – bare en kryptografisk hash og de tre siste sifrene.</li>
+      <li>{{ site_name }} ringer deg aldri og spør aldri om koden. Ikke gi den til noen.</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

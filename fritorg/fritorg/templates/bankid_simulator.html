@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "macros.html" import field_error %}
+
+{% block title %}Simulert BankID – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>Simulert BankID</h1>
+  <p class="notice"><strong>Kun for utvikling og testing.</strong> I produksjon sendes du til ekte BankID i stedet for denne siden.</p>
+  <form method="post" action="/bankid/simulator" class="panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="state" value="{{ state }}">
+    <div class="field">
+      <label for="name">Fullt navn</label>
+      <input id="name" name="name" type="text" required value="{{ values.name or '' }}" placeholder="Kari Nordmann">
+      {{ field_error(errors, "name") }}
+    </div>
+    <div class="field">
+      <label for="subject">Testidentitet (11 siffer)</label>
+      <input id="subject" name="subject" type="text" inputmode="numeric" required value="{{ values.subject or '' }}" placeholder="01017012345">
+      <p class="hint">Samme nummer gir samme konto neste gang. Demo-kontoen har <code>01017012345</code>.</p>
+      {{ field_error(errors, "subject") }}
+    </div>
+    <button type="submit" class="button button-block bankid-button">Bekreft</button>
+  </form>
+</div>
+{% endblock %}

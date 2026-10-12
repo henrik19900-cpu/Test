@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% from "macros.html" import field_error %}
+
+{% block title %}Nytt passord – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>Lag nytt passord</h1>
+  <p class="lead">Skriv koden fra SMS-en og velg et nytt passord.</p>
+  <form method="post" action="/glemt-passord/kode" class="panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="email">E-post</label>
+      <input id="email" name="email" type="email" autocomplete="email" required value="{{ email }}">
+    </div>
+    <div class="field">
+      <label for="code">Koden fra SMS-en</label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus>
+      {{ field_error(errors, "code") }}
+    </div>
+    <div class="field">
+      <label for="password">Nytt passord</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+      <p class="hint">Minst 8 tegn.</p>
+      {{ field_error(errors, "password") }}
+    </div>
+    <button type="submit" class="button button-primary button-block">Lagre nytt passord</button>
+  </form>
+  <p><a href="/glemt-passord">Få en ny kode</a></p>
+</div>
+{% endblock %}

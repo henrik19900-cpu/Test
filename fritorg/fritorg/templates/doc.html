@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} – {{ site_name }}{% endblock %}
+{% block head %}<link rel="alternate" type="text/markdown" href="/{{ slug }}.md">{% endblock %}
+
+{% block content %}
+<article class="prose">
+  {{ content|safe }}
+  <p class="machine-links">Denne siden finnes også som <a href="/{{ slug }}.md">Markdown</a>.</p>
+</article>
+{% endblock %}

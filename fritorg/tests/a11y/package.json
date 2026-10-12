@@ -1,0 +1,10 @@
+{
+  "name": "gratistorget-a11y",
+  "private": true,
+  "description": "Universal design check of the pages (axe-core in Chromium)",
+  "type": "module",
+  "dependencies": {
+    "axe-core": "4.10.3",
+    "playwright": "1.56.1"
+  }
+}

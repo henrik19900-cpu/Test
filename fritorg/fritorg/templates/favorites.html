@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "macros.html" import listing_grid, pagination, saved_tabs with context %}
+{% from "icons.html" import icon %}
+
+{% block title %}Favoritter – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+{{ saved_tabs("favoritter") }}
+<div class="page-head">
+  <div>
+    <h1>Favoritter</h1>
+    <p class="muted">{% if total == 1 %}1 lagret annonse{% else %}{{ total|number }} lagrede annonser{% endif %}</p>
+  </div>
+</div>
+{% if mail_enabled %}
+<form class="inline-setting" method="post" action="/favoritter/varsel">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if user.price_alerts %}
+    <p class="small">{{ icon("bell", 16) }} Du får e-post når prisen settes ned på en favoritt{% if not user.email_verified_at %} (når du har <a href="/min-side#konto">bekreftet e-postadressen</a>){% endif %}. <button class="link-button" name="price_alerts" value="0">Slå av</button></p>
+  {% else %}
+    <p class="small">E-post når prisen settes ned er slått av. <button class="link-button" name="price_alerts" value="1">Slå på</button></p>
+  {% endif %}
+</form>
+{% endif %}
+{% if items %}
+  {{ listing_grid(items, heading=2) }}
+  {{ pagination(page, pages, page_url) }}
+{% else %}
+  <div class="empty">
+    <p><strong>Du har ingen favoritter ennå.</strong></p>
+    <p>Trykk på hjertet på en annonse for å lagre den her, så finner du den igjen senere. Bare du ser favorittene dine.</p>
+    <p><a class="button" href="/sok">Se annonser</a></p>
+  </div>
+{% endif %}
+{% endblock %}

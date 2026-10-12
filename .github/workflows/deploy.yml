@@ -1,0 +1,46 @@
+name: deploy
+
+# Publishes the site on its server when the tests have passed on main, or when started by hand (Actions →
+# deploy → Run workflow). The server is set up once with fritorg/deploy/github-deploy.sh, which prints the
+# three secrets below; until they are added, this does nothing. The key can only run deploy/update.sh there,
+# and that only publishes commits on main.
+on:
+  workflow_run:
+    workflows: [fritorg]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # After a push to main whose tests passed (not a pull request, which may come from a fork), or by hand.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HOST: ${{ secrets.DEPLOY_HOST }}
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Publish
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$HOST" ] || [ -z "$KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::notice::No server yet: run fritorg/deploy/github-deploy.sh on it and add the secrets it prints."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy -o BatchMode=yes -o StrictHostKeyChecking=yes "$HOST" "$COMMIT"

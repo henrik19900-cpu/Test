@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+/data/
+# On the server: settings with secrets, and the copied backups
+/deploy/.env
+/deploy/backup/
+node_modules/

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+
+{% block title %}Ny annonse – {{ site_name }}{% endblock %}
+
+{% block content %}
+<h1>Ny annonse</h1>
+<p class="lead">Det er gratis å legge ut annonser. Velg først hvilken kategori annonsen passer i.</p>
+<div class="category-grid">
+  {% for slug in GROUPS %}{% set group = CATEGORIES[slug] %}
+  <div class="category-card {% if selected_group and selected_group.slug == slug %}category-card-selected{% endif %}">
+    <p class="category-head"><span class="category-icon">{{ icon(group.slug, 28) }}</span> <strong>{{ group.name }}</strong></p>
+    <ul class="category-links">
+      {% for child_slug in group.children %}{% set child = CATEGORIES[child_slug] %}
+      <li><a href="/ny-annonse?category={{ child.slug }}">{{ child.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+<p class="muted">Har du en AI-assistent? Den kan legge ut annonsen for deg via <a href="/for-agenter">MCP eller API</a>.</p>
+{% endblock %}

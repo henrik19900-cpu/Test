@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import field_error %}
+
+{% block title %}Fullfør kontoen – {{ site_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block content %}
+<div class="narrow">
+  <h1>Nesten ferdig</h1>
+  <p class="lead">Du er bekreftet med BankID som <strong>{{ pending.verified_name }}</strong>.</p>
+  <form method="post" action="/registrer/fullfor" class="panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <p>På annonsene dine vises du som <strong>{{ pending.display_name }}</strong> med merket «BankID-verifisert».</p>
+    <div class="field">
+      <label for="email">E-post</label>
+      <input id="email" name="email" type="email" autocomplete="email" required value="{{ values.email or '' }}">
+      <p class="hint">Brukes til viktige beskjeder om kontoen. Den vises aldri for andre.</p>
+      {{ field_error(errors, "email") }}
+    </div>
+    <div class="field">
+      <label class="checkbox"><input type="checkbox" name="terms" value="1" required> Jeg godtar <a href="/vilkar">vilkårene</a></label>
+      {{ field_error(errors, "terms") }}
+    </div>
+    <button type="submit" class="button button-primary button-block">Lag kontoen</button>
+  </form>
+</div>
+{% endblock %}

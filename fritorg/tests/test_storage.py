@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import stat
 from contextlib import closing
+from pathlib import Path
 
-from fritorg import listings, maintenance, users
+from fritorg import identity, listings, maintenance, users
 from fritorg.config import Settings
 from fritorg.db import Database, transaction
 from fritorg.listings import SearchParams
@@ -100,3 +103,17 @@ def test_deleted_messages_do_not_stay_in_the_write_ahead_log(tmp_path):
         conn.execute("UPDATE users SET name = 'Kari N.'")  # the next write starts the -wal file over
         files = [db.path, db.path.with_name(db.path.name + "-wal")]
         assert [file.name for file in files if secret.encode() in file.read_bytes()] == []
+
+
+def test_the_secret_key_file_is_never_readable_by_others(tmp_path, monkeypatch):
+    """The key made on first start is created for the app's user only. Narrowing the permissions afterwards would
+    leave a moment in which another user on the machine could open it (and keep it open)."""
+    monkeypatch.setattr(Path, "chmod", lambda self, mode: None)  # as if that moment had not passed yet
+    umask = os.umask(0o022)
+    try:
+        key = identity.load_secret_key(Settings(data_dir=tmp_path / "data"))
+    finally:
+        os.umask(umask)
+    path = tmp_path / "data" / "secret_key"
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    assert identity.load_secret_key(Settings(data_dir=tmp_path / "data")) == key == path.read_text()

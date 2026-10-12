@@ -37,6 +37,8 @@ Koden, kommandoene (`fritorg …`) og innstillingene (`FRITORG_…`) heter forts
 - **Glemt passord** løses med en lenke på e-post eller en kode på SMS til det bekreftede nummeret.
 - **Bilder** som skaleres, lagres som WebP og får fjernet EXIF- og GPS-data.
 - **Bekreftede brukere:** norsk mobilnummer med SMS-kode som standard, BankID som valg.
+- **Privatperson eller bedrift:** bedrifter registrerer organisasjonsnummeret, og annonsene viser «Bedrift» med navnet fra Enhetsregisteret. Ved salg står det hvilke regler som gjelder (forbrukerkjøpsloven og angrerett, eller kjøpsloven).
+- **Regler for annonser:** vilkårene sier hva som ikke kan selges i Norge (alkohol, tobakk, legemidler, våpen som krever tillatelse, fyrverkeri, kopivarer med mer), og slike annonser holdes tilbake til en moderator har sett på dem. Bilder og tekst skal være selgerens egne, og brudd på opphavsretten kan rapporteres.
 - **Beskyttelse mot svindel**, moderering og rapportering (se under).
 - **Åpent for agenter:** MCP-server, REST-API med OpenAPI 3.1, `llms.txt`, eksport av alle annonser som NDJSON, Atom-feeder og JSON/Markdown-versjon av hver side.
 - **Annonser fra åpne kilder:** titusenvis av ledige stillinger fra arbeidsplassen.no (Nav), og svenske stillinger for folk som kan norsk. Alt hentes automatisk og holdes oppdatert.
@@ -152,8 +154,9 @@ Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyser
 
 ## Sjekkliste før lansering
 
-- [ ] Domene og server, med HTTPS (Caddy ordner sertifikatet).
-- [ ] SMS-leverandør satt opp og testet, med en daglig grense du har budsjett for. Alternativt: BankID-avtale.
+- [ ] Domenet gratistorget.no er registrert, og navnet er sjekket i Patentstyrets varemerkebase ([search.patentstyret.no](https://search.patentstyret.no)).
+- [ ] Server (for eksempel Oracle Cloud, se `deploy/oracle-cloud.md`), og DNS for domenet peker dit. Caddy ordner HTTPS-sertifikatet.
+- [ ] SMS-leverandør satt opp og testet, med en daglig grense du har budsjett for, og et avsendernavn på høyst 11 tegn (for eksempel «Gratistorg»). Alternativt: BankID-avtale.
 - [ ] E-post (SMTP) satt opp og testet, med SPF og DKIM for domenet.
 - [ ] `FRITORG_SECRET_KEY` er satt og lagret et trygt sted. Mister du den, kjennes ikke mobilnumre og BankID-identiteter igjen.
 - [ ] `FRITORG_OPERATOR` og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
@@ -162,7 +165,7 @@ Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyser
 - [ ] Publisering fra GitHub er satt opp (`deploy/github-deploy.sh`, se steg 10 i `deploy/oracle-cloud.md`), så nye versjoner på `main` legges ut av seg selv.
 - [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er prøvd (se «Gjenopprette» under Drift).
 - [ ] Personvern:
-  - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år) og lagringstidene
+  - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år), lagringstidene (blant annet at ubrukte kontoer slettes etter to år, `FRITORG_INACTIVE_ACCOUNT_DAYS`), listen over hva som ikke kan selges, og teksten om forbrukerrettigheter ved kjøp fra bedrifter og privatpersoner
   - protokoll over behandlingene (personvernforordningen artikkel 30) og en vurdering av personvernkonsekvenser (DPIA, artikkel 35), fordi alle meldinger sjekkes automatisk for svindel og annonsene deles åpent med AI-agenter
   - databehandleravtaler med server-, SMS- og e-postleverandøren (og BankID-megleren), en vurdering av overføringen til USA hvis SMS går gjennom Twilio, og `FRITORG_PROCESSORS` satt
   - rutiner for avvik (melding til Datatilsynet innen 72 timer), for henvendelser som kommer på e-post (`fritorg export-user` og `fritorg delete-user`) og for hvem som får være moderator

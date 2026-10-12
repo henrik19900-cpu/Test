@@ -1,11 +1,34 @@
 from __future__ import annotations
 
 import json
+import re
 
 from conftest import csrf, make_listing, register, web_login
 
 from fritorg import moderation, privacy, users
 from fritorg.util import iso_ago
+
+# Files a page makes the browser fetch: scripts, images and frames, and <link> (style sheets, icons).
+RESOURCE = re.compile(
+    r"<(?:script|img|iframe|source|video|audio|embed)\b[^>]*?\bsrc=[\"']([^\"']+)|<link\b[^>]*?\bhref=[\"']([^\"']+)",
+    re.IGNORECASE,
+)
+
+
+def test_pages_make_browsers_fetch_nothing_from_other_sites(client, auth):
+    listing = make_listing(client, auth)
+    for path in ("/", "/sok?q=sykkel", f"/annonse/{listing['id']}", "/vilkar", "/logg-inn", "/api/docs"):
+        page = client.get(path)
+        assert page.status_code == 200, path
+        for src, href in RESOURCE.findall(page.text):
+            url = src or href
+            # A file from another site tells that site the visitor's IP address and what they look at.
+            assert not re.match(r"(?:[a-z]+:)?//", url) or url.startswith("http://testserver/"), (path, url)
+    docs = client.get("/api/docs")
+    for url in re.findall(r"(?:src|href)=\"(/static/[^\"]+)\"", docs.text):
+        assert client.get(url).status_code == 200, url
+    policy = docs.headers["content-security-policy"]  # nor may the script fetch anything from elsewhere
+    assert "default-src 'self'" in policy and "http" not in policy
 
 
 def test_people_can_download_everything_stored_about_them(app, client):

@@ -269,3 +269,16 @@ def test_an_account_used_while_unused_ones_are_deleted_is_kept(app, client, auth
     monkeypatch.setattr(maintenance, "_unused_accounts", used_just_after_it_was_found)
     assert maintenance.run(app.state.db, settings, MemoryMailer(settings)).accounts_deleted == 0
     assert client.get("/api/v1/me", headers=auth).status_code == 200
+
+
+def test_turning_account_deletion_off_cancels_the_notices(app, client, auth, settings):
+    _unused_for_long(app, settings)
+    memory = MemoryMailer(settings)
+    assert maintenance.run(app.state.db, settings, memory).accounts_warned == 1
+    days, settings.inactive_account_days = settings.inactive_account_days, 0
+    maintenance.run(app.state.db, settings, memory)
+    _a_month_passes(app)
+    settings.inactive_account_days = days  # on again, long after the day the notice gave
+    report = maintenance.run(app.state.db, settings, memory)
+    assert (report.accounts_warned, report.accounts_deleted) == (1, 0)  # told again, with a new day
+    assert len(memory.outbox) == 2

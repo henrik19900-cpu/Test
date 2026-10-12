@@ -206,10 +206,11 @@ def _delete_unused_accounts(
     conn: sqlite3.Connection, settings: Settings, mailer: Mailer | None, base: str, report: Report
 ) -> None:
     """Storage limitation (GDPR art. 5): accounts nobody has used for inactive_account_days are deleted, after a
-    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it.
-    Until an e-mail to a verified address has gone out, the account is kept."""
+    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it, and
+    so does turning the deletion off. Until an e-mail to a verified address has gone out, the account is kept."""
     days = settings.inactive_account_days
     if not days:
+        conn.execute("UPDATE users SET inactivity_notice_at = NULL WHERE inactivity_notice_at IS NOT NULL")
         return
     unused = iso_ago(days=max(days - INACTIVE_NOTICE_DAYS, 1))
     when = format_date_no(iso_in(days=INACTIVE_NOTICE_DAYS))

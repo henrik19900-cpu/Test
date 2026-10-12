@@ -1,6 +1,6 @@
 """Categories, listing types, counties and per-category attribute schemas.
 
-This is the single source of truth for structured data on Fritorg. The same definitions
+This is the single source of truth for structured data on the site. The same definitions
 drive form fields, validation, search filters, the OpenAPI/MCP schemas and llms.txt, so
 humans and agents always see the same rules.
 """

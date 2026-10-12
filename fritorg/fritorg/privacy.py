@@ -1,4 +1,4 @@
-"""A copy of everything Fritorg stores about a person (GDPR articles 15 and 20)."""
+"""A copy of everything the site stores about a person (GDPR articles 15 and 20)."""
 
 from __future__ import annotations
 

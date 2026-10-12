@@ -1,8 +1,10 @@
-# Fritorg
+# Gratistorget
 
 **Gratis markedsplass for hele Norge – like enkel å bruke for AI-agenter som for mennesker.**
 
-Fritorg er et åpent alternativ til de store annonseplattformene: Torget, kjøretøy og båt, eiendom, jobb og tjenester. Det koster ingenting å legge ut annonser, søke eller sende meldinger, og alt en person kan gjøre på nettsiden, kan en AI-assistent gjøre via MCP eller et vanlig JSON-API – uten CAPTCHA, betalingsmur eller skjulte sperrer.
+Gratistorget ([gratistorget.no](https://gratistorget.no)) er et åpent alternativ til de store annonseplattformene: Torget, kjøretøy og båt, eiendom, jobb og tjenester. Det koster ingenting å legge ut annonser, søke eller sende meldinger, og alt en person kan gjøre på nettsiden, kan en AI-assistent gjøre via MCP eller et vanlig JSON-API – uten CAPTCHA, betalingsmur eller skjulte sperrer.
+
+Koden, kommandoene (`fritorg …`) og innstillingene (`FRITORG_…`) heter fortsatt `fritorg`, etter det første navnet. Navnet som vises på siden, styres av `FRITORG_SITE_NAME`.
 
 ## Innhold
 
@@ -53,7 +55,7 @@ python -m fritorg seed     # demo-brukere og 51 demo-annonser
 python -m fritorg serve    # http://127.0.0.1:8000
 ```
 
-Logg inn med `demo@fritorg.no` og passordet `demo1234`. Lokalt sendes ingen SMS: koden vises på skjermen, og et gult banner viser at siden er i testmodus.
+Logg inn med `demo@gratistorget.no` og passordet `demo1234`. Lokalt sendes ingen SMS: koden vises på skjermen, og et gult banner viser at siden er i testmodus.
 
 ## Slik lagres data
 
@@ -96,12 +98,12 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
 - **Moderering** på `/moderering`: godkjenne eller fjerne annonser, avvise rapporter, fjerne vurderinger og stenge kontoer. Alt logges.
 - **Klage:** den som får en annonse fjernet, ser begrunnelsen og kan klage én gang. En moderator publiserer annonsen igjen eller svarer på e-post hvorfor den forblir fjernet. Stengte kontoer får vite hvor de kan klage (`FRITORG_CONTACT_EMAIL`).
 - **Merking:** «Mobilnummer bekreftet» eller «BankID-verifisert», «Ny bruker» og «via AI-agent».
-- **Navn som kan forveksles** med siden selv eller kjente selskaper (for eksempel «Fritorg», «Vipps», «Posten») avvises.
+- **Navn som kan forveksles** med siden selv eller kjente selskaper (for eksempel «Gratistorget», «Vipps», «Posten») avvises.
 
 ## For AI-agenter
 
 - Veiledning: `/for-agenter` (også som `/for-agenter.md`) og `/llms.txt`.
-- MCP-server (Streamable HTTP): `/mcp`. Uten nøkkel får agenten verktøy for å lese, med en personlig nøkkel også for å skrive. Eksempel: `claude mcp add --transport http fritorg https://fritorg.no/mcp`
+- MCP-server (Streamable HTTP): `/mcp`. Uten nøkkel får agenten verktøy for å lese, med en personlig nøkkel også for å skrive. Eksempel: `claude mcp add --transport http gratistorget https://gratistorget.no/mcp`
 - Innlogging fra AI-assistenten: `/mcp/konto` ber assistenten logge inn (OAuth 2.1 med PKCE og dynamisk registrering, slik MCP-spesifikasjonen beskriver). Brukeren logger inn og godkjenner, og assistenten får en vanlig API-nøkkel som vises og kan slettes på Min side. Claude, ChatGPT, Claude Code, Cursor og VS Code støtter dette.
 - REST-API: `/api/v1`, dokumentert i `/openapi.json` og `/api/docs`. Feil følger RFC 9457 med norsk `detail` og engelsk `hint`.
 - Agenter kan be om tilgang selv med device flow (`POST /api/v1/auth/device`), og personen godkjenner på `/koble-til`.
@@ -112,15 +114,15 @@ Alle som legger ut annonser eller sender meldinger, må være en bekreftet perso
 
 Å kopiere annonser fra finn.no eller andre markedsplasser er ikke lovlig. Det bryter FINNs vilkår, som forbyr kopiering og automatisk innhenting, og databasevernet i åndsverkloven § 24. Bildene er dessuten fotografenes, og annonsene inneholder personopplysninger om private selgere. Disse veiene er lovlige:
 
-1. **Ledige stillinger fra Nav (innebygd).** Navs åpne stillingsfeed kan brukes av alle, og [vilkårene](https://arbeidsplassen.nav.no/vilkar-api) gir uttrykkelig rett til å publisere annonsene videre. Til gjengjeld må annonser som endres eller avsluttes hos Nav, endres eller fjernes straks, og «Søk på stillingen» må lenke direkte til arbeidsgiverens søknadsside. Fritorg gjør alt dette automatisk:
+1. **Ledige stillinger fra Nav (innebygd).** Navs åpne stillingsfeed kan brukes av alle, og [vilkårene](https://arbeidsplassen.nav.no/vilkar-api) gir uttrykkelig rett til å publisere annonsene videre. Til gjengjeld må annonser som endres eller avsluttes hos Nav, endres eller fjernes straks, og «Søk på stillingen» må lenke direkte til arbeidsgiverens søknadsside. Gratistorget gjør alt dette automatisk:
    - Slå det på med `FRITORG_NAV_IMPORT=1`. Importen kjører i bakgrunnen og sjekker feeden hvert annet minutt. Den første importen av alle aktive stillinger tar noen timer.
    - Be om et eget token: send en e-post til nav.team.arbeidsplassen@nav.no der du bekrefter at du godtar vilkårene, med firmanavn, kontaktperson, e-post og telefon. Legg tokenet i `FRITORG_NAV_TOKEN`. Uten det brukes Navs offentlige testtoken, som byttes ut med jevne mellomrom.
    - Kontaktpersonlistene fra Nav lagres ikke, og stillingene er ikke med i bulk-eksporten (de finnes i Navs egen feed).
    - Manuelt: `fritorg import-nav --until-done`.
-2. **Bedrifter som deler sine egne annonser.** Bilforhandlere, meglere, butikker, auksjonshus og arbeidsgivere eier annonsene sine og kan sende dem til flere markedsplasser, slik meglerne gjør med hjem.no. Med `PUT /api/v1/me/feeds/{feed}` sender de hele lageret i ett kall, og Fritorg lager, endrer og fjerner annonser så det stemmer. Siden `/for-bedrifter` forklarer hvordan. Avtalen bør si at de har rett til tekst og bilder.
+2. **Bedrifter som deler sine egne annonser.** Bilforhandlere, meglere, butikker, auksjonshus og arbeidsgivere eier annonsene sine og kan sende dem til flere markedsplasser, slik meglerne gjør med hjem.no. Med `PUT /api/v1/me/feeds/{feed}` sender de hele lageret i ett kall, og Gratistorget lager, endrer og fjerner annonser så det stemmer. Siden `/for-bedrifter` forklarer hvordan. Avtalen bør si at de har rett til tekst og bilder.
 3. **Selgere som flytter sine egne annonser.** En selger kan legge ut samme vare her, med sin egen tekst og sine egne bilder fra mobilen eller PC-en. AI-assistenter kan hjelpe til via MCP. Ikke hent annonsen automatisk fra finn.no.
 4. **Svenske stillinger (innebygd).** Stillinger fra Platsbanken som ligger i Norge eller krever norsk (CC0, rundt 200), slås på med `FRITORG_JOBTECH_IMPORT=1`. Kontaktpersonene tas ikke med.
-5. **Lenker.** En vanlig lenke til et søk på en annen side er lovlig, men vis aldri andres søkeresultater inne på Fritorg.
+5. **Lenker.** En vanlig lenke til et søk på en annen side er lovlig, men vis aldri andres søkeresultater inne på Gratistorget.
 
 Disse kildene krever en avtale, men er verdt å kontakte: Auksjonen.no (vilkårene åpner for å formidle auksjonsannonser eksternt), rekrutteringssystemer som Teamtailor og Jobylon (stillinger som ikke er hos Nav), utbyggere og boligbyggelag som OBOS og Selvaag Bolig, Loopfront (brukte møbler og utstyr fra kommuner), BUA (gratis utlån av utstyr), frivillig.no og affiliate-nettverk som Adtraction for nye varer fra nettbutikker (må merkes som reklame). Å kopiere fra finn.no, Blocket, Tise, eBay, Etsy eller Facebook er ikke lov.
 
@@ -128,7 +130,7 @@ Dette bygger på en gjennomgang av vilkårene, loven og rettspraksis (blant anne
 
 ## Sette i drift
 
-Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.com/), som henter og fornyer HTTPS-sertifikater automatisk.
+Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyserver.com/), som henter og fornyer HTTPS-sertifikater automatisk.
 
 1. Skaff en server med Docker (for eksempel en liten VPS i Norge eller EU) og pek domenets A/AAAA-oppføring dit. En gratis maskin hos Oracle Cloud holder godt: se [steg for steg](deploy/oracle-cloud.md).
 2. Fyll inn innstillingene:
@@ -227,7 +229,7 @@ Loggene: Caddy fører en tilgangslogg med IP-adresse og side, uten nøkler, enga
 
 ## Kapasitet og serverkrav
 
-Fritorg skal kunne ha veldig mange annonser på én liten server. Det er målt med en testdatabase med 1 million oppdiktede annonser, omtrent like mange som på finn.no. Testmaskinen hadde to prosessorkjerner (Intel Xeon, 2,1 GHz). Før denne versjonen tok forsiden 3 sekunder å lage med så mange annonser, og et søk opptil 5 sekunder. Nå tar en hel side, med HTML:
+Gratistorget skal kunne ha veldig mange annonser på én liten server. Det er målt med en testdatabase med 1 million oppdiktede annonser, omtrent like mange som på finn.no. Testmaskinen hadde to prosessorkjerner (Intel Xeon, 2,1 GHz). Før denne versjonen tok forsiden 3 sekunder å lage med så mange annonser, og et søk opptil 5 sekunder. Nå tar en hel side, med HTML:
 
 | Side (1 million annonser) | Tid |
 | --- | --- |
@@ -274,11 +276,11 @@ Alle innstillinger er miljøvariabler. De viktigste:
 
 | Variabel | Standard | Betydning |
 | --- | --- | --- |
-| `FRITORG_BASE_URL` | utledes fra forespørselen | Offentlig adresse, for eksempel `https://fritorg.no`. Med https slås HSTS og sikre informasjonskapsler på. |
+| `FRITORG_BASE_URL` | utledes fra forespørselen | Offentlig adresse, for eksempel `https://gratistorget.no`. Med https slås HSTS og sikre informasjonskapsler på. |
 | `FRITORG_DATA_DIR` | `data` | Mappe for database, bilder og nøkkel. |
 | `FRITORG_UPLOADS_DIR` | `data/uploads` | Mappe for bildene. I `deploy/` er det et eget volum, så Caddy kan servere bildene uten tilgang til databasen. |
 | `FRITORG_SECRET_KEY` | fil i datamappen | Hemmelig nøkkel (64 heksadesimale tegn). |
-| `FRITORG_SITE_NAME` | `Fritorg` | Navnet på siden. |
+| `FRITORG_SITE_NAME` | `Gratistorget` | Navnet på siden. |
 | `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Behandlingsansvarlig og kontaktadresse for personvern (vises i vilkårene; `fritorg doctor` krever dem). |
 | `FRITORG_PROCESSORS` | – | Databehandlerne, slik personvernerklæringen skal nevne dem, f.eks. «Oracle Cloud (servere, Sverige), Twilio (SMS, USA)». |
 | `FRITORG_VERIFICATION` | `sms` | `sms` eller `none` (bare for testing). |

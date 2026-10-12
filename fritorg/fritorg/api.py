@@ -673,7 +673,7 @@ def me(conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
 def sync_feed(
     feed: str, body: FeedSyncIn, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
 ) -> dict:
-    """For businesses: send everything that should be on Fritorg for one feed, each item with your own
+    """For businesses: send everything that should be listed here for one feed, each item with your own
     `external_id`. New items are created, changed ones updated, and (with `remove_missing`) items no longer
     in the list are deleted. Unchanged items are skipped, so repeat the same call as often as you like,
     e.g. every hour. Every sync keeps the listings active.
@@ -700,7 +700,7 @@ def delete_feed(feed: str, conn: Conn, user: CurrentUser, settings: SettingsDep)
 
 @router.get("/me/export", tags=["account"], summary="All your data (GDPR)")
 def export_my_data(request: Request, conn: Conn, user: CurrentUser) -> JSONResponse:
-    """Everything Fritorg stores about the account: profile, listings, conversations, tokens and reports."""
+    """Everything we store about the account: profile, listings, conversations, tokens and reports."""
     data = privacy.export_user(conn, user, base_url(request))
     return JSONResponse(data, headers={"Cache-Control": "no-store"})
 

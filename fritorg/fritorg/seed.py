@@ -12,7 +12,7 @@ from .config import Settings
 from .db import Database
 from .util import to_iso, utcnow
 
-DEMO_EMAIL = "demo@fritorg.no"
+DEMO_EMAIL = "demo@gratistorget.no"
 DEMO_PASSWORD = "demo1234"  # used when BankID is off
 DEMO_TEST_IDENTITY = "01017012345"  # log in with this in the BankID simulator
 

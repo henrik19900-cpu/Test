@@ -87,7 +87,7 @@ class FeedClient:
         self.conn = conn
         self.http = http or http_get
         contact = settings.contact_email or settings.base_url or "no contact configured"
-        self.user_agent = f"Fritorg/{__version__} (job ad import; {contact})"
+        self.user_agent = f"{settings.site_id}/{__version__} (job ad import; {contact})"
 
     def _token(self, refresh: bool = False) -> str:
         if self.static_token:
@@ -210,7 +210,7 @@ def place_name(value: str | None) -> str:
     return "".join(out)
 
 
-# Nav's occupation groups (occupationCategories.level1) -> Fritorg job categories, first match wins.
+# Nav's occupation groups (occupationCategories.level1) -> our job categories, first match wins.
 _CATEGORY_KEYWORDS = (
     ("jobb-it", ("it", "ikt", "data", "utvikling")),
     ("jobb-helse", ("helse", "sosial", "omsorg", "pleie")),

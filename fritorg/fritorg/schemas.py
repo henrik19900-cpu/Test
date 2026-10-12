@@ -85,7 +85,7 @@ class FeedSyncIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     listings: list[FeedItemIn] = Field(
-        description="Everything that should be on Fritorg for this feed (max 1000 per call)."
+        description="Everything that should be listed here for this feed (max 1000 per call)."
     )
     remove_missing: bool = Field(
         True, description="Delete this feed's listings that are not in `listings` (the usual full sync)."
@@ -112,7 +112,7 @@ class FeedSyncOut(BaseModel):
     removed: int
     failed: list[FeedFailureOut] = Field(description="Items that were not accepted, and why.")
     listings: list[FeedListingOut] = Field(
-        description="Fritorg listing id per item. Add photos with POST /api/v1/listings/{id}/images."
+        description="Our listing id per item. Add photos with POST /api/v1/listings/{id}/images."
     )
 
 
@@ -285,7 +285,7 @@ class ListingOut(ListingSummaryOut):
     images: list[ImageOut]
     seller: SellerOut
     safety_warnings: list[str] = Field(
-        description="Neutral warnings for buyers (e.g. the listing asks for contact outside Fritorg). Show them to your user."
+        description="Neutral warnings for buyers (e.g. the listing asks for contact outside the marketplace). Show them to your user."
     )
     moderation: ModerationOut | None = None
     views: int | None = Field(

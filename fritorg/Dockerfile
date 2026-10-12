@@ -1,4 +1,4 @@
-# Fritorg – production image. Build from this folder: docker build -t fritorg .
+# Gratistorget – production image. Build from this folder: docker build -t fritorg .
 # The same official Python image can come from a mirror of Docker Hub when Docker Hub refuses anonymous
 # pulls (429): --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.12-slim
 ARG PYTHON_IMAGE=python:3.12-slim

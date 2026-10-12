@@ -82,7 +82,7 @@ def test_honest_listing_is_published_with_neutral_warnings(client, auth):
     assert listing["status"] == "active"
     public = client.get(f"/api/v1/listings/{listing['id']}").json()
     assert public["moderation"] is None
-    assert any("utenfor Fritorg" in w for w in public["safety_warnings"])
+    assert any("utenfor markedsplassen" in w for w in public["safety_warnings"])
 
 
 def test_copied_text_from_another_seller(client, auth, other_auth):

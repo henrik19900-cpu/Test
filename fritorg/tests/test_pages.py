@@ -7,7 +7,7 @@ from conftest import PHOTO, make_listing, register, web_login
 
 def test_sharing_previews(client, auth):
     home = client.get("/").text
-    assert '<meta property="og:site_name" content="Fritorg">' in home
+    assert '<meta property="og:site_name" content="Gratistorget">' in home
     assert '<meta property="og:image" content="http://testserver/static/og.png">' in home
     assert client.get("/static/og.png").headers["content-type"] == "image/png"
 
@@ -32,7 +32,7 @@ def test_web_app_manifest(client):
     response = client.get("/manifest.webmanifest")
     assert response.headers["content-type"].startswith("application/manifest+json")
     manifest = response.json()
-    assert manifest["short_name"] == "Fritorg" and manifest["start_url"] == "/"
+    assert manifest["short_name"] == "Gratistorget" and manifest["start_url"] == "/"
     for icon in manifest["icons"]:
         assert client.get(icon["src"]).status_code == 200
     assert '<link rel="manifest" href="/manifest.webmanifest">' in client.get("/").text
@@ -114,7 +114,7 @@ def test_search_titles(client):
     }
     for url, title in cases.items():
         page = client.get(url).text
-        assert f"<title>{title} – Fritorg</title>" in page, url
+        assert f"<title>{title} – Gratistorget</title>" in page, url
 
 
 def test_share_button_is_an_extra(client, auth):

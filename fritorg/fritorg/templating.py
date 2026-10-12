@@ -76,6 +76,7 @@ def base_context(request: Request, conn: sqlite3.Connection | None) -> dict[str,
         "csrf_token": getattr(request.state, "csrf_token", ""),
         "flash": unquote(flash) if flash else None,
         "site_name": settings.site_name,
+        "site_id": settings.site_id,
         "bankid_mode": settings.bankid_mode,
         # "bankid", "sms" or "none": how people are verified on this site
         "verification_mode": "bankid" if settings.bankid_required else settings.verification,

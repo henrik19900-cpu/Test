@@ -121,14 +121,14 @@ def _check_backup(source: Path) -> None:
         finally:
             copy.close()
     except sqlite3.DatabaseError as exc:
-        raise RestoreProblem(f"{source} er ikke en database fra Fritorg ({exc}).") from None
+        raise RestoreProblem(f"{source} er ikke en sikkerhetskopi fra «fritorg backup» ({exc}).") from None
     if not {"users", "listings"} <= tables:
-        raise RestoreProblem(f"{source} er ikke en database fra Fritorg.")
+        raise RestoreProblem(f"{source} er ikke en sikkerhetskopi fra «fritorg backup».")
     if not healthy:
         raise RestoreProblem(f"{source} er skadet. Prøv en annen sikkerhetskopi.")
     if version > len(MIGRATIONS):
         raise RestoreProblem(
-            f"{source} er laget av en nyere versjon av Fritorg. Oppdater koden før du gjenoppretter den."
+            f"{source} er laget av en nyere versjon av programmet. Oppdater koden før du gjenoppretter den."
         )
     if _backup_time(source) < utcnow() - timedelta(days=DELETION_LOG_DAYS):
         raise RestoreProblem(
@@ -374,6 +374,15 @@ def _verification_checks(settings: Settings, test_sms_to: str | None) -> list[Ch
             f"{settings.sms_per_ip_per_hour} per IP-adresse per time",
         ),
     ]
+    sender_id = settings.twilio_from or ""
+    if settings.sms_provider == "twilio" and not sender_id.startswith("+") and len(sender_id) > 11:
+        checks.append(
+            Check(
+                False,
+                f"Avsendernavnet «{sender_id}» (FRITORG_TWILIO_FROM) er for langt: et navn som avsender på SMS kan "
+                "ha høyst 11 bokstaver og tall",
+            )
+        )
     if test_sms_to and sender is not None:
         try:
             number = phone.normalize_mobile(test_sms_to)

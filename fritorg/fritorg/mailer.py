@@ -3,7 +3,7 @@
 Mail goes out through any SMTP server (FRITORG_SMTP_*). Without SMTP settings nothing is
 sent and nothing breaks. Messages are sent from a background thread so a slow mail server
 never delays a page. Notifications only go to verified addresses, so nobody can make
-Fritorg send mail to a stranger by typing their address.
+the site send mail to a stranger by typing their address.
 """
 
 from __future__ import annotations

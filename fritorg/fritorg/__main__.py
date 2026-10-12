@@ -13,7 +13,8 @@ from .db import Database
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="fritorg", description="Fritorg – gratis markedsplass for mennesker og AI-agenter"
+        prog="fritorg",
+        description="Programmet bak Gratistorget, en gratis markedsplass for mennesker og AI-agenter",
     )
     commands = parser.add_subparsers(dest="command")
 

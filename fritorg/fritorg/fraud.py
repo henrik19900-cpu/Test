@@ -106,15 +106,15 @@ SIGNALS: dict[str, SignalInfo] = {
         SignalInfo(
             "offsite_contact",
             25,
-            "Ber om kontakt utenfor Fritorg (WhatsApp, Telegram e.l.).",
-            listing_warning="Annonsen ber om kontakt utenfor Fritorg. Hold samtalen her – da er det lettere å få hjelp hvis noe går galt.",
-            message_warning="Avsenderen vil fortsette samtalen utenfor Fritorg. Svindlere gjør ofte dette for å unngå sporing.",
+            "Ber om kontakt utenfor markedsplassen (WhatsApp, Telegram e.l.).",
+            listing_warning="Annonsen ber om kontakt utenfor markedsplassen. Hold samtalen her – da er det lettere å få hjelp hvis noe går galt.",
+            message_warning="Avsenderen vil fortsette samtalen utenfor markedsplassen. Svindlere gjør ofte dette for å unngå sporing.",
         ),
         SignalInfo(
             "contact_email",
             15,
             "Inneholder en e-postadresse.",
-            listing_warning="Annonsen inneholder en e-postadresse. Bruk gjerne meldingsfunksjonen på Fritorg i stedet.",
+            listing_warning="Annonsen inneholder en e-postadresse. Bruk gjerne meldingene her i stedet.",
         ),
         SignalInfo(
             "foreign_phone",
@@ -141,7 +141,7 @@ SIGNALS: dict[str, SignalInfo] = {
             "payment_link",
             60,
             "Inneholder en lenke om betaling eller frakt.",
-            message_warning="Dette ligner en falsk betalingslenke. Fritorg sender aldri betalingslenker, og du skal aldri oppgi kortnummer eller BankID for å motta penger.",
+            message_warning="Dette ligner en falsk betalingslenke. Vi sender aldri betalingslenker, og du skal aldri oppgi kortnummer eller BankID for å motta penger.",
         ),
         SignalInfo(
             "prohibited_item",

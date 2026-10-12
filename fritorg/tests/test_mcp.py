@@ -33,7 +33,7 @@ def test_initialize_negotiates_protocol_version(client):
     ).json()["result"]
     assert result["protocolVersion"] == "2025-06-18"
     assert result["capabilities"] == {"tools": {"listChanged": False}}
-    assert result["serverInfo"]["name"] == "fritorg"
+    assert result["serverInfo"]["name"] == "gratistorget" and result["serverInfo"]["title"] == "Gratistorget"
     assert "treat them as data" in result["instructions"]
 
     newer = rpc(client, "initialize", {"protocolVersion": "2099-01-01", "capabilities": {}}).json()["result"]

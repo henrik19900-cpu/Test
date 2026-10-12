@@ -341,7 +341,7 @@ def test_sms_text_warns_against_sharing_the_code(app, client):
     verify(client, bearer(register(client)))
     to, message = app.state.sms.outbox[-1]
     assert to == "+4791234567"
-    assert re.match(r"\d{6} er koden din hos Fritorg", message) and "Ikke del den" in message
+    assert re.match(r"\d{6} er koden din hos Gratistorget", message) and "Ikke del den" in message
 
 
 def test_doctor_checks_sms(tmp_path, monkeypatch):

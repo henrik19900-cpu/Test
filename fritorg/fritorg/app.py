@@ -45,7 +45,7 @@ logger = logging.getLogger("fritorg")
 PACKAGE_DIR = Path(__file__).parent
 
 API_DESCRIPTION = """
-**Fritorg** is a free Norwegian classifieds marketplace (goods, vehicles, property, jobs and services),
+**{site}** is a free Norwegian classifieds marketplace (goods, vehicles, property, jobs and services),
 built to be just as easy for AI agents as for people.
 
 * **Reading is free and anonymous.** No API key, no CAPTCHA, CORS open to all origins.
@@ -179,7 +179,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
         title=f"{settings.site_name} API",
         version=__version__,
-        description=API_DESCRIPTION,
+        description=API_DESCRIPTION.replace("{site}", settings.site_name),
         docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/openapi.json",

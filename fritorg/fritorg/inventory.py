@@ -1,8 +1,8 @@
 """Inventory sync for businesses: dealers, estate agents, shops and employers publish their own
 listings here from their own systems, with one call.
 
-They send everything that should be on Fritorg for one feed (a name of their choice), each item with
-their own id. Fritorg creates what is new, updates what changed, and removes what is no longer in
+They send everything that should be listed for one feed (a name of their choice), each item with
+their own id. The site creates what is new, updates what changed, and removes what is no longer in
 the feed. Unchanged items cost nothing, so the same call can simply be repeated, e.g. every hour.
 Synced listings follow the same rules as all others (verified account, fraud checks, moderation),
 and every sync renews them, so they only expire if the business stops syncing.

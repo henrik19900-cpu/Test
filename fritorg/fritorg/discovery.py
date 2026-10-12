@@ -43,7 +43,13 @@ def render_doc(request: Request, name: str, **extra) -> str:
     """Render a Markdown document from templates/docs with the site's name and base URL."""
     settings = request.app.state.settings
     template = templates.env.get_template(f"docs/{name}")
-    return template.render(base=base_url(request), site_name=settings.site_name, settings=settings, **extra)
+    return template.render(
+        base=base_url(request),
+        site_name=settings.site_name,
+        site_id=settings.site_id,
+        settings=settings,
+        **extra,
+    )
 
 
 def category_reference(base: str) -> str:
@@ -94,7 +100,7 @@ def llms_full_txt(request: Request) -> PlainTextResponse:
 def robots_txt(request: Request) -> PlainTextResponse:
     base = base_url(request)
     lines = [
-        "# Fritorg welcomes search engines and AI agents. No API key needed for reading.",
+        f"# {request.app.state.settings.site_name} welcomes search engines and AI agents. No API key needed for reading.",
         f"# Prefer the API ({base}/openapi.json), MCP ({base}/mcp) or the bulk export",
         f"# ({base}/api/v1/export/listings.ndjson) over crawling HTML. Docs: {base}/llms.txt",
         "",

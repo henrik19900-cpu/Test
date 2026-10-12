@@ -305,7 +305,7 @@ def _verify_phone(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         raise ValidationProblem.field(
             "phone",
             "Oppgi mobilnummeret (phone) eller koden fra SMS-en (code).",
-            hint="Call with phone first; Fritorg sends a code by SMS. Then call again with code.",
+            hint="Call with phone first; we send a code by SMS. Then call again with code.",
         )
     sent = phone.start(
         ctx.conn,
@@ -809,7 +809,7 @@ TOOLS: list[Tool] = [
     Tool(
         "search_listings",
         "Search listings",
-        "Search Fritorg, a free Norwegian classifieds marketplace (goods, vehicles, property, jobs, services). "
+        "Search this free Norwegian classifieds marketplace (goods, vehicles, property, jobs, services). "
         "Returns compact results; call get_listing for full details. Text search matches substrings, so 'sofa' also "
         "finds 'hjørnesofa'. Prices are whole NOK.",
         {
@@ -1169,7 +1169,7 @@ TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
 
 def instructions(base: str, user: users.User | None, settings: Settings) -> str:
     lines = [
-        f"Fritorg ({base}) is a free Norwegian classifieds marketplace, an open alternative to finn.no that "
+        f"{settings.site_name} ({base}) is a free Norwegian classifieds marketplace, an open alternative to finn.no that "
         "welcomes AI agents.",
         "Listings are written in Norwegian. Prices are whole Norwegian kroner (NOK).",
         "Start with search_listings, then get_listing for details. list_categories explains categories, listing "
@@ -1287,7 +1287,7 @@ class McpServer:
                     "protocolVersion": version,
                     "capabilities": {"tools": {"listChanged": False}},
                     "serverInfo": {
-                        "name": "fritorg",
+                        "name": self.settings.site_id,
                         "title": self.settings.site_name,
                         "version": __version__,
                         "websiteUrl": base,

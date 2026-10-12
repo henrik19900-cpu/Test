@@ -27,13 +27,13 @@ Legg til en egendefinert connector («custom connector») med adressen `{{ base 
 
 ### Claude Code
 
-    claude mcp add --transport http fritorg {{ base }}/mcp/konto
+    claude mcp add --transport http {{ site_id }} {{ base }}/mcp/konto
 
-Skriv så `/mcp` i Claude Code og velg Fritorg for å logge inn.
+Skriv så `/mcp` i Claude Code og velg {{ site_id }} for å logge inn.
 
 Har assistenten ikke innlogging for MCP, lager du en nøkkel på Min side og sender den med:
 
-    claude mcp add --transport http fritorg {{ base }}/mcp --header "Authorization: Bearer DIN_NØKKEL"
+    claude mcp add --transport http {{ site_id }} {{ base }}/mcp --header "Authorization: Bearer DIN_NØKKEL"
 
 Noen apper har bare et felt for adressen. Da kan du bruke den personlige adressen fra Min side, `{{ base }}/mcp/DIN_NØKKEL`. Den fungerer som et passord, så ikke del den.
 
@@ -42,7 +42,7 @@ Noen apper har bare et felt for adressen. Da kan du bruke den personlige adresse
 ```json
 {
   "mcpServers": {
-    "fritorg": {
+    "{{ site_id }}": {
       "url": "{{ base }}/mcp/konto"
     }
   }

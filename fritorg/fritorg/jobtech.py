@@ -34,7 +34,7 @@ PAGE = 100
 MAX_PER_QUERY = 1000
 INTERVAL_SECONDS = 3 * 3600
 
-# Swedish occupation fields -> Fritorg job categories, first match wins.
+# Swedish occupation fields -> our job categories, first match wins.
 _CATEGORY_KEYWORDS = (
     ("jobb-it", ("data/it", "data", "it")),
     ("jobb-helse", ("hälso", "sjukvård", "social", "omsorg")),
@@ -174,7 +174,7 @@ def fetch(http: HttpFn, agent: str) -> list[dict[str, Any]]:
 def sync(db: Database, settings: Settings, http: HttpFn | None = None) -> imports.SnapshotReport:
     with db.session() as conn:
         try:
-            agent = f"Fritorg job import ({settings.contact_email or settings.base_url or 'no contact'})"
+            agent = f"{settings.site_name} job import ({settings.contact_email or settings.base_url or 'no contact'})"
             items = [item for ad in fetch(http or http_get, agent) if (item := to_item(ad))]
             report = imports.apply_snapshot(conn, SOURCE, items)
         except Exception as exc:

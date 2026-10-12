@@ -1,6 +1,6 @@
-# Fritorg på Oracle Cloud «Always Free»
+# Gratistorget på Oracle Cloud «Always Free»
 
-Oracle Cloud har en gratis maskin uten tidsgrense. Den holder godt for Fritorg: 2 ARM-kjerner, 12 GB minne og 200 GB disk (grensene i oktober 2026). Denne guiden setter opp Fritorg der, med eget domene og HTTPS. Det tar rundt en time.
+Oracle Cloud har en gratis maskin uten tidsgrense. Den holder godt for Gratistorget: 2 ARM-kjerner, 12 GB minne og 200 GB disk (grensene i oktober 2026). Denne guiden setter opp Gratistorget der, med eget domene og HTTPS. Det tar rundt en time.
 
 Det du trenger:
 
@@ -66,7 +66,7 @@ Logg inn igjen med `ssh`, så du kan bruke `docker` uten `sudo`.
 
 Hos registraren: lag en **A-oppføring** for domenet (og for `www`) som peker til IP-adressen. Det kan ta litt tid før den virker. Sjekk med `ping ditt-domene.no`.
 
-## 6. Hent og start Fritorg
+## 6. Hent og start Gratistorget
 
 ```sh
 git clone <adressen til repoet> fritorg-kode
@@ -98,7 +98,7 @@ docker compose exec app fritorg make-admin deg@example.no
 
 ## 8. Hold maskinen oppdatert
 
-Ubuntu installerer sikkerhetsoppdateringer selv (`unattended-upgrades`). Ny versjon av Fritorg:
+Ubuntu installerer sikkerhetsoppdateringer selv (`unattended-upgrades`). Ny versjon av Gratistorget:
 
 ```sh
 cd ~/fritorg-kode && git pull && cd fritorg/deploy && docker compose up -d --build

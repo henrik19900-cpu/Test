@@ -461,7 +461,7 @@ _EMPLOYMENT = {
 }
 
 
-def listing_jsonld(listing: Listing, base: str) -> dict[str, Any]:
+def listing_jsonld(listing: Listing, base: str, site_name: str) -> dict[str, Any]:
     url = listing_url(base, listing.id)
     images = [base + image.path for image in listing.images]
     address = {"@type": "PostalAddress", "addressCountry": "NO"}
@@ -485,7 +485,7 @@ def listing_jsonld(listing: Listing, base: str) -> dict[str, Any]:
                 "@type": "Organization",
                 "name": listing.attributes.get("employer", listing.seller_name),
             },
-            "identifier": {"@type": "PropertyValue", "name": "Fritorg", "value": str(listing.id)},
+            "identifier": {"@type": "PropertyValue", "name": site_name, "value": str(listing.id)},
         }
         if "deadline" in listing.attributes:
             data["validThrough"] = listing.attributes["deadline"]

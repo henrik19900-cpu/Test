@@ -1,7 +1,7 @@
 [project]
 name = "fritorg"
 version = "0.1.0"
-description = "Fritorg – en gratis markedsplass for mennesker og AI-agenter"
+description = "Gratistorget – en gratis markedsplass for mennesker og AI-agenter"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

@@ -116,7 +116,7 @@ def normalize_name(name: str) -> str:
 
 # Names that could be used to pose as the site itself or as companies scammers like to imitate.
 RESERVED_NAME = re.compile(
-    r"fritorg|moderator|admin|kundeservice|kundesenter|support|sikkerhet|finn\.?no|vipps|posten|bring|"
+    r"fritorg|gratis ?torget|moderator|admin|kundeservice|kundesenter|support|sikkerhet|finn\.?no|vipps|posten|bring|"
     r"postnord|bankid|politi|skatteetaten|nav\b",
     re.IGNORECASE,
 )

@@ -155,7 +155,7 @@ def redirect_problem(uri: Any) -> str | None:
 
 def _clean_name(value: Any) -> str:
     name = " ".join(str(value or "").split())[:60]
-    if users.RESERVED_NAME.search(name):  # "Fritorg kundeservice" must not ask people for access
+    if users.RESERVED_NAME.search(name):  # "Gratistorget kundeservice" must not ask people for access
         return "Ukjent app"
     return name or "AI-assistent"
 

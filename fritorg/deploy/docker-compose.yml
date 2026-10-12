@@ -1,4 +1,4 @@
-# Production: Fritorg behind Caddy (automatic HTTPS). Usage:
+# Production: Gratistorget behind Caddy (automatic HTTPS). Usage:
 #   cp .env.example .env   # fill in domain, SMS provider, e-mail and secret key
 #   docker compose up -d --build
 # Container logs (errors and the app's own messages) are rotated, so they cannot grow without end.

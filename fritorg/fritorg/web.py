@@ -389,7 +389,9 @@ def listing_page(listing_id: int, request: Request, conn: Conn) -> Response:
             "response_time": None
             if listing.is_imported
             else messages.response_time_text(messages.response_time_hours(conn, listing.user_id)),
-            "jsonld": serializers.jsonld_script(serializers.listing_jsonld(listing, base)),
+            "jsonld": serializers.jsonld_script(
+                serializers.listing_jsonld(listing, base, request.app.state.settings.site_name)
+            ),
             "breadcrumbs_jsonld": serializers.jsonld_script(serializers.breadcrumbs_jsonld(listing, base)),
             "more_from_seller": [item for item in more if item.id != listing.id][:4],
             "similar": _similar(conn, listing),
@@ -1851,7 +1853,7 @@ DOCS = {
     "for-agenter": ("for-agenter.md", "For AI-agenter"),
     "for-bedrifter": ("for-bedrifter.md", "For bedrifter"),
     "trygg-handel": ("trygg-handel.md", "Trygg handel"),
-    "om": ("om.md", "Om Fritorg"),
+    "om": ("om.md", "Om oss"),
     "vilkar": ("vilkar.md", "Vilkår og personvern"),
 }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,9 +31,9 @@ class Settings:
     # Uploaded photos; by default data_dir/uploads. Its own folder lets a web server (Caddy in
     # deploy/) serve the photos without access to the database.
     uploads_path: Path | None = None
-    # Public base URL, e.g. "https://fritorg.no". When unset it is derived from each request.
+    # Public base URL, e.g. "https://gratistorget.no". When unset it is derived from each request.
     base_url: str | None = None
-    site_name: str = "Fritorg"
+    site_name: str = "Gratistorget"
     # Shown in the footer, terms and security.txt: who runs the site and how to reach them.
     contact_email: str | None = None
     operator: str | None = None
@@ -113,6 +114,12 @@ class Settings:
     max_image_bytes: int = 8 * 1024 * 1024
     max_images_per_listing: int = 12
     max_request_bytes: int = 64 * 1024 * 1024
+
+    @property
+    def site_id(self) -> str:
+        """The name as a short id, e.g. for an MCP server: "gratistorget"."""
+        name = self.site_name.casefold().replace("æ", "ae").replace("ø", "o").replace("å", "a")
+        return re.sub(r"[^a-z0-9]+", "-", name).strip("-") or "marketplace"
 
     @property
     def db_path(self) -> Path:

@@ -114,7 +114,7 @@ def test_people_can_correct_their_name_and_report_their_own_data(client, auth, o
     web_login(client)
     client.post("/min-side/navn", data={"csrf_token": csrf(client), "name": "Kari N. Hansen"})
     assert client.get("/api/v1/me", headers=auth).json()["name"] == "Kari N. Hansen"
-    refused = client.post("/min-side/navn", data={"csrf_token": csrf(client), "name": "Fritorg kundeservice"})
+    refused = client.post("/min-side/navn", data={"csrf_token": csrf(client), "name": "Gratistorget"})
     assert "Velg et annet visningsnavn" in refused.text
     listing = make_listing(client, auth)
     report = {"reason": "privacy", "comment": "Bildet viser huset mitt."}
@@ -134,7 +134,7 @@ def test_closed_accounts_have_no_public_profile(app, client, auth):
 def test_apps_cannot_pose_as_the_site(client):
     registered = client.post(
         "/oauth/register",
-        json={"client_name": "Fritorg kundeservice", "redirect_uris": ["https://x.example/cb"]},
+        json={"client_name": "Gratis Torget", "redirect_uris": ["https://x.example/cb"]},
     ).json()
     assert registered["client_name"] == "Ukjent app"
 

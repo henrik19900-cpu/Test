@@ -87,7 +87,7 @@ class VerifiedIdentity:
 
     @property
     def display_name(self) -> str:
-        """Public name derived from BankID, e.g. "Kari N." – nobody can pose as "Fritorg Support"."""
+        """Public name derived from BankID, e.g. "Kari N." – nobody can pose as "Gratistorget Support"."""
         parts = self.name.split()
         given_parts = (self.given_name or "").split() or parts[:1]
         family_parts = (self.family_name or "").split() or parts[1:]

@@ -73,12 +73,12 @@
     <p><strong>Ny nøkkel laget. Kopier den nå – den vises bare én gang.</strong></p>
     <pre><code>{{ new_token }}</code></pre>
     <h3>Claude Code</h3>
-    <pre><code>claude mcp add --transport http fritorg {{ base }}/mcp --header "Authorization: Bearer {{ new_token }}"</code></pre>
+    <pre><code>claude mcp add --transport http {{ site_id }} {{ base }}/mcp --header "Authorization: Bearer {{ new_token }}"</code></pre>
     <h3>Claude.ai, ChatGPT og andre apper med «egendefinert connector»</h3>
     <p>Lim inn denne personlige adressen. Den fungerer som et passord, så ikke del den.</p>
     <pre><code>{{ base }}/mcp/{{ new_token }}</code></pre>
     <h3>Cursor, VS Code og andre MCP-klienter (JSON)</h3>
-    <pre><code>{"mcpServers": {"fritorg": {"url": "{{ base }}/mcp", "headers": {"Authorization": "Bearer {{ new_token }}"}}}}</code></pre>
+    <pre><code>{"mcpServers": {"{{ site_id }}": {"url": "{{ base }}/mcp", "headers": {"Authorization": "Bearer {{ new_token }}"}}}}</code></pre>
     <h3>REST-API</h3>
     <pre><code>curl -H "Authorization: Bearer {{ new_token }}" {{ base }}/api/v1/me</code></pre>
   </div>

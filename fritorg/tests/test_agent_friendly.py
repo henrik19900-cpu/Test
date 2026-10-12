@@ -1,4 +1,4 @@
-"""What makes Fritorg easy and safe for AI agents beyond the basic tools (see test_mcp.py for those)."""
+"""What makes the site easy and safe for AI agents beyond the basic tools (see test_mcp.py for those)."""
 
 from __future__ import annotations
 

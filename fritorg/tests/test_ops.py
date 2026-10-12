@@ -49,6 +49,16 @@ def test_backup_copies_database_and_images_for_the_owner_only(app, client, auth,
 
 
 def test_doctor_lists_what_is_missing(tmp_path):
+    too_long = Settings(
+        data_dir=tmp_path,
+        sms_provider="twilio",
+        twilio_account_sid="AC1",
+        twilio_auth_token="t",
+        twilio_from="Gratistorget",
+    )
+    assert any(
+        "for langt" in c.text for c in ops.doctor(too_long) if c.ok is False
+    )  # SMS senders: 11 at most
     checks = ops.doctor(Settings(data_dir=tmp_path, bankid_mode="simulated"))
     failed = " ".join(c.text for c in checks if c.ok is False)
     assert "https" in failed and "oidc" in failed and "moderator" in failed
@@ -204,7 +214,7 @@ def test_only_sound_backups_are_restored(settings, tmp_path, monkeypatch, capsys
     shutil.copy(target, old)
     for source, problem in (
         (folder / "missing.sqlite3", "Fant ikke"),
-        (junk, "ikke en database"),
+        (junk, "ikke en sikkerhetskopi"),
         (newer, "nyere versjon"),
         (old, "eldre enn 60 dager"),
     ):

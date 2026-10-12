@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import smtplib
 import sqlite3
 import ssl
@@ -27,6 +28,7 @@ from .util import now_iso
 
 logger = logging.getLogger(__name__)
 VERIFY_HOURS = 72
+_ADDRESS = re.compile(r"[^\s<>\"'(),;:@]+@[^\s<>\"'(),;:@]+")
 
 
 @dataclass
@@ -55,8 +57,14 @@ class Mailer:
     def _send_safely(self, mail: Mail) -> None:
         try:
             self.send_now(mail)
-        except Exception:
-            logger.exception("Could not send e-mail to an address at %s", mail.to.rpartition("@")[2])
+        except Exception as exc:
+            # Without the traceback: SMTP errors name the recipient, and servers repeat the address in their answer.
+            logger.error(
+                "Could not send e-mail to an address at %s: %s: %s",
+                mail.to.rpartition("@")[2],
+                type(exc).__name__,
+                _ADDRESS.sub("***", str(exc)),
+            )
 
     def send_now(self, mail: Mail) -> None:
         s = self.settings

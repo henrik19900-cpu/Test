@@ -6,6 +6,7 @@ import dataclasses
 import json
 import smtplib
 
+import pytest
 from conftest import PHOTO, csrf, make_listing, register, web_login
 from fastapi.testclient import TestClient
 from test_bankid import simulated_login
@@ -176,6 +177,15 @@ def test_apps_cannot_pose_as_the_site(client):
         json={"client_name": "Gratis Torget", "redirect_uris": ["https://x.example/cb"]},
     ).json()
     assert registered["client_name"] == "Ukjent app"
+
+
+def test_a_negative_number_of_days_stops_the_start(monkeypatch):
+    """-1 is a common way to write "never", but here it would make every account unused for a month old enough."""
+    monkeypatch.setenv("FRITORG_INACTIVE_ACCOUNT_DAYS", "-1")
+    with pytest.raises(ValueError, match="FRITORG_INACTIVE_ACCOUNT_DAYS"):
+        Settings.from_env()
+    monkeypatch.setenv("FRITORG_INACTIVE_ACCOUNT_DAYS", "0")
+    assert Settings.from_env().inactive_account_days == 0
 
 
 def test_the_operator_can_export_and_delete_an_account(tmp_path, monkeypatch, capsys):

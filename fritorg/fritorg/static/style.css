@@ -16,9 +16,9 @@
   --danger: #b42318;
   --danger-soft: #fdecea;
   --on-danger: #ffffff;
-  --give: #8a4fff;
+  --give: #7e3dff; /* give and rent: at least 4.5:1 on --surface-2, the background of a tag */
   --wanted: #0b62c4;
-  --rent: #b3541e;
+  --rent: #ad511d;
   --star: #a35f00;
   --radius: 14px;
   --radius-small: 9px;

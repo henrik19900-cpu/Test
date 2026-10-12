@@ -1410,6 +1410,8 @@ section.panel {
 
 .prose table {
   width: 100%;
+  min-width: 30rem; /* on a phone the table scrolls in its frame instead of squeezing words letter by letter */
+  overflow-wrap: break-word;
   border-collapse: collapse;
   font-size: 0.92rem;
 }

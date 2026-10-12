@@ -11,6 +11,7 @@ from conftest import PHOTO, csrf, make_listing, register, web_login
 from fritorg import maintenance, messages, users
 from fritorg.__main__ import main
 from fritorg.mailer import Mailer, MemoryMailer
+from fritorg.ratelimit import RateLimiter
 from fritorg.util import iso_ago
 
 
@@ -79,6 +80,16 @@ def test_notes_about_a_listing_the_owner_deleted_go_with_the_account(app, client
         users.delete_user(conn, 1)
         rows = [dict(r) for r in conn.execute("SELECT user_id, note FROM moderation_log")]
     assert rows and all(r["note"] is None and r["user_id"] is None for r in rows)
+
+
+def test_rate_limits_forget_addresses_after_an_hour():
+    now = [1000.0]
+    limiter = RateLimiter(clock=lambda: now[0])
+    limiter.hit("password", "kari@example.no", users.WRONG_PASSWORDS, 900)
+    limiter.hit("read", "203.0.113.7", 600, 60)
+    now[0] += 3601
+    limiter.hit("read", "198.51.100.2", 600, 60)
+    assert [key for _, key in limiter._windows] == ["198.51.100.2"]
 
 
 def test_an_account_under_review_is_not_deleted_on_request(app, client, auth, other_auth):

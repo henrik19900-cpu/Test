@@ -1,6 +1,7 @@
 """In-memory fixed-window rate limiter (per process).
 
-Good enough for a single instance. Behind several instances, swap in a shared store.
+Good enough for a single instance. Behind several instances, swap in a shared store. The keys are IP addresses
+and, for wrong passwords, e-mail addresses: each is forgotten within MAX_WINDOW_SECONDS after its window ends.
 """
 
 from __future__ import annotations
@@ -8,6 +9,9 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass
+
+MAX_WINDOW_SECONDS = 3600  # the longest window any limit uses
+PURGE_SECONDS = 60  # how often windows that are over are forgotten
 
 
 @dataclass
@@ -23,12 +27,14 @@ class RateLimiter:
         self._clock = clock
         self._lock = threading.Lock()
         self._windows: dict[tuple[str, str], tuple[float, int]] = {}
+        self._purged_at = clock()
 
     def hit(self, bucket: str, key: str, limit: int, window_seconds: int) -> Decision:
         now = self._clock()
         with self._lock:
-            if len(self._windows) > 50_000:
+            if len(self._windows) > 50_000 or now - self._purged_at >= PURGE_SECONDS:
                 self._purge(now)
+                self._purged_at = now
             start, count, reset_in = self._window(bucket, key, window_seconds, now)
             if count >= limit:
                 return Decision(False, limit, 0, reset_in)
@@ -51,7 +57,7 @@ class RateLimiter:
             start, count = now, 0
         return start, count, max(1, int(window_seconds - (now - start)))
 
-    def _purge(self, now: float, max_window: int = 3600) -> None:
+    def _purge(self, now: float, max_window: int = MAX_WINDOW_SECONDS) -> None:
         for key, (start, _) in list(self._windows.items()):
             if now - start >= max_window:
                 del self._windows[key]

@@ -167,7 +167,7 @@ Slik gjør du det for hånd:
 - [ ] SMS-leverandør satt opp og testet, med en daglig grense du har budsjett for, og et avsendernavn på høyst 11 tegn (for eksempel «Gratistorg»). Alternativt: BankID-avtale.
 - [ ] E-post (SMTP) satt opp og testet, med SPF og DKIM for domenet.
 - [ ] `FRITORG_SECRET_KEY` er satt og lagret et trygt sted. Mister du den, kjennes ikke mobilnumre og BankID-identiteter igjen.
-- [ ] `FRITORG_OPERATOR` og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
+- [ ] `FRITORG_OPERATOR` (navn, postadresse og eventuelt org.nr., som ehandelsloven § 8 krever) og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
 - [ ] Minst én moderator, og en plan for hvem som følger med på `/moderering` hver dag.
 - [ ] `fritorg doctor` viser ingen FEIL.
 - [ ] Publisering fra GitHub er satt opp (`deploy/github-deploy.sh`, se steg 10 i `deploy/oracle-cloud.md`), så nye versjoner på `main` legges ut av seg selv.
@@ -294,7 +294,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_UPLOADS_DIR` | `data/uploads` | Mappe for bildene. I `deploy/` er det et eget volum, så Caddy kan servere bildene uten tilgang til databasen. |
 | `FRITORG_SECRET_KEY` | fil i datamappen | Hemmelig nøkkel (64 heksadesimale tegn). |
 | `FRITORG_SITE_NAME` | `Gratistorget` | Navnet på siden. |
-| `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Behandlingsansvarlig og kontaktadresse for personvern (vises i vilkårene; `fritorg doctor` krever dem). |
+| `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Hvem som driver siden (navn, postadresse og eventuelt org.nr.) og kontaktadresse for personvern (vises i vilkårene og bunnteksten; `fritorg doctor` krever dem). |
 | `FRITORG_PROCESSORS` | – | Databehandlerne, slik personvernerklæringen skal nevne dem, f.eks. «Oracle Cloud (servere, Sverige), Twilio (SMS, USA)». |
 | `FRITORG_VERIFICATION` | `sms` | `sms` eller `none` (bare for testing). |
 | `FRITORG_SMS_PROVIDER` | `console` | `twilio`, `http` eller `console` (viser koden på skjermen, avvises på https-sider). |

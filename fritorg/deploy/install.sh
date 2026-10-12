@@ -220,7 +220,7 @@ main() {
       *) stop "«$contact» er ikke en e-postadresse." ;;
     esac
     operator=${OPERATOR:-}
-    [ -n "$operator" ] || { ask "Hvem driver siden? Navnet ditt, eller firmanavn og org.nr. (vises i vilkårene)" && operator=$answer; }
+    [ -n "$operator" ] || { ask "Hvem driver siden? Navn og postadresse, og org.nr. hvis du har firma (loven krever at det vises)" && operator=$answer; }
     [ -n "$operator" ] || note "Ingen driftsansvarlig ennå. Legg den inn i .env før siden åpnes (FRITORG_OPERATOR)."
 
     # The privacy policy says where the servers are. Oracle tells the machine its region.

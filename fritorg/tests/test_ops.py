@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import errno
 import os
 import re
@@ -253,6 +254,22 @@ def test_a_restore_gives_a_new_notice_before_an_unused_account_is_deleted(
         )
     report = maintenance.run(app.state.db, settings, MemoryMailer(settings))
     assert (report.accounts_warned, report.accounts_deleted) == (1, 0)  # told again, a month before
+
+
+def test_a_restore_after_a_crash_deletes_the_newest_deleted_accounts_again(settings, tmp_path):
+    db = Database(settings.db_path)
+    db.init()
+    with db.session() as conn:
+        users.create_user(conn, "kari@example.no", "Kari Nordmann", "hemmelig123")
+        users.create_user(conn, "ola@example.no", "Ola Hansen", "hemmelig123")
+    target = ops.backup(settings, tmp_path / "backup")
+    crashed = dataclasses.replace(settings, data_dir=tmp_path / "crashed")
+    with closing(db.connect()) as still_open:  # the server stops before the app has closed the database
+        still_open.execute("SELECT 1").fetchone()
+        with db.session() as conn:  # so Ola's deletion is only in the -wal file
+            users.delete_user(conn, 2)
+        shutil.copytree(settings.data_dir, crashed.data_dir)  # the disk as the crash left it
+    assert ops.restore(crashed, target).deleted_again == 1
 
 
 def test_only_sound_backups_are_restored(settings, tmp_path, monkeypatch, capsys):

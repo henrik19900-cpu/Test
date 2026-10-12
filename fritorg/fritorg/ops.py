@@ -83,9 +83,11 @@ def _open_read_only(path: Path) -> sqlite3.Connection:
     return sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
 
 
-def _copy_database(source: Path, target: Path) -> None:
-    """SQLite's own backup: a consistent copy, also into a database the app has open."""
-    reader = _open_read_only(source)
+def _copy_database(source: Path, target: Path, *, read_only: bool = True) -> None:
+    """SQLite's own backup: a consistent copy, also into a database the app has open. The app's own database is
+    opened as the app does (read_only=False): changes still in its -wal file after a crash come too, and an
+    immutable file is read without them."""
+    reader = _open_read_only(source) if read_only else sqlite3.connect(source, timeout=30)
     writer = sqlite3.connect(target, timeout=30)
     try:
         reader.backup(writer)
@@ -146,7 +148,7 @@ def _set_aside(settings: Settings, safety_copy: Path) -> list[tuple]:
     safety_copy.parent.mkdir(parents=True, exist_ok=True)
     safety_copy.parent.chmod(0o700)
     try:
-        _copy_database(path, safety_copy)
+        _copy_database(path, safety_copy, read_only=False)
         safety_copy.chmod(0o600)
         with closing(_open_read_only(safety_copy)) as conn:
             return conn.execute("SELECT user_id, created_at, deleted_at FROM deleted_accounts").fetchall()

@@ -20,6 +20,8 @@ from fritorg.__main__ import main
 from fritorg.app import create_app
 from fritorg.config import Settings
 from fritorg.db import MIGRATIONS, Database
+from fritorg.mailer import MemoryMailer
+from fritorg.util import iso_ago
 
 
 def test_backup_copies_database_and_images_for_the_owner_only(app, client, auth, settings, tmp_path):
@@ -231,6 +233,26 @@ def test_a_restore_that_stops_half_way_brings_back_no_deleted_account(
     monkeypatch.setattr(shutil, "copy2", copy)  # room again: the restore is run once more
     assert ops.restore(settings, target).photos == 2
     assert client.get("/api/v1/me", headers=other_auth).status_code == 401
+
+
+def test_a_restore_gives_a_new_notice_before_an_unused_account_is_deleted(
+    app, client, auth, settings, tmp_path
+):
+    with app.state.db.session() as conn:  # Kari was told 29 days ago that her unused account will be deleted
+        conn.execute(
+            "UPDATE users SET last_active_at = ?, inactivity_notice_at = ?",
+            (iso_ago(days=settings.inactive_account_days + 2), iso_ago(days=29)),
+        )
+    target = ops.backup(settings, tmp_path / "backup")
+    client.get("/api/v1/me", headers=auth)  # so she logs in, after the backup was made
+    ops.restore(settings, target)
+    with app.state.db.session() as conn:  # two days later
+        conn.execute(
+            "UPDATE users SET inactivity_notice_at = ? WHERE inactivity_notice_at IS NOT NULL",
+            (iso_ago(days=31),),
+        )
+    report = maintenance.run(app.state.db, settings, MemoryMailer(settings))
+    assert (report.accounts_warned, report.accounts_deleted) == (1, 0)  # told again, a month before
 
 
 def test_only_sound_backups_are_restored(settings, tmp_path, monkeypatch, capsys):

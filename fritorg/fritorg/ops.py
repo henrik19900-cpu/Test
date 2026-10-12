@@ -194,6 +194,9 @@ def restore(settings: Settings, source: Path) -> Restored:
         ]
         removed = [name for user_id in again for name in users.delete_user(conn, user_id)]
         conn.execute("DELETE FROM sessions")  # also those that were logged out after the backup
+        # Who was told that an unused account will be deleted may have used it since the backup: they are told
+        # again, a month before, if it is still unused.
+        conn.execute("UPDATE users SET inactivity_notice_at = NULL WHERE inactivity_notice_at IS NOT NULL")
 
     photos = 0
     saved = source.parent / "uploads"

@@ -927,6 +927,15 @@ legend + .hint {
   border-left: 4px solid var(--accent);
   padding: 0.75rem 1rem;
   border-radius: var(--radius-small);
+  margin: 1rem 0; /* as a paragraph's, also when the notice holds paragraphs itself */
+}
+
+.notice > :first-child {
+  margin-top: 0;
+}
+
+.notice > :last-child {
+  margin-bottom: 0;
 }
 
 .listing-layout {

@@ -174,19 +174,22 @@ INACTIVE_NOTICE_DAYS = 30  # how long before deleting an unused account its owne
 INACTIVE_BATCH = 500
 
 
-def _unused_accounts(conn: sqlite3.Connection, condition: str, cutoff: str) -> list[sqlite3.Row]:
+def _unused_accounts(
+    conn: sqlite3.Connection, condition: str, *args: str, order: str = "id"
+) -> list[sqlite3.Row]:
     """Accounts that may be deleted for not being used: not closed accounts (the closure must stand), not
     moderators, and not the accounts that own listings from other sources."""
     return conn.execute(
         "SELECT id, email, name, email_verified_at FROM users WHERE banned_at IS NULL AND is_admin = 0 "
-        f"AND created_via != 'import' AND {condition} LIMIT {INACTIVE_BATCH}",
-        (cutoff,),
+        f"AND created_via != 'import' AND {condition} ORDER BY {order} LIMIT {INACTIVE_BATCH}",
+        args,
     ).fetchall()
 
 
 def _warn_unused(mailer: Mailer, base: str, row: sqlite3.Row, when: str) -> None:
+    """Sent at once, in this thread: the notice only counts once the mail server has taken it."""
     settings = mailer.settings
-    mailer.send_later(
+    mailer.send_now(
         Mail(
             row["email"],
             f"Kontoen din på {settings.site_name} slettes {when}",
@@ -203,20 +206,30 @@ def _delete_unused_accounts(
     conn: sqlite3.Connection, settings: Settings, mailer: Mailer | None, base: str, report: Report
 ) -> None:
     """Storage limitation (GDPR art. 5): accounts nobody has used for inactive_account_days are deleted, after a
-    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it."""
+    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it.
+    Until an e-mail to a verified address has gone out, the account is kept."""
     days = settings.inactive_account_days
     if not days:
         return
+    unused = iso_ago(days=max(days - INACTIVE_NOTICE_DAYS, 1))
     when = format_date_no(iso_in(days=INACTIVE_NOTICE_DAYS))
+    # In random order, so that an address the mail server refuses does not hold up everybody after it.
     for row in _unused_accounts(
         conn,
         "inactivity_notice_at IS NULL AND COALESCE(last_active_at, created_at) < ?",
-        iso_ago(days=max(days - INACTIVE_NOTICE_DAYS, 1)),
+        unused,
+        order="random()",
     ):
+        if row["email_verified_at"]:
+            if mailer is None or not mailer.enabled:
+                continue  # without mail the owner cannot be told, so the account stays
+            try:
+                _warn_unused(mailer, base, row, when)
+            except Exception:  # e.g. the mail server is down: told in a later round, like the rest
+                logger.exception("Could not send the notice about an unused account")
+                break
         conn.execute("UPDATE users SET inactivity_notice_at = ? WHERE id = ?", (now_iso(), row["id"]))
         report.accounts_warned += 1
-        if mailer is not None and mailer.enabled and row["email_verified_at"]:
-            _warn_unused(mailer, base, row, when)
     for row in _unused_accounts(conn, "inactivity_notice_at < ?", iso_ago(days=INACTIVE_NOTICE_DAYS)):
         if users.under_review(conn, row["id"]):  # a report about them is being handled
             continue

@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import smtplib
 
 from conftest import PHOTO, csrf, make_listing, register, web_login
 
 from fritorg import maintenance, messages, users
 from fritorg.__main__ import main
-from fritorg.mailer import MemoryMailer
+from fritorg.mailer import Mailer, MemoryMailer
 from fritorg.util import iso_ago
 
 
@@ -204,3 +206,49 @@ def test_accounts_nobody_uses_are_deleted_after_a_notice(app, client, auth, othe
     assert maintenance.run(app.state.db, settings, mailer).accounts_deleted == 1
     assert client.get("/api/v1/me", headers=auth).status_code == 401
     assert client.get("/api/v1/me", headers=other_auth).status_code == 200
+
+
+def _unused_for_long(app, settings, verified=True):
+    long_ago = iso_ago(days=settings.inactive_account_days + 1)
+    with app.state.db.session() as conn:
+        conn.execute(
+            "UPDATE users SET last_active_at = ?, email_verified_at = ?",
+            (long_ago, long_ago if verified else None),
+        )
+
+
+def _a_month_passes(app):
+    """Pretend that the notices given so far were given a month and a day ago."""
+    with app.state.db.session() as conn:
+        conn.execute(
+            "UPDATE users SET inactivity_notice_at = ? WHERE inactivity_notice_at IS NOT NULL",
+            (iso_ago(days=maintenance.INACTIVE_NOTICE_DAYS + 1),),
+        )
+
+
+class _MailServerDown(Mailer):
+    def send_now(self, mail):
+        raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
+
+
+def test_an_account_is_kept_until_the_notice_has_gone_out(app, client, auth, settings):
+    _unused_for_long(app, settings)
+    down = _MailServerDown(dataclasses.replace(settings, smtp_host="smtp.example.no"))
+    assert maintenance.run(app.state.db, settings, down).accounts_warned == 0
+    _a_month_passes(app)
+    assert maintenance.run(app.state.db, settings, down).accounts_deleted == 0
+    assert maintenance.run(app.state.db, settings).accounts_warned == 0  # no mail at all: nobody can be told
+
+    memory = MemoryMailer(settings)  # the mail server answers again
+    assert maintenance.run(app.state.db, settings, memory).accounts_warned == 1
+    assert [mail.to for mail in memory.outbox] == ["kari@example.no"]
+    assert client.get("/api/v1/me", headers=auth).status_code == 200
+
+
+def test_accounts_without_a_verified_address_are_deleted_without_an_email(app, client, auth, settings):
+    _unused_for_long(app, settings, verified=False)
+    memory = MemoryMailer(settings)
+    assert maintenance.run(app.state.db, settings, memory).accounts_warned == 1
+    _a_month_passes(app)
+    assert maintenance.run(app.state.db, settings, memory).accounts_deleted == 1
+    assert memory.outbox == []

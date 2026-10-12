@@ -100,6 +100,9 @@ class MemoryMailer(Mailer):
     def send_later(self, mail: Mail) -> None:
         self.outbox.append(mail)
 
+    def send_now(self, mail: Mail) -> None:
+        self.outbox.append(mail)
+
 
 # --- Verification links ---------------------------------------------------------------------
 

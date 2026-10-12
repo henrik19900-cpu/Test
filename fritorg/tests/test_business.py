@@ -114,3 +114,19 @@ def test_an_answer_from_the_register_that_breaks_off_asks_to_try_again(client, a
     web_login(client)
     page = client.post("/min-side/bedrift", data={"csrf_token": csrf(client), "org_number": "974760673"})
     assert "Enhetsregisteret svarer ikke" in page.text
+
+
+def test_a_business_named_like_a_service_people_trust_is_not_shown(client, auth, settings, monkeypatch):
+    """Scams pretend to be Posten, Bring or the police, and anyone can type their organisation number."""
+    settings.business_registry = "brreg"
+    web_login(client)
+    for registered, refused in (
+        ("POSTEN NORGE AS", True),
+        ("OSLO POLITIDISTRIKT", True),
+        ("Vipps MobilePay AS", True),
+        ("KOMPOSTEN AS", False),
+        ("BRINGEBÆRGÅRDEN AS", False),
+    ):
+        monkeypatch.setattr(business, "registry_name", lambda number, registered=registered: registered)
+        page = client.post("/min-side/bedrift", data={"csrf_token": csrf(client), "org_number": "974760673"})
+        assert ("kan forveksles" in page.text) is refused, registered

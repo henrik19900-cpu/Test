@@ -1,17 +1,24 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import shutil
 import sqlite3
+import time
+from contextlib import closing
 from pathlib import Path
 
-from conftest import PHOTO, make_listing
+import pytest
+from conftest import PHOTO, make_listing, web_login
 from fastapi.testclient import TestClient
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from fritorg import ops
+from fritorg import images, maintenance, ops, users
+from fritorg.__main__ import main
 from fritorg.app import create_app
 from fritorg.config import Settings
+from fritorg.db import MIGRATIONS, Database
 
 
 def test_backup_copies_database_and_images_for_the_owner_only(app, client, auth, settings, tmp_path):
@@ -151,3 +158,88 @@ def test_pages_with_personal_data_are_not_cached(client, auth):
     assert "no-store" not in client.get("/").headers.get("cache-control", "")
     web_login(client)
     assert client.get("/min-side").headers["cache-control"] == "private, no-store"
+
+
+def test_a_restore_brings_the_site_back_but_not_deleted_accounts(
+    app, client, auth, other_auth, settings, tmp_path
+):
+    listing = make_listing(client, auth)
+    client.post(
+        f"/api/v1/listings/{listing['id']}/images",
+        files={"file": ("p.png", PHOTO, "image/png")},
+        headers=auth,
+    )
+    web_login(client)
+    target = ops.backup(settings, tmp_path / "backup")
+    # After the backup: Ola deletes the account, and the photos are lost.
+    with app.state.db.session() as conn:
+        users.delete_user(conn, 2)
+    for file in settings.uploads_dir.rglob("*.webp"):
+        file.unlink()
+
+    restored = ops.restore(settings, target)
+    assert restored.photos == 2 and restored.deleted_again == 1 and restored.safety_copy.exists()
+    photo = client.get(f"/api/v1/listings/{listing['id']}").json()["images"][0]["url"]
+    assert client.get(photo.removeprefix("http://testserver")).status_code == 200
+    assert client.get("/api/v1/me", headers=other_auth).status_code == 401  # still deleted
+    assert client.get("/min-side", follow_redirects=False).status_code == 303  # everyone logs in again
+    assert ops.restore(settings, target).deleted_again == 1  # the restored database remembers it too
+    # The copy of what was replaced is deleted like other backups.
+    month_ago = time.time() - (maintenance.BACKUP_DAYS + 1) * 86_400
+    os.utime(restored.safety_copy, (month_ago, month_ago))
+    assert maintenance.remove_old_safety_copies(settings) == 1 and not restored.safety_copy.exists()
+
+
+def test_only_sound_backups_are_restored(settings, tmp_path, monkeypatch, capsys):
+    Database(settings.db_path).init()
+    folder = tmp_path / "backup"
+    target = ops.backup(settings, folder)
+    junk = folder / "junk.sqlite3"
+    junk.write_bytes(b"not a database" * 400)
+    newer = folder / "newer.sqlite3"
+    shutil.copy(target, newer)
+    with closing(sqlite3.connect(newer)) as conn:
+        conn.execute(f"PRAGMA user_version = {len(MIGRATIONS) + 1}")
+    old = folder / "fritorg-20200101-030000.sqlite3"
+    shutil.copy(target, old)
+    for source, problem in (
+        (folder / "missing.sqlite3", "Fant ikke"),
+        (junk, "ikke en database"),
+        (newer, "nyere versjon"),
+        (old, "eldre enn 60 dager"),
+    ):
+        with pytest.raises(ops.RestoreProblem, match=problem):
+            ops.restore(settings, source)
+
+    # A damaged database is moved aside as it is, and the backup takes its place.
+    settings.db_path.write_bytes(b"\0" * 4096)
+    restored = ops.restore(settings, target)
+    assert restored.safety_copy.read_bytes() == b"\0" * 4096
+    with Database(settings.db_path).session() as conn:
+        assert conn.execute("PRAGMA quick_check").fetchone()[0] == "ok"
+
+    monkeypatch.setenv("FRITORG_DATA_DIR", str(settings.data_dir))
+    assert main(["restore", str(target)]) == 1  # not without --yes
+    assert main(["restore", str(target), "--yes"]) == 0
+    assert "Alle må logge inn på nytt" in capsys.readouterr().out
+
+
+def test_photos_no_listing_uses_are_cleared_out(app, client, auth, settings):
+    listing = make_listing(client, auth)
+    client.post(
+        f"/api/v1/listings/{listing['id']}/images",
+        files={"file": ("p.png", PHOTO, "image/png")},
+        headers=auth,
+    )
+    used = sorted(settings.uploads_dir.rglob("*.webp"))
+    stray = settings.uploads_dir / "ab" / ("ab" + "0" * 30 + ".webp")
+    stray.parent.mkdir(exist_ok=True)
+    for file in (stray, stray.with_name(stray.stem + "-t.webp")):
+        file.write_bytes(b"x")
+    with app.state.db.session() as conn:
+        assert images.remove_unused_files(conn, settings.uploads_dir) == 0  # a new file gets a day
+        day_ago = time.time() - images.UNUSED_FILE_HOURS * 3600 - 60
+        for file in settings.uploads_dir.rglob("*.webp"):
+            os.utime(file, (day_ago, day_ago))
+        assert images.remove_unused_files(conn, settings.uploads_dir) == 2
+    assert sorted(settings.uploads_dir.rglob("*.webp")) == used

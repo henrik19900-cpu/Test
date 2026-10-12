@@ -1,5 +1,5 @@
-"""Command line: `python -m fritorg serve | seed | make-admin | backup | export-user | delete-user | import-nav |
-doctor | benchmark`."""
+"""Command line: `python -m fritorg serve | seed | make-admin | backup | restore | export-user | delete-user |
+import-nav | doctor | benchmark`."""
 
 from __future__ import annotations
 
@@ -41,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     backup.add_argument(
         "--with-key", action="store_true", help="also copy the secret key (store such a backup encrypted)"
     )
+    restore = commands.add_parser("restore", help="put a backup back in place (stop the app first)")
+    restore.add_argument(
+        "backup", help="a fritorg-*.sqlite3 file from `backup`; photos come from uploads/ beside it"
+    )
+    restore.add_argument("--yes", action="store_true", help="really replace the database")
 
     nav = commands.add_parser(
         "import-nav", help="import job ads from Nav's open job feed (arbeidsplassen.no)"
@@ -139,6 +144,33 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 "i en passordbehandler: uten den må alle bekrefte mobilnummeret på nytt etter en gjenoppretting."
             )
+        return 0
+
+    if args.command == "restore":
+        from pathlib import Path
+
+        from .ops import RestoreProblem
+        from .ops import restore as run_restore
+
+        source = Path(args.backup)
+        if not args.yes:
+            print(
+                f"Erstatter databasen med {source} og logger ut alle. Stopp appen først, og legg til --yes."
+            )
+            return 1
+        try:
+            restored = run_restore(settings, source)
+        except RestoreProblem as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        if restored.safety_copy:
+            print(f"Databasen slik den var, er lagret i {restored.safety_copy}.")
+        print(f"Gjenopprettet fra {source}, med {restored.photos} bilder. Alle må logge inn på nytt.")
+        if restored.deleted_again:
+            print(
+                f"{restored.deleted_again} kontoer som ble slettet etter sikkerhetskopien, er slettet igjen."
+            )
+        print("Start appen igjen.")
         return 0
 
     if args.command == "import-nav":

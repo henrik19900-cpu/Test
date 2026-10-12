@@ -120,7 +120,26 @@ Kopier den videre til et annet sted, for eksempel til din egen PC, og ha den gje
 scp -r ubuntu@<ip-adressen>:fritorg-kode/fritorg/deploy/backup ./fritorg-backup
 ```
 
-Slett kopier som er eldre enn 30 dager (det står i personvernerklæringen). Den hemmelige nøkkelen er ikke med i sikkerhetskopien: lagre `FRITORG_SECRET_KEY` fra `.env` i en passordbehandler. Prøv også en gjenoppretting en gang, så du vet at den virker.
+Slett kopier som er eldre enn 30 dager (det står i personvernerklæringen). Den hemmelige nøkkelen er ikke med i sikkerhetskopien: lagre `FRITORG_SECRET_KEY` fra `.env` i en passordbehandler.
+
+Prøv at gjenopprettingen virker, for eksempel en gang i måneden. Denne kommandoen legger den nyeste kopien tilbake i en midlertidig mappe og rører ikke den ekte databasen:
+
+```sh
+cd ~/fritorg-kode/fritorg/deploy
+docker compose run --rm app ls /data/backup
+docker compose run --rm -e FRITORG_DATA_DIR=/tmp/prove -e FRITORG_UPLOADS_DIR=/tmp/prove/bilder app \
+  fritorg restore /data/backup/fritorg-20261012-030000.sqlite3 --yes
+```
+
+Må du gjenopprette på ordentlig, stopper du appen først:
+
+```sh
+docker compose stop app
+docker compose run --rm app fritorg restore /data/backup/fritorg-20261012-030000.sqlite3 --yes
+docker compose up -d
+```
+
+Kontoer som er slettet etter at kopien ble tatt, slettes igjen, og alle må logge inn på nytt. Hvordan du gjenoppretter på en ny maskin, står i README under «Gjenopprette».
 
 ## Feilsøking
 

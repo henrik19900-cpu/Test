@@ -157,7 +157,7 @@ Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.c
 - [ ] `FRITORG_OPERATOR` og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
 - [ ] Minst én moderator, og en plan for hvem som følger med på `/moderering` hver dag.
 - [ ] `fritorg doctor` viser ingen FEIL.
-- [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er testet.
+- [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er prøvd (se «Gjenopprette» under Drift).
 - [ ] Personvern:
   - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år) og lagringstidene
   - protokoll over behandlingene (personvernforordningen artikkel 30) og en vurdering av personvernkonsekvenser (DPIA, artikkel 35), fordi alle meldinger sjekkes automatisk for svindel og annonsene deles åpent med AI-agenter
@@ -173,6 +173,7 @@ Oppsettet i `deploy/` kjører Fritorg i Docker bak [Caddy](https://caddyserver.c
 fritorg doctor [--send-test-mail ADRESSE] [--send-test-sms NUMMER]   # klar for lansering?
 fritorg make-admin E-POST                                            # gi moderatorrettigheter
 fritorg backup MAPPE [--keep 7] [--with-key]                         # database og bilder (nøkkelen bare med --with-key)
+fritorg restore FIL --yes                                            # legg tilbake en sikkerhetskopi (stopp appen først)
 fritorg import-nav [--until-done]                                    # hent ledige stillinger fra Nav nå
 fritorg benchmark [--listings 1000000]                               # mål søket med oppdiktede annonser
 fritorg seed [--force]                                               # demo-data (ikke i produksjon)
@@ -187,6 +188,40 @@ Med Docker kjøres kommandoene med `docker compose exec app ...`. En enkel dagli
 Sikkerhetskopien tas mens appen kjører, og databasen blir konsistent. Den har de 7 nyeste kopiene av databasen og bildene slik de er nå, så et bilde som er slettet på siden, forsvinner også fra kopien. Bare eieren av filene kan lese dem. Kopier mappen videre til et annet sted, kryptert (for eksempel objektlagring), og slett kopier som er eldre enn 30 dager: personvernerklæringen sier at sikkerhetskopier slettes etter 30 dager.
 
 Den hemmelige nøkkelen er ikke med i sikkerhetskopien, fordi mobilnumrene kan finnes igjen fra hashene med den. Ta vare på `FRITORG_SECRET_KEY` (i `.env`) et annet sted, for eksempel i en passordbehandler. Uten den virker gjenopprettingen, men alle må bekrefte mobilnummeret på nytt, og BankID-kontoer kobles ikke lenger til personen.
+
+### Gjenopprette
+
+`fritorg restore` legger tilbake en kopi fra `fritorg backup`, med bildene som ligger ved siden av den. Først sjekker den at kopien er hel og fra samme eller en eldre versjon. Så gjør den dette:
+
+- Databasen slik den er nå, lagres i `before-restore/` i datamappen. Den slettes automatisk etter 30 dager.
+- Kontoer som er slettet etter at kopien ble tatt, slettes igjen, så ingen som har slettet kontoen sin, kommer tilbake.
+- Alle må logge inn på nytt.
+- Kopier som er eldre enn 60 dager, avvises. Da husker siden ikke lenger hvilke kontoer som er slettet.
+
+Har noen byttet passord eller slettet en API-nøkkel etter at kopien ble tatt, gjelder det gamle igjen. Be dem gjøre det på nytt.
+
+```sh
+cd /sti/til/fritorg/deploy
+docker compose run --rm app ls /data/backup            # kopiene på serveren
+docker compose stop app
+docker compose run --rm app fritorg restore /data/backup/fritorg-20261012-030000.sqlite3 --yes
+docker compose up -d
+```
+
+**Prøv gjenopprettingen uten å røre den ekte databasen**, for eksempel en gang i måneden. Da legges kopien tilbake i en midlertidig mappe som forsvinner etterpå:
+
+```sh
+docker compose run --rm -e FRITORG_DATA_DIR=/tmp/prove -e FRITORG_UPLOADS_DIR=/tmp/prove/bilder app \
+  fritorg restore /data/backup/fritorg-20261012-030000.sqlite3 --yes
+```
+
+**På en ny server**, eller hvis datavolumet er borte, kopierer du mappen fra det andre stedet til serveren og gir den til appens bruker (10001) før du gjenoppretter. Sett også den samme `FRITORG_SECRET_KEY` i `.env`.
+
+```sh
+sudo chown -R 10001 ~/gjenoppretting
+docker compose run --rm -v ~/gjenoppretting:/restore:ro app fritorg restore /restore/fritorg-20261012-030000.sqlite3 --yes
+docker compose up -d && sudo rm -rf ~/gjenoppretting
+```
 
 Loggene: Caddy fører en tilgangslogg med IP-adresse og side, uten nøkler, engangslenker og e-postadresser, og sletter den etter 14 dager. Appen logger bare feil, og Docker roterer loggene.
 

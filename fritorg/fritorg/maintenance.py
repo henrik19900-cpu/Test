@@ -2,7 +2,8 @@
 are hidden (and their owners told), old listings that nobody has touched for a long time are deleted
 (after a notice), people hear about new matches for their saved searches, expired sessions, codes and
 login states are deleted, and once a day the statistics SQLite uses to pick indexes are refreshed (the
-right index matters more as the number of listings grows)."""
+right index matters more as the number of listings grows), photo files no listing uses are deleted, and so
+are copies `fritorg restore` made more than BACKUP_DAYS ago."""
 
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ import time
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TypeVar
 
 from . import alerts, images, listings, messages, oauth, saved_searches
@@ -43,6 +45,22 @@ class Report:
 # How long records about people are kept (the privacy policy in templates/docs/vilkar.md says the same).
 RECORDS_DAYS = 365  # moderators' decisions, handled reports and ratings a moderator removed
 ASSISTANT_KEY_DAYS = 90  # an AI assistant's key that has not been used signs in again
+DELETION_LOG_DAYS = 60  # deleted accounts are remembered as long as a backup may have them (30 days)
+BACKUP_DAYS = 30
+SAFETY_COPIES = "before-restore"  # in data_dir: the database `fritorg restore` replaced, kept like a backup
+
+
+def remove_old_safety_copies(settings: Settings) -> int:
+    folder = Path(settings.data_dir) / SAFETY_COPIES
+    cutoff = time.time() - BACKUP_DAYS * 86_400
+    old = (
+        [file for file in folder.glob("fritorg-*") if file.stat().st_mtime < cutoff]
+        if folder.is_dir()
+        else []
+    )
+    for file in old:
+        file.unlink()
+    return len(old)
 
 
 def purge(conn: sqlite3.Connection) -> int:
@@ -62,6 +80,7 @@ def purge(conn: sqlite3.Connection) -> int:
             "DELETE FROM api_tokens WHERE oauth_client_id IS NOT NULL AND COALESCE(last_used_at, created_at) < ?",
             (iso_ago(days=ASSISTANT_KEY_DAYS),),
         ),
+        ("DELETE FROM deleted_accounts WHERE deleted_at < ?", (iso_ago(days=DELETION_LOG_DAYS),)),
     ]
     return sum(conn.execute(sql, args).rowcount for sql, args in statements)
 
@@ -188,6 +207,8 @@ def run(
         key = str(db.path)
         if time.monotonic() - _analyzed.get(key, -STATISTICS_SECONDS) >= STATISTICS_SECONDS:
             step("statistics", lambda: analyze(conn))
+            step("unused photos", lambda: images.remove_unused_files(conn, settings.uploads_dir))
+            step("old safety copies", lambda: remove_old_safety_copies(settings))
             _analyzed[key] = time.monotonic()
     return report
 

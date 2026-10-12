@@ -523,6 +523,18 @@ CREATE TABLE oauth_codes (
 ALTER TABLE api_tokens ADD COLUMN oauth_client_id TEXT;
 """
 
+# Accounts that were deleted, by id and creation time only, so that restoring a backup deletes them again
+# (ops.restore). Kept as long as backups may exist (maintenance.DELETION_LOG_DAYS).
+SCHEMA_V12 = """
+CREATE TABLE deleted_accounts (
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, created_at)
+) WITHOUT ROWID;
+CREATE INDEX idx_deleted_accounts_time ON deleted_accounts(deleted_at);
+"""
+
 
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
@@ -544,6 +556,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V9,
     SCHEMA_V10,
     SCHEMA_V11,
+    SCHEMA_V12,
 ]
 
 

@@ -335,6 +335,12 @@ def delete_user(conn: sqlite3.Connection, user_id: int) -> list[str]:
         )
         # Deleted one by one, so triggers remove them from the search index (the account takes the rest).
         conn.execute("DELETE FROM listings WHERE user_id = ?", (user_id,))
+        # Remembered (id and creation time only), so a restore from a backup deletes the account again.
+        conn.execute(
+            "INSERT OR IGNORE INTO deleted_accounts (user_id, created_at, deleted_at) "
+            "SELECT id, created_at, ? FROM users WHERE id = ?",
+            (now_iso(), user_id),
+        )
         conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
     return [row["filename"] for row in rows]
 

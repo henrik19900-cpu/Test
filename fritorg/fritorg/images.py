@@ -314,6 +314,33 @@ def remove_files(uploads_dir: Path, filenames: list[str]) -> None:
                 pass
 
 
+UNUSED_FILE_HOURS = 24
+
+
+def remove_unused_files(conn: sqlite3.Connection, uploads_dir: Path) -> int:
+    """Delete photos on disk that no listing uses: left over after a restore from a backup, or after a crash
+    between deleting a listing and its files. A file gets a day first, so an upload whose row is not saved
+    yet is never touched. Returns how many files were deleted."""
+    if not uploads_dir.is_dir():
+        return 0
+    used = {row[0] for row in conn.execute("SELECT filename FROM listing_images")}
+    cutoff = time.time() - UNUSED_FILE_HOURS * 3600
+    removed = 0
+    for path in uploads_dir.rglob("*.webp"):
+        name = path.relative_to(uploads_dir).as_posix()
+        if name.endswith("-t.webp"):  # a thumbnail goes with its photo
+            name = name.removesuffix("-t.webp") + ".webp"
+        if name in used or not _STORED_NAME.fullmatch(name):
+            continue
+        try:
+            if path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+        except FileNotFoundError:
+            pass
+    return removed
+
+
 # --- Photo links ---------------------------------------------------------------------------------
 #
 # A chat assistant sees the person's photos but cannot send them on. It can give the person a link instead:

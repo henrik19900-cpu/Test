@@ -173,6 +173,7 @@ Slik gjør du det for hånd:
 - [ ] Publisering fra GitHub er satt opp (`deploy/github-deploy.sh`, se steg 10 i `deploy/oracle-cloud.md`), så nye versjoner på `main` legges ut av seg selv.
 - [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er prøvd (se «Gjenopprette» under Drift).
 - [ ] Personvern:
+  - svar på spørsmålene i [JURIST.md](JURIST.md), som er samlet for juristen
   - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år), lagringstidene (blant annet at ubrukte kontoer slettes etter to år, `FRITORG_INACTIVE_ACCOUNT_DAYS`), listen over hva som ikke kan selges, og teksten om forbrukerrettigheter ved kjøp fra bedrifter og privatpersoner
   - protokoll over behandlingene (personvernforordningen artikkel 30) og en vurdering av personvernkonsekvenser (DPIA, artikkel 35), fordi alle meldinger sjekkes automatisk for svindel og annonsene deles åpent med AI-agenter
   - databehandleravtaler med server-, SMS- og e-postleverandøren (og BankID-megleren), en vurdering av overføringen til USA hvis SMS går gjennom Twilio, og `FRITORG_PROCESSORS` satt

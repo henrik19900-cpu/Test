@@ -134,6 +134,14 @@ Dette bygger på en gjennomgang av vilkårene, loven og rettspraksis (blant anne
 
 Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyserver.com/), som henter og fornyer HTTPS-sertifikater automatisk.
 
+Raskest er å logge inn på serveren og kjøre `deploy/install.sh`. Det gjør steg 2 og 3 under, setter opp sikkerhetskopi og publisering fra GitHub, og passer også på en server som kjører andre programmer fra før. Les mer i [veiledningen for Oracle Cloud](deploy/oracle-cloud.md).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/henrik19900-cpu/Test/main/fritorg/deploy/install.sh | sh
+```
+
+Slik gjør du det for hånd:
+
 1. Skaff en server med Docker (for eksempel en liten VPS i Norge eller EU) og pek domenets A/AAAA-oppføring dit. En gratis maskin hos Oracle Cloud holder godt: se [steg for steg](deploy/oracle-cloud.md).
 2. Fyll inn innstillingene:
    ```sh

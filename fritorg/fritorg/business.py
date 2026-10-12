@@ -9,6 +9,7 @@ seller's own: pages say so, and link to the register so buyers can check.
 
 from __future__ import annotations
 
+import http.client
 import json
 import re
 import sqlite3
@@ -55,7 +56,7 @@ def registry_name(org_number: str) -> str:
                 "Organisasjonsnummeret finnes ikke i Enhetsregisteret, eller enheten er slettet.",
             ) from None
         raise ServiceUnavailable("Enhetsregisteret svarer ikke akkurat nå. Prøv igjen om litt.") from None
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):  # e.g. an answer that breaks off
         raise ServiceUnavailable("Enhetsregisteret svarer ikke akkurat nå. Prøv igjen om litt.") from None
     if data.get("slettedato") or not data.get("navn"):
         raise ValidationProblem.field("org_number", "Enheten er slettet i Enhetsregisteret.")

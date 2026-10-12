@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import urllib.error
@@ -101,3 +102,15 @@ def test_the_name_comes_from_enhetsregisteret(monkeypatch):
     monkeypatch.setattr(business.urllib.request, "urlopen", _answer(500))
     with pytest.raises(ServiceUnavailable):
         business.registry_name("974760673")
+
+
+def test_an_answer_from_the_register_that_breaks_off_asks_to_try_again(client, auth, settings, monkeypatch):
+    class BrokenOff(io.BytesIO):
+        def read(self, *args):  # the connection closed before the whole answer had come
+            raise http.client.IncompleteRead(b'{"navn": "BR', 40)
+
+    monkeypatch.setattr(business.urllib.request, "urlopen", lambda request, timeout: BrokenOff())
+    settings.business_registry = "brreg"
+    web_login(client)
+    page = client.post("/min-side/bedrift", data={"csrf_token": csrf(client), "org_number": "974760673"})
+    assert "Enhetsregisteret svarer ikke" in page.text

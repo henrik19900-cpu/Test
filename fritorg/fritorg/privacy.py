@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from typing import Any
 
 from . import listings, messages, ratings, serializers, users
-from .util import now_iso
+from .util import iso_ago, now_iso
+
+ABOUT = (
+    "Opplysningene vi har lagret om kontoen din. Passord, nøkler og mobilnummer lagres bare som kryptografiske "
+    "hasher og kan derfor ikke tas med. Ikke med: svindelvurderingen av meldingene du har sendt (den beskytter mot "
+    "svindel), hvem som har rapportert deg og hva de skrev, vurderinger du har fått som ikke vises ennå (de kommer "
+    "med når du har vurdert den andre, eller når fristen er ute), og koder og lenker som slettes etter kort tid."
+)
 
 
 def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[str, Any]:
@@ -18,8 +26,11 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "name": row["name"],
         "created_at": row["created_at"],
         "created_via": row["created_via"],
+        "last_active_at": row["last_active_at"],  # an account unused for long is deleted
+        "deletion_notice_sent_at": row["inactivity_notice_at"],  # told it will be deleted for not being used
         "moderator": bool(row["is_admin"]),
         "price_drop_emails": bool(row["price_alerts"]),
+        "last_price_alert_at": row["price_alerted_at"],
         "verification": user.verification,
         "verified_at": row["verified_at"],
         "verified_name": row["verified_name"],
@@ -36,19 +47,52 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "banned_at": row["banned_at"],
         "ban_reason": row["ban_reason"],
     }
-    own = [
-        serializers.listing_detail(listings.get_listing(conn, r["id"]), base, owner_view=True)
-        for r in conn.execute("SELECT id FROM listings WHERE user_id = ? ORDER BY id", (user.id,))
-    ]
-    conversations = [
-        serializers.conversation_dict(
+    own = []
+    for r in conn.execute(
+        "SELECT id, reviewed_at, feed, external_id FROM listings WHERE user_id = ? ORDER BY id", (user.id,)
+    ).fetchall():
+        item = serializers.listing_detail(listings.get_listing(conn, r["id"]), base, owner_view=True)
+        item["reviewed_by_moderator_at"] = r["reviewed_at"]
+        item["feed"] = {"name": r["feed"], "external_id": r["external_id"]} if r["feed"] else None
+        own.append(item)
+    # When the person deleted a conversation from their own inbox (the other person may still have it).
+    hidden = {
+        r["id"]: r["buyer_hidden_at"] if r["buyer_id"] == user.id else r["seller_hidden_at"]
+        for r in conn.execute(
+            "SELECT id, buyer_id, buyer_hidden_at, seller_hidden_at FROM conversations "
+            "WHERE buyer_id = ? OR seller_id = ?",
+            (user.id, user.id),
+        )
+    }
+    conversations = []
+    for c in messages.list_conversations(conn, user.id, include_hidden=True):
+        item = serializers.conversation_dict(
             messages.get_conversation(conn, c.id, user.id, mark_read=False), user.id, base, with_messages=True
         )
-        for c in messages.list_conversations(conn, user.id, include_hidden=True)
-    ]
+        item["deleted_from_your_inbox_at"] = hidden.get(c.id)
+        conversations.append(item)
+    # Keys, and for those an AI assistant got by signing in (MCP), which app has access to the account.
     tokens = [
-        {"name": t.name, "hint": t.hint, "created_at": t.created_at, "last_used_at": t.last_used_at}
-        for t in users.list_api_tokens(conn, user.id)
+        {
+            "name": t["name"],
+            "hint": t["token_hint"],
+            "created_at": t["created_at"],
+            "last_used_at": t["last_used_at"],
+            "assistant": {
+                "client_id": t["oauth_client_id"],
+                "name": t["client_name"],
+                "redirect_uris": json.loads(t["redirect_uris"] or "[]"),
+                "registered_at": t["client_created_at"],
+            }
+            if t["oauth_client_id"]
+            else None,
+        }
+        for t in conn.execute(
+            "SELECT t.name, t.token_hint, t.created_at, t.last_used_at, t.oauth_client_id, c.name AS client_name, "
+            "c.redirect_uris, c.created_at AS client_created_at FROM api_tokens t "
+            "LEFT JOIN oauth_clients c ON c.client_id = t.oauth_client_id WHERE t.user_id = ? ORDER BY t.id DESC",
+            (user.id,),
+        )
     ]
     # Everything you rated, also ratings a moderator removed (the trades show the other person's rating).
     ratings_given = [
@@ -58,6 +102,25 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
             "r.removed_at, r.removal_note FROM ratings r JOIN trades t ON t.id = r.trade_id "
             "WHERE r.rater_id = ? ORDER BY r.id",
             (user.id,),
+        )
+    ]
+    # Ratings others gave you, also those a moderator removed, as soon as you may see them: when you have
+    # rated the other person too, or when the time for rating is over (ratings.py).
+    ratings_received = [
+        {
+            "trade_id": r["trade_id"],
+            "listing_title": r["listing_title"],
+            "rater": {"id": r["rater_id"], "name": r["rater_name"]},
+            "score": r["score"],
+            "comment": r["comment"],
+            "created_at": r["created_at"],
+            "removed_at": r["removed_at"],
+        }
+        for r in conn.execute(
+            "SELECT r.*, t.listing_title, rater.name AS rater_name FROM ratings r JOIN trades t ON t.id = r.trade_id "
+            "JOIN users rater ON rater.id = r.rater_id WHERE r.rated_id = :me AND (t.created_at < :revealed "
+            "OR EXISTS (SELECT 1 FROM ratings o WHERE o.trade_id = r.trade_id AND o.rater_id = :me)) ORDER BY r.id",
+            {"me": user.id, "revealed": iso_ago(days=ratings.REVEAL_DAYS)},
         )
     ]
     appeals = [
@@ -71,17 +134,17 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
     reports_made = [
         dict(r)
         for r in conn.execute(
-            "SELECT listing_id, reported_user_id, conversation_id, reason, comment, created_at, resolved_at, "
-            "resolution FROM reports WHERE reporter_id = ? ORDER BY id",
+            "SELECT listing_id, reported_user_id, conversation_id, rating_id, reason, comment, created_at, "
+            "resolved_at, resolution FROM reports WHERE reporter_id = ? ORDER BY id",
             (user.id,),
         )
     ]
-    # Reports about the person, without saying who made them.
+    # Reports about the person, without saying who made them or what they wrote.
     reports_about = [
         dict(r)
         for r in conn.execute(
-            "SELECT r.listing_id, r.reason, r.created_at, r.resolution FROM reports r "
-            "LEFT JOIN listings l ON l.id = r.listing_id "
+            "SELECT r.listing_id, r.conversation_id, r.rating_id, r.reason, r.created_at, r.resolved_at, "
+            "r.resolution FROM reports r LEFT JOIN listings l ON l.id = r.listing_id "
             "WHERE r.reported_user_id = ? OR l.user_id = ? ORDER BY r.id",
             (user.id, user.id),
         )
@@ -125,9 +188,7 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
     return {
         "exported_at": now_iso(),
         "site": base,
-        "about": "Opplysningene vi har lagret om kontoen din. Passord, nøkler og mobilnummer lagres bare som "
-        "kryptografiske hasher og kan derfor ikke tas med. Ikke med: svindelvurderingen av annonser og "
-        "meldinger (den beskytter mot svindel), og koder og lenker som slettes etter kort tid.",
+        "about": ABOUT,
         "account": account,
         "listings": own,
         "conversations": conversations,
@@ -136,6 +197,7 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
             serializers.trade_dict(t, user.id) for t in ratings.trades_for_user(conn, user.id, limit=10_000)
         ],
         "ratings_given": ratings_given,
+        "ratings_received": ratings_received,
         "appeals": appeals,
         "api_tokens": tokens,
         "logged_in_sessions": sessions,

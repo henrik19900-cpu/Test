@@ -4,6 +4,9 @@ import json
 
 from conftest import csrf, make_listing, register, web_login
 
+from fritorg import moderation, privacy, users
+from fritorg.util import iso_ago
+
 
 def test_people_can_download_everything_stored_about_them(app, client):
     seller = register(client)
@@ -22,8 +25,8 @@ def test_people_can_download_everything_stored_about_them(app, client):
     assert data["conversations"][0]["messages"][0]["body"] == "Hei!"
     assert data["api_tokens"][0]["hint"] == seller["token"]["hint"]
     assert data["reports_about_you"] == [
-        {"listing_id": listing["id"], "reason": "spam", "created_at": data["reports_about_you"][0]["created_at"],
-         "resolution": None}
+        {"listing_id": listing["id"], "conversation_id": None, "rating_id": None, "reason": "spam",
+         "created_at": data["reports_about_you"][0]["created_at"], "resolved_at": None, "resolution": None}
     ]  # fmt: skip
     text = json.dumps(data)
     assert seller["token"]["token"] not in text and "scrypt$" not in text and "ola@example.no" not in text
@@ -38,3 +41,55 @@ def test_people_can_download_everything_stored_about_them(app, client):
     assert "Last ned dataene dine" in client.get("/min-side").text
     client.post("/logg-ut", data={"csrf_token": csrf(client)})
     assert client.get("/min-side/data.json", follow_redirects=False).status_code == 303
+
+
+def _rated_trade(client, seller_auth, buyer_auth):
+    """A trade the seller recorded, rated by both. Returns the trade id."""
+    listing = make_listing(client, seller_auth)
+    conversation = client.post(
+        "/api/v1/conversations",
+        json={"listing_id": listing["id"], "message": "Er den ledig?"},
+        headers=buyer_auth,
+    ).json()["id"]
+    client.post(
+        f"/api/v1/conversations/{conversation}/messages", json={"message": "Ja."}, headers=seller_auth
+    )
+    trade = client.post(f"/api/v1/conversations/{conversation}/trade", headers=seller_auth).json()["id"]
+    client.post(
+        f"/api/v1/trades/{trade}/rating", json={"score": 2, "comment": "Kom for sent"}, headers=buyer_auth
+    )
+    client.post(f"/api/v1/trades/{trade}/rating", json={"score": 5}, headers=seller_auth)
+    return trade
+
+
+def test_the_export_has_the_ratings_others_gave_you(app, client, auth, other_auth):
+    _rated_trade(client, auth, other_auth)
+    with app.state.db.session() as conn:  # a moderator removes Ola's rating of Kari
+        moderator = users.create_user(conn, "mod@example.no", "Mona Berg", "hemmelig123")
+        users.set_admin(conn, moderator.id)
+        rating = conn.execute("SELECT id FROM ratings WHERE rater_id = 2").fetchone()["id"]
+        moderation.remove_rating(conn, moderator, rating, "Ikke om handelen")
+    received = client.get("/api/v1/me/export", headers=auth).json()["ratings_received"]
+    assert [(r["score"], r["comment"], r["rater"]["name"]) for r in received] == [
+        (2, "Kom for sent", "Ola Hansen")
+    ]
+    assert received[0]["removed_at"]  # still stored (for a year), so still in the person's copy
+
+
+def test_the_export_says_which_assistants_have_access_and_what_notices_were_sent(app, client, auth):
+    client.post("/oauth/register", json={"client_name": "Claude", "redirect_uris": ["https://claude.ai/cb"]})
+    with app.state.db.session() as conn:
+        users.create_api_token(conn, 1, "Claude")
+        conn.execute(
+            "UPDATE api_tokens SET oauth_client_id = (SELECT client_id FROM oauth_clients) WHERE name = 'Claude'"
+        )
+        conn.execute(
+            "UPDATE users SET last_active_at = ?, inactivity_notice_at = ?, price_alerted_at = ? WHERE id = 1",
+            (iso_ago(days=700), iso_ago(days=3), iso_ago(days=1)),
+        )
+        # Read directly: a request with the account's key would count as using it, and cancel the notice.
+        data = privacy.export_user(conn, users.get_user(conn, 1), "http://testserver")
+    assistant = next(t for t in data["api_tokens"] if t["name"] == "Claude")["assistant"]
+    assert assistant["name"] == "Claude" and assistant["redirect_uris"] == ["https://claude.ai/cb"]
+    account = data["account"]
+    assert account["last_active_at"] and account["deletion_notice_sent_at"] and account["last_price_alert_at"]

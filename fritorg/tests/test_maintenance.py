@@ -217,7 +217,7 @@ def test_automatic_deletion_can_be_turned_off(app, client, auth, settings):
     report = maintenance.run(app.state.db, settings)
     assert (report.marked, report.deleted) == (0, 0)
     assert client.get(f"/api/v1/listings/{listing['id']}", headers=auth).json()["deletes_at"] is None
-    assert "slettes automatisk" not in client.get("/vilkar").text
+    assert "slettes automatisk sammen med bildene" not in client.get("/vilkar").text
 
 
 def test_pages_explain_automatic_deletion(app, client, auth, settings):

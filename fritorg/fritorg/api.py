@@ -489,7 +489,7 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
         "name": user.name,
         "verified": user.is_verified,
         "verification": user.verification,
-        "member_since": user.created_at,
+        "member_since": user.created_at[:10],  # the day is enough for strangers
         "active_listings": active,
         "url": f"{base_url(request)}/bruker/{user.id}",
         "type": "business" if user.is_business else "private",

@@ -543,6 +543,18 @@ ALTER TABLE users ADD COLUMN business_name TEXT;
 ALTER TABLE users ADD COLUMN business_checked_at TEXT;
 """
 
+# When the account was last used (users.mark_active), and when its owner was told that it will be deleted for not
+# being used (maintenance.py). Accounts made before have their newest login or key use.
+SCHEMA_V14 = """
+ALTER TABLE users ADD COLUMN last_active_at TEXT;
+ALTER TABLE users ADD COLUMN inactivity_notice_at TEXT;
+UPDATE users SET last_active_at = MAX(
+    created_at,
+    COALESCE((SELECT MAX(created_at) FROM sessions WHERE user_id = users.id), ''),
+    COALESCE((SELECT MAX(last_used_at) FROM api_tokens WHERE user_id = users.id), '')
+);
+"""
+
 
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
@@ -566,6 +578,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V11,
     SCHEMA_V12,
     SCHEMA_V13,
+    SCHEMA_V14,
 ]
 
 

@@ -101,7 +101,8 @@ Annonser som ser ut til å gjelde noe av dette, kontrolleres av en moderator fø
 {% if settings.delete_after_days %}- Annonsene dine lagres til du sletter dem, eller til de slettes automatisk fordi de ikke har vært aktive eller endret på {{ settings.delete_after_days|days_no }} (se over). Meldingene blir liggende også når annonsen er slettet.
 {% else %}- Annonsene og meldingene dine lagres til du sletter dem.
 {% endif %}- Du kan slette en samtale fra innboksen din. Når dere begge har slettet den, slettes den for godt, men ikke så lenge en rapport om den er åpen, i 90 dager hvis en melding i den har sterke svindelsignaler, og så lenge handelen dere registrerte i den kan vurderes.
-- Innlogging på nettsiden varer i 30 dager. Koder og lenker for bekreftelse og nytt passord slettes etter inntil to døgn. En AI-assistents nøkkel som ikke er brukt på 90 dager, slettes.
+{% if settings.inactive_account_days %}- Kontoer som ikke har vært brukt på {{ settings.inactive_account_days|days_no }}, slettes automatisk med alt som hører til. En måned før får du beskjed på e-post hvis du har bekreftet adressen. Logger du inn, eller bruker du kontoen med en AI-assistent, blir den ikke slettet.
+{% endif %}- Innlogging på nettsiden varer i 30 dager. Koder og lenker for bekreftelse og nytt passord slettes etter inntil to døgn. En AI-assistents nøkkel som ikke er brukt på 90 dager, slettes.
 - Tilgangsloggen slettes etter 14 dager og sikkerhetskopier etter 30 dager. Må vi legge tilbake en sikkerhetskopi, slettes kontoer som er slettet etter at kopien ble tatt, på nytt.
 - Rapporter som er avgjort, moderatorenes beslutninger og vurderinger en moderator har fjernet, slettes etter ett år.
 

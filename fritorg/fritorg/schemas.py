@@ -189,7 +189,7 @@ class SellerOut(BaseModel):
     id: int
     name: str
     url: str
-    member_since: str
+    member_since: str = Field(description="The day the account was made (YYYY-MM-DD).")
     type: SellerType | None = Field(None, description=_SELLER_TYPE_DOC)
     business: BusinessOut | None = None
     verified: bool = Field(description="The seller is a verified person (see `verification`).")
@@ -394,7 +394,7 @@ class UserPublicOut(BaseModel):
     name: str
     verified: bool = Field(description="A verified person (see `verification`).")
     verification: Verification | None = Field(None, description=_VERIFICATION_DOC)
-    member_since: str
+    member_since: str = Field(description="The day the account was made (YYYY-MM-DD).")
     active_listings: int
     url: str
     type: SellerType = Field(description=_SELLER_TYPE_DOC)

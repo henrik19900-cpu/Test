@@ -39,7 +39,7 @@ from .db import Database
 from .deps import client_ip
 from .errors import AppError, PayloadTooLarge, RateLimited
 from .ratelimit import RateLimiter
-from .templating import CSP, CSRF_COOKIE, SESSION_COOKIE, render_error, templates
+from .templating import CSP, CSRF_COOKIE, FLASH_COOKIE, SESSION_COOKIE, render_error, templates
 
 logger = logging.getLogger("fritorg")
 
@@ -279,6 +279,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response.set_cookie(
                 CSRF_COOKIE, new_csrf, httponly=True, samesite="lax", secure=settings.cookies_secure, path="/"
             )
+        if settings.cookies_secure:  # pages set the short confirmation message without knowing the address
+            flash = FLASH_COOKIE.encode() + b"="
+            response.raw_headers[:] = [
+                (key, value + b"; Secure")
+                if key == b"set-cookie" and value.startswith(flash) and b"secure" not in value.lower()
+                else (key, value)
+                for key, value in response.raw_headers
+            ]
         return response
 
     # Outermost: CORS also decorates rate-limit and error responses. No cookies cross origins.

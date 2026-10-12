@@ -3,7 +3,8 @@ are hidden (and their owners told), old listings that nobody has touched for a l
 (after a notice), people hear about new matches for their saved searches, expired sessions, codes and
 login states are deleted, and once a day the statistics SQLite uses to pick indexes are refreshed (the
 right index matters more as the number of listings grows), photo files no listing uses are deleted, and so
-are copies `fritorg restore` made more than BACKUP_DAYS ago."""
+are copies `fritorg restore` made more than BACKUP_DAYS ago. Accounts nobody has used for a long time are
+deleted too, after a notice."""
 
 from __future__ import annotations
 
@@ -17,11 +18,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
-from . import alerts, images, listings, messages, oauth, saved_searches
+from . import alerts, images, listings, messages, oauth, saved_searches, users
 from .config import Settings
 from .db import Database, analyze
 from .mailer import Mail, Mailer
-from .util import format_date_no, format_days_no, iso_ago, now_iso
+from .util import format_date_no, format_days_no, iso_ago, iso_in, now_iso
 from .views import ViewCounter
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,8 @@ class Report:
     purged: int = 0
     alerts: int = 0
     price_drops: int = 0
+    accounts_warned: int = 0  # accounts not used for long, whose owners were told they will be deleted
+    accounts_deleted: int = 0
 
 
 # How long records about people are kept (the privacy policy in templates/docs/vilkar.md says the same).
@@ -167,6 +170,60 @@ def _delete_old_listings(
         step("deleted photos", lambda: images.remove_files(settings.uploads_dir, filenames))
 
 
+INACTIVE_NOTICE_DAYS = 30  # how long before deleting an unused account its owner is told
+INACTIVE_BATCH = 500
+
+
+def _unused_accounts(conn: sqlite3.Connection, condition: str, cutoff: str) -> list[sqlite3.Row]:
+    """Accounts that may be deleted for not being used: not closed accounts (the closure must stand), not
+    moderators, and not the accounts that own listings from other sources."""
+    return conn.execute(
+        "SELECT id, email, name, email_verified_at FROM users WHERE banned_at IS NULL AND is_admin = 0 "
+        f"AND created_via != 'import' AND {condition} LIMIT {INACTIVE_BATCH}",
+        (cutoff,),
+    ).fetchall()
+
+
+def _warn_unused(mailer: Mailer, base: str, row: sqlite3.Row, when: str) -> None:
+    settings = mailer.settings
+    mailer.send_later(
+        Mail(
+            row["email"],
+            f"Kontoen din på {settings.site_name} slettes {when}",
+            f"Hei {row['name']}!\n\nDu har ikke brukt kontoen din på {settings.site_name} på "
+            f"{format_days_no(settings.inactive_account_days)}. Den slettes derfor {when}, sammen med annonsene, "
+            "bildene, meldingene og vurderingene.\n\nVil du beholde den, logger du inn før det:\n\n"
+            f"{base}/logg-inn\n\nVil du ta vare på noe, kan du laste ned dataene dine på Min side. Gjør du ingenting, "
+            f"slettes kontoen. Takk for at du har brukt {settings.site_name}!\n",
+        )
+    )
+
+
+def _delete_unused_accounts(
+    conn: sqlite3.Connection, settings: Settings, mailer: Mailer | None, base: str, report: Report
+) -> None:
+    """Storage limitation (GDPR art. 5): accounts nobody has used for inactive_account_days are deleted, after a
+    notice INACTIVE_NOTICE_DAYS before, by e-mail when the address is verified. Using the account cancels it."""
+    days = settings.inactive_account_days
+    if not days:
+        return
+    when = format_date_no(iso_in(days=INACTIVE_NOTICE_DAYS))
+    for row in _unused_accounts(
+        conn,
+        "inactivity_notice_at IS NULL AND COALESCE(last_active_at, created_at) < ?",
+        iso_ago(days=max(days - INACTIVE_NOTICE_DAYS, 1)),
+    ):
+        conn.execute("UPDATE users SET inactivity_notice_at = ? WHERE id = ?", (now_iso(), row["id"]))
+        report.accounts_warned += 1
+        if mailer is not None and mailer.enabled and row["email_verified_at"]:
+            _warn_unused(mailer, base, row, when)
+    for row in _unused_accounts(conn, "inactivity_notice_at < ?", iso_ago(days=INACTIVE_NOTICE_DAYS)):
+        if users.under_review(conn, row["id"]):  # a report about them is being handled
+            continue
+        images.remove_files(settings.uploads_dir, users.delete_user(conn, row["id"]))
+        report.accounts_deleted += 1
+
+
 def run(
     db: Database,
     settings: Settings,
@@ -201,6 +258,7 @@ def run(
                     step("price alerts", lambda: alerts.send_price_drops(conn, mailer, base, secret)) or 0
                 )
         _delete_old_listings(conn, settings, mailer, base, report, step)
+        step("unused accounts", lambda: _delete_unused_accounts(conn, settings, mailer, base, report))
         report.purged = step("purge", lambda: purge(conn)) or 0
         report.purged += step("deleted conversations", lambda: messages.purge_deleted(conn)) or 0
         report.purged += step("sign-in codes", lambda: oauth.purge(conn)) or 0

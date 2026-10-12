@@ -103,7 +103,7 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
                 "id": listing.user_id,
                 "name": listing.seller_name,
                 "url": f"{base}/bruker/{listing.user_id}",
-                "member_since": listing.seller_since,
+                "member_since": listing.seller_since[:10],  # the day is enough for strangers
                 "type": listing.seller_type,
                 "business": business.as_dict(listing.seller_org_number, listing.seller_business_name),
                 "verified": listing.seller_verified,

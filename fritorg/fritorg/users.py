@@ -5,11 +5,12 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
+from functools import cache
 
 from .db import transaction
 from .errors import Conflict, Forbidden, NotFound, RateLimited, Unauthorized, ValidationProblem
 from .ratelimit import RateLimiter
-from .security import hash_password, hash_token, new_token, token_hint, verify_password
+from .security import hash_password, hash_token, needs_rehash, new_token, token_hint, verify_password
 from .util import iso_ago, iso_in, now_iso
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -279,12 +280,24 @@ def get_user_by_identity(conn: sqlite3.Connection, identity_hash: str) -> User |
     return _user(row) if row else None
 
 
+@cache
+def _stand_in_hash() -> str:
+    return hash_password(new_token())
+
+
 def authenticate(conn: sqlite3.Connection, email: str, password: str) -> User:
     row = conn.execute("SELECT * FROM users WHERE email = ?", (email.strip(),)).fetchone()
-    if row is None or not verify_password(password, row["password_hash"]):
+    if row is None:
+        verify_password(
+            password, _stand_in_hash()
+        )  # just as slow, so the time does not tell who has an account
+        raise Unauthorized("Feil e-postadresse eller passord.")
+    if not verify_password(password, row["password_hash"]):
         raise Unauthorized("Feil e-postadresse eller passord.")
     if row["banned_at"]:
         raise Forbidden("Kontoen er stengt av en moderator.")
+    if needs_rehash(row["password_hash"]):
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), row["id"]))
     return _user(row)
 
 
@@ -390,10 +403,23 @@ def set_admin(conn: sqlite3.Connection, user_id: int, is_admin: bool = True) -> 
 # --- Web sessions ------------------------------------------------------------------------
 
 
+ACTIVE_EVERY_HOURS = 12  # how often using the account is written down (keeps reads cheap)
+
+
+def mark_active(conn: sqlite3.Connection, user_id: int, last_active_at: str | None = None) -> None:
+    """The account is in use: it is not deleted for being unused, and a notice that it would be is void."""
+    if last_active_at is None or last_active_at < iso_ago(hours=ACTIVE_EVERY_HOURS):
+        conn.execute(
+            "UPDATE users SET last_active_at = ?, inactivity_notice_at = NULL WHERE id = ?",
+            (now_iso(), user_id),
+        )
+
+
 def create_session(conn: sqlite3.Connection, user_id: int) -> str:
     token = new_token()
     with transaction(conn):
         conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now_iso(),))
+        mark_active(conn, user_id)
         conn.execute(
             "INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
             (hash_token(token), user_id, now_iso(), iso_in(days=SESSION_DAYS)),
@@ -409,7 +435,10 @@ def user_for_session(conn: sqlite3.Connection, token: str | None) -> User | None
         "WHERE s.token_hash = ? AND s.expires_at > ? AND u.banned_at IS NULL",
         (hash_token(token), now_iso()),
     ).fetchone()
-    return _user(row) if row else None
+    if row is None:
+        return None
+    mark_active(conn, row["id"], row["last_active_at"])
+    return _user(row)
 
 
 def delete_session(conn: sqlite3.Connection, token: str | None) -> None:
@@ -450,6 +479,7 @@ def user_for_token(conn: sqlite3.Connection, token: str | None) -> User | None:
     # Record usage, but at most every few minutes to keep reads cheap.
     if row["last_used_at"] is None or row["last_used_at"] < iso_ago(minutes=5):
         conn.execute("UPDATE api_tokens SET last_used_at = ? WHERE id = ?", (now_iso(), row["token_id"]))
+    mark_active(conn, row["id"], row["last_active_at"])
     return _user(row)
 
 

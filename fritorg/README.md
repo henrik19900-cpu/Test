@@ -296,6 +296,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_RATE_LIMIT_READ`, `_WRITE`, `_AUTH` | `600`, `60`, `30` | Fartsgrenser per IP-adresse (lesing og skriving per minutt, innlogging per 10 minutter). |
 | `FRITORG_LISTING_DAYS` | `60` | Hvor lenge en annonse ligger ute før den skjules og kan fornyes (0 = for alltid). |
 | `FRITORG_DELETE_AFTER_DAYS` | `365` | Annonser som ikke er aktive, slettes med bildene når de ikke er endret på så mange dager, etter varsel 14 dager før (0 = aldri). Vilkårene viser tallet. |
+| `FRITORG_INACTIVE_ACCOUNT_DAYS` | `730` | Kontoer som ikke har vært brukt på så mange dager, slettes med alt i dem, etter varsel på e-post 30 dager før (0 = aldri). Stengte kontoer, moderatorer og kontoene som eier annonser fra Nav og Platsbanken, slettes ikke slik. Vilkårene viser tallet. |
 | `FRITORG_MAX_LISTINGS_PER_DAY`, `FRITORG_MAX_MESSAGES_PER_DAY` | `50`, `200` | Grenser per konto per døgn. |
 | `FRITORG_NEW_ACCOUNT_MAX_LISTINGS_PER_DAY`, `..._MESSAGES_PER_DAY` | `5`, `20` | Grenser det første døgnet. |
 | `FRITORG_MAX_IMAGE_BYTES`, `FRITORG_MAX_IMAGES_PER_LISTING` | 8 MB, `12` | Bildegrenser. |

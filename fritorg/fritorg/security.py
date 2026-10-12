@@ -7,7 +7,9 @@ import hashlib
 import hmac
 import secrets
 
-_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
+# OWASP's minimum for scrypt with 16 MiB of memory: about a fifth of a second per password. Hashes made
+# with other values still work, and are made again with these when the person logs in.
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 5
 TOKEN_PREFIX = "ft_"
 
 
@@ -36,6 +38,14 @@ def verify_password(password: str, stored: str) -> bool:
     except (ValueError, TypeError):
         return False
     return hmac.compare_digest(candidate, _unb64(digest))
+
+
+def needs_rehash(stored: str) -> bool:
+    """A password hash made with other costs than today's (it is made again at the next login)."""
+    parts = stored.split("$")
+    if len(parts) != 6 or parts[0] != "scrypt":
+        return False
+    return parts[1:4] != [str(_SCRYPT_N), str(_SCRYPT_R), str(_SCRYPT_P)]
 
 
 def new_token() -> str:

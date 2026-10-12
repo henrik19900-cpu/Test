@@ -8,6 +8,7 @@ from conftest import PHOTO, csrf, make_listing, register, web_login
 
 from fritorg import maintenance, messages, users
 from fritorg.__main__ import main
+from fritorg.mailer import MemoryMailer
 from fritorg.util import iso_ago
 
 
@@ -181,3 +182,25 @@ def test_the_privacy_policy_names_the_controller_processors_and_rights(client, s
         "Ingen kan betale for å komme høyere opp",
     ):
         assert text in page, text
+
+
+def test_accounts_nobody_uses_are_deleted_after_a_notice(app, client, auth, other_auth, settings):
+    mailer = MemoryMailer(settings)
+    long_ago = iso_ago(days=settings.inactive_account_days + 1)
+    with app.state.db.session() as conn:
+        conn.execute("UPDATE users SET last_active_at = ?, email_verified_at = ?", (long_ago, long_ago))
+        conn.execute("UPDATE users SET is_admin = 1 WHERE email = 'ola@example.no'")  # moderators stay
+    report = maintenance.run(app.state.db, settings, mailer)
+    assert (report.accounts_warned, report.accounts_deleted) == (1, 0)
+    assert mailer.outbox[-1].to == "kari@example.no" and "slettes" in mailer.outbox[-1].subject
+
+    client.get("/api/v1/me", headers=auth)  # using the account in the month keeps it
+    with app.state.db.session() as conn:
+        assert conn.execute("SELECT inactivity_notice_at FROM users WHERE id = 1").fetchone()[0] is None
+        conn.execute(
+            "UPDATE users SET last_active_at = ?, inactivity_notice_at = ? WHERE id = 1",
+            (long_ago, iso_ago(days=maintenance.INACTIVE_NOTICE_DAYS + 1)),
+        )
+    assert maintenance.run(app.state.db, settings, mailer).accounts_deleted == 1
+    assert client.get("/api/v1/me", headers=auth).status_code == 401
+    assert client.get("/api/v1/me", headers=other_auth).status_code == 200

@@ -60,6 +60,8 @@ class Settings:
     # Listings that are not active (hidden, sold, removed) are deleted with their photos when they have not
     # changed for this many days (0 = never). Their owners are told two weeks before (listings.mark_for_deletion).
     delete_after_days: int = 365
+    # Accounts not used for this long are deleted, after a notice (maintenance.py). 0 = never.
+    inactive_account_days: int = 730
     # Businesses that sync their inventory (PUT /api/v1/me/feeds/{feed}) may keep this many listings.
     max_synced_listings: int = 2000
     # Stricter quotas during an account's first day make throwaway scam accounts less useful.
@@ -172,6 +174,7 @@ class Settings:
             max_listings_per_day=_env_int("MAX_LISTINGS_PER_DAY", defaults.max_listings_per_day),
             listing_days=_env_int("LISTING_DAYS", defaults.listing_days),
             delete_after_days=_env_int("DELETE_AFTER_DAYS", defaults.delete_after_days),
+            inactive_account_days=_env_int("INACTIVE_ACCOUNT_DAYS", defaults.inactive_account_days),
             max_synced_listings=_env_int("MAX_SYNCED_LISTINGS", defaults.max_synced_listings),
             max_messages_per_day=_env_int("MAX_MESSAGES_PER_DAY", defaults.max_messages_per_day),
             new_account_max_listings_per_day=_env_int(

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from PIL import Image as PILImage
 from PIL import ImageDraw
 
+from fritorg import security
 from fritorg.app import create_app
 from fritorg.config import Settings
 
@@ -40,6 +41,12 @@ def make_image(
 
 
 PHOTO = make_image(1)
+
+
+@pytest.fixture(autouse=True)
+def quick_password_hashing(monkeypatch):
+    """Real password hashes take a fifth of a second; tests make hundreds. test_security.py checks the real cost."""
+    monkeypatch.setattr(security, "_SCRYPT_P", 1)
 
 
 @pytest.fixture

@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import re
 
-from conftest import csrf, make_listing, register
+from conftest import csrf, make_listing, register, web_login
+from fastapi.testclient import TestClient
 from test_mcp import HEADERS, call
 
-from fritorg import listings, users
+from fritorg import listings, security, users
+from fritorg.app import create_app
+from fritorg.config import Settings
 from fritorg.mailer import MemoryMailer
 
 WRONG = "feil-passord"
@@ -174,3 +177,37 @@ def test_anonymous_mcp_reports_are_limited_per_address(client, auth):
             is False
         )
     assert call(client, "report_listing", {"listing_id": listing["id"], "reason": "spam"})["isError"] is True
+
+
+def test_passwords_are_hashed_at_full_cost_and_old_hashes_upgrade(app, client, monkeypatch):
+    monkeypatch.undo()  # the real cost, not the quick one the other tests use
+    assert (security._SCRYPT_N, security._SCRYPT_R, security._SCRYPT_P) == (2**14, 8, 5)
+    monkeypatch.setattr(security, "_SCRYPT_P", 1)
+    register(client)
+    monkeypatch.setattr(security, "_SCRYPT_P", 5)
+    with app.state.db.session() as conn:
+        assert conn.execute("SELECT password_hash FROM users").fetchone()[0].startswith("scrypt$16384$8$1$")
+    web_login(client)  # the next login makes the hash again with today's cost
+    with app.state.db.session() as conn:
+        assert conn.execute("SELECT password_hash FROM users").fetchone()[0].startswith("scrypt$16384$8$5$")
+
+
+def test_the_confirmation_message_cookie_is_secure_on_https(tmp_path):
+    settings = Settings(data_dir=tmp_path, verification="none", base_url="https://gratistorget.example")
+    with TestClient(create_app(settings), base_url="https://gratistorget.example") as client:
+        register(client)
+        web_login(client)
+        changed = client.post(
+            "/min-side/navn", data={"csrf_token": csrf(client), "name": "Kari N."}, follow_redirects=False
+        )
+        flash = [
+            v for k, v in changed.headers.multi_items() if k == "set-cookie" and v.startswith("ft_flash=")
+        ]
+        assert flash and all("Secure" in v for v in flash)
+
+
+def test_strangers_see_only_the_day_an_account_was_made(client, auth):
+    listing = make_listing(client, auth)
+    seller = client.get(f"/api/v1/listings/{listing['id']}").json()["seller"]
+    assert len(seller["member_since"]) == 10
+    assert len(client.get(f"/api/v1/users/{seller['id']}").json()["member_since"]) == 10

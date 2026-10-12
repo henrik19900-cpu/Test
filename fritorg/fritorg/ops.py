@@ -178,15 +178,8 @@ def restore(settings: Settings, source: Path) -> Restored:
     db = Database(settings.db_path)
     db.init()  # a copy from an older version gets the newer tables
 
-    photos = 0
-    saved = source.parent / "uploads"
-    for file in saved.rglob("*.webp") if saved.is_dir() else ():
-        target = settings.uploads_dir / file.relative_to(saved)
-        if not target.exists():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(file, target)
-            photos += 1
-
+    # Before the photos are copied: a restore that stops half way (a full disk) must not bring anyone back, and
+    # trying again needs the list of deleted accounts in this database.
     with db.session() as conn:
         conn.executemany(
             "INSERT OR IGNORE INTO deleted_accounts (user_id, created_at, deleted_at) VALUES (?, ?, ?)",
@@ -199,9 +192,18 @@ def restore(settings: Settings, source: Path) -> Restored:
                 "SELECT 1 FROM users WHERE id = ? AND created_at = ?", (user_id, created_at)
             ).fetchone()
         ]
-        for user_id in again:
-            images.remove_files(settings.uploads_dir, users.delete_user(conn, user_id))
+        removed = [name for user_id in again for name in users.delete_user(conn, user_id)]
         conn.execute("DELETE FROM sessions")  # also those that were logged out after the backup
+
+    photos = 0
+    saved = source.parent / "uploads"
+    for file in saved.rglob("*.webp") if saved.is_dir() else ():
+        target = settings.uploads_dir / file.relative_to(saved)
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(file, target)
+            photos += 1
+    images.remove_files(settings.uploads_dir, removed)  # the photos of those deleted again came back too
     return Restored(safety_copy if safety_copy.exists() else None, photos, len(again))
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import os
 import re
 import shutil
@@ -198,6 +199,38 @@ def test_a_restore_brings_the_site_back_but_not_deleted_accounts(
     month_ago = time.time() - (maintenance.BACKUP_DAYS + 1) * 86_400
     os.utime(restored.safety_copy, (month_ago, month_ago))
     assert maintenance.remove_old_safety_copies(settings) == 1 and not restored.safety_copy.exists()
+
+
+def test_a_restore_that_stops_half_way_brings_back_no_deleted_account(
+    app, client, auth, other_auth, settings, tmp_path, monkeypatch
+):
+    listing = make_listing(client, auth)
+    client.post(
+        f"/api/v1/listings/{listing['id']}/images",
+        files={"file": ("p.png", PHOTO, "image/png")},
+        headers=auth,
+    )
+    web_login(client)
+    target = ops.backup(settings, tmp_path / "backup")
+    with app.state.db.session() as conn:  # after the backup Ola deletes the account, and the photos are lost
+        users.delete_user(conn, 2)
+    for file in settings.uploads_dir.rglob("*.webp"):
+        file.unlink()
+
+    copy = shutil.copy2
+
+    def disk_full(source, destination):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(shutil, "copy2", disk_full)
+    with pytest.raises(OSError):
+        ops.restore(settings, target)
+    assert client.get("/api/v1/me", headers=other_auth).status_code == 401  # still deleted
+    assert client.get("/min-side", follow_redirects=False).status_code == 303  # and everyone logged out
+
+    monkeypatch.setattr(shutil, "copy2", copy)  # room again: the restore is run once more
+    assert ops.restore(settings, target).photos == 2
+    assert client.get("/api/v1/me", headers=other_auth).status_code == 401
 
 
 def test_only_sound_backups_are_restored(settings, tmp_path, monkeypatch, capsys):

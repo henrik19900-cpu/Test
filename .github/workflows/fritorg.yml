@@ -60,6 +60,7 @@ jobs:
           docker run -d --platform $PLATFORM --name fritorg -p 8000:8000 -e FRITORG_SEED_DEMO=1 fritorg
           for i in $(seq 1 120); do curl -fsS http://127.0.0.1:8000/healthz && break; sleep 1; done
           test "$(docker exec fritorg uname -m)" = ${{ matrix.machine }}
+          docker exec -w /tmp fritorg python -c "import fritorg.app, mimetypes; assert mimetypes.guess_type('p.webp')[0] == 'image/webp'"
           curl -fsS http://127.0.0.1:8000/llms.txt | head -n 3
           curl -fsS "http://127.0.0.1:8000/api/v1/listings?q=sykkel" | python3 -c "import json, sys; assert json.load(sys.stdin)['total'] > 0"
           curl -fsS -X POST http://127.0.0.1:8000/mcp -H 'Content-Type: application/json' \

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 import re
 import secrets
 from contextlib import asynccontextmanager
@@ -41,6 +42,9 @@ from .ratelimit import RateLimiter
 from .templating import CSP, CSRF_COOKIE, SESSION_COOKIE, render_error, templates
 
 logger = logging.getLogger("fritorg")
+
+# Photos are WebP. Python 3.12 knows that type only from the system's list, and slim Docker images have none.
+mimetypes.add_type("image/webp", ".webp")
 
 PACKAGE_DIR = Path(__file__).parent
 

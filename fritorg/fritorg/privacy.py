@@ -139,12 +139,13 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
             (user.id,),
         )
     ]
-    # Reports about the person, without saying who made them or what they wrote.
+    # Reports about the person, without saying who made them or what they wrote (nor in which conversation:
+    # the other person in it made the report).
     reports_about = [
         dict(r)
         for r in conn.execute(
-            "SELECT r.listing_id, r.conversation_id, r.rating_id, r.reason, r.created_at, r.resolved_at, "
-            "r.resolution FROM reports r LEFT JOIN listings l ON l.id = r.listing_id "
+            "SELECT r.listing_id, r.rating_id, r.reason, r.created_at, r.resolved_at, r.resolution FROM reports r "
+            "LEFT JOIN listings l ON l.id = r.listing_id "
             "WHERE r.reported_user_id = ? OR l.user_id = ? ORDER BY r.id",
             (user.id, user.id),
         )

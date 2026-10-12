@@ -48,7 +48,7 @@ def test_people_can_download_everything_stored_about_them(app, client):
     assert data["conversations"][0]["messages"][0]["body"] == "Hei!"
     assert data["api_tokens"][0]["hint"] == seller["token"]["hint"]
     assert data["reports_about_you"] == [
-        {"listing_id": listing["id"], "conversation_id": None, "rating_id": None, "reason": "spam",
+        {"listing_id": listing["id"], "rating_id": None, "reason": "spam",
          "created_at": data["reports_about_you"][0]["created_at"], "resolved_at": None, "resolution": None}
     ]  # fmt: skip
     text = json.dumps(data)
@@ -64,6 +64,23 @@ def test_people_can_download_everything_stored_about_them(app, client):
     assert "Last ned dataene dine" in client.get("/min-side").text
     client.post("/logg-ut", data={"csrf_token": csrf(client)})
     assert client.get("/min-side/data.json", follow_redirects=False).status_code == 303
+
+
+def test_the_export_does_not_tell_who_reported_you(client, auth, other_auth):
+    listing = make_listing(client, auth)
+    conversation = client.post(
+        "/api/v1/conversations", json={"listing_id": listing["id"], "message": "Hei!"}, headers=other_auth
+    ).json()["id"]
+    reported = client.post(
+        f"/api/v1/conversations/{conversation}/reports",
+        json={"reason": "fraud", "comment": "Ba om BankID-koden min"},
+        headers=other_auth,
+    )
+    assert reported.status_code == 202, reported.text
+    about = client.get("/api/v1/me/export", headers=auth).json()["reports_about_you"]
+    assert [r["reason"] for r in about] == ["fraud"]
+    # The conversation would give the reporter away: they are the only other person in it.
+    assert "conversation_id" not in about[0] and "BankID-koden" not in json.dumps(about)
 
 
 def _rated_trade(client, seller_auth, buyer_auth):

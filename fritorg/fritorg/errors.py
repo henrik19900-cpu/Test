@@ -89,6 +89,12 @@ class PayloadTooLarge(AppError):
     title = "Payload too large"
 
 
+class ServiceUnavailable(AppError):
+    status = 503
+    code = "service_unavailable"
+    title = "Service unavailable"
+
+
 class RateLimited(AppError):
     status = 429
     code = "rate_limited"

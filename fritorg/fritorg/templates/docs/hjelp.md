@@ -33,6 +33,10 @@ Etter 10 feil passord på et kvarter stenges innloggingen for kontoen en liten s
 
 Skriv en melding på annonsen. Samtalen havner under **Meldinger**, og selgeren ser aldri e-postadressen{% if settings.phone_verification_required %} eller mobilnummeret{% endif %} ditt. Stillinger fra andre kilder søker du på hos arbeidsgiveren, med knappen i annonsen.
 
+### Kjøper jeg fra en privatperson eller en bedrift?
+
+Det står ved selgeren på annonsen. Bedrifter er merket **Bedrift**, med navn og organisasjonsnummer. Kjøper du fra en bedrift, gjelder forbrukerkjøpsloven, og som regel har du angrerett hvis dere ikke møtes. Mellom privatpersoner gjelder kjøpsloven. Selger du selv som bedrift, registrerer du organisasjonsnummeret under **Min side**.
+
 ### Hvordan lagrer jeg en annonse?
 
 Trykk på hjertet. Annonsen havner under **Favoritter**. Settes prisen ned, ser du den gamle prisen der, og har du bekreftet e-postadressen, får du beskjed på e-post.

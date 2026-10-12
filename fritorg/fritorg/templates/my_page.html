@@ -140,6 +140,24 @@
     <input id="new-email" name="email" type="email" autocomplete="email" value="{{ user.email }}" required>
     <button type="submit" class="button">{% if mail_enabled and not user.email_verified_at %}Send bekreftelse{% else %}Lagre{% endif %}</button>
   </form>
+  <details id="bedrift"{% if user.is_business %} open{% endif %}>
+    <summary>{% if user.is_business %}Du selger som bedrift{% else %}Selger du som bedrift?{% endif %}</summary>
+    {% if user.is_business %}
+    <p class="small">Annonsene dine er merket <strong>Bedrift</strong>, med {{ user.business_name }}, org.nr. {{ user.org_number|org_no }}. Kjøperne får vite at forbrukerkjøpsloven og angreretten gjelder.</p>
+    <form method="post" action="/min-side/bedrift/fjern">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="link-button">Jeg selger ikke som bedrift lenger</button>
+    </form>
+    {% else %}
+    <p class="small">Selger du som bedrift eller enkeltpersonforetak, må kjøperne få vite det, for da gjelder forbrukerkjøpsloven og angreretten. Annonsene dine merkes da <strong>Bedrift</strong>, med navnet fra Enhetsregisteret.</p>
+    <form method="post" action="/min-side/bedrift" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label for="org-number">Organisasjonsnummer</label>
+      <input id="org-number" name="org_number" type="text" inputmode="numeric" autocomplete="off" pattern="[0-9 ]{9,11}" maxlength="11" required>
+      <button type="submit" class="button">Registrer</button>
+    </form>
+    {% endif %}
+  </details>
   <p><a href="/bruker/{{ user.id }}">Se den offentlige profilen din</a> · <a href="/min-side/data.json" download>Last ned dataene dine (JSON)</a></p>
   {% if user.has_password %}
   <details id="passord">

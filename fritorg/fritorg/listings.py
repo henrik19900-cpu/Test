@@ -243,6 +243,9 @@ class Listing:
     seller_banned: bool = False
     seller_verified: bool = False
     seller_verified_via: str | None = None
+    # A seller who sells as a business (business.py): their organisation number and its registered name.
+    seller_org_number: str | None = None
+    seller_business_name: str | None = None
     images: list[Image] = field(default_factory=list)
     rank: float | None = None
     # Seller statistics, only loaded for single-listing views (get_listing).
@@ -296,6 +299,17 @@ class Listing:
     @property
     def is_public(self) -> bool:
         return self.status in ("active", "sold") and not self.seller_banned
+
+    @property
+    def seller_is_business(self) -> bool:
+        return self.seller_org_number is not None and not self.is_imported
+
+    @property
+    def seller_type(self) -> str | None:
+        """ "business" or "private", as the seller declared it; None for listings from other sources."""
+        if self.is_imported:
+            return None
+        return "business" if self.seller_org_number else "private"
 
     @property
     def seller_is_new(self) -> bool:
@@ -615,7 +629,8 @@ def validate_listing(values: dict[str, Any]) -> dict[str, Any]:
 
 _SELLER_COLUMNS = (
     "u.name AS seller_name, u.created_at AS seller_since, u.banned_at AS seller_banned_at, "
-    "u.verified_at AS seller_verified_at, u.verified_via AS seller_verified_via"
+    "u.verified_at AS seller_verified_at, u.verified_via AS seller_verified_via, "
+    "u.org_number AS seller_org_number, u.business_name AS seller_business_name"
 )
 _SELECT = f"SELECT l.*, {_SELLER_COLUMNS} FROM listings l JOIN users u ON u.id = l.user_id"
 
@@ -648,6 +663,8 @@ def _listing(row: sqlite3.Row) -> Listing:
         seller_banned=bool(row["seller_banned_at"]),
         seller_verified=bool(row["seller_verified_at"]),
         seller_verified_via=row["seller_verified_via"] if row["seller_verified_at"] else None,
+        seller_org_number=row["seller_org_number"],
+        seller_business_name=row["seller_business_name"],
         rank=row["rank"] if "rank" in keys else None,
         saved_price=row["saved_price"] if "saved_price" in keys else None,
         views=row["views"] if "views" in keys else 0,

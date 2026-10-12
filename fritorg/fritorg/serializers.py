@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from . import taxonomy
+from . import business, taxonomy
 from .listings import Appeal, AttrFilter, Image, Listing, SearchResult
 from .messages import Conversation
 from .ratings import Rating, Summary, Trade
@@ -57,6 +57,7 @@ def listing_summary(listing: Listing, base: str) -> dict[str, Any]:
         "status": listing.status,
         "seller_id": listing.user_id,
         "seller_name": listing.seller_name,
+        "seller_type": listing.seller_type,
         "source": listing.source,
         "created_at": listing.created_at,
         "updated_at": listing.updated_at,
@@ -103,6 +104,8 @@ def listing_detail(listing: Listing, base: str, *, owner_view: bool = False) -> 
                 "name": listing.seller_name,
                 "url": f"{base}/bruker/{listing.user_id}",
                 "member_since": listing.seller_since,
+                "type": listing.seller_type,
+                "business": business.as_dict(listing.seller_org_number, listing.seller_business_name),
                 "verified": listing.seller_verified,
                 "verification": listing.seller_verification,
                 "new_account": listing.seller_is_new,
@@ -376,6 +379,14 @@ def listing_markdown(listing: Listing, base: str) -> str:
             lines.append(f"- **Lisens:** {info.licence} ({info.licence_url})")
     elif listing.seller_verified:
         lines.append(f"- **Selger:** {listing.seller_verification_label}")
+    if listing.seller_is_business:
+        number = business.format_org_number(listing.seller_org_number or "")
+        lines.append(
+            f"- **Bedrift:** {_md_escape_inline(listing.seller_business_name or '')}, org.nr. {number} "
+            "(oppgitt av selgeren; forbrukerkjøpsloven gjelder)"
+        )
+    elif listing.seller_type == "private":
+        lines.append("- **Privatperson:** kjøpsloven gjelder, ikke forbrukerkjøpsloven eller angrerett")
     if listing.seller_is_new:
         lines.append("- **Merk:** Selgeren er en ny bruker")
     if listing.created_via == "mcp":
@@ -549,7 +560,15 @@ def listing_jsonld(listing: Listing, base: str, site_name: str) -> dict[str, Any
             "availability": "https://schema.org/SoldOut"
             if listing.status == "sold"
             else "https://schema.org/InStock",
-            "seller": {"@type": "Person", "name": listing.seller_name},
+            "seller": (
+                {
+                    "@type": "Organization",
+                    "name": listing.seller_business_name,
+                    "taxID": listing.seller_org_number,
+                }
+                if listing.seller_is_business
+                else {"@type": "Person", "name": listing.seller_name}
+            ),
             "availableAtOrFrom": {"@type": "Place", "address": address},
         }
         if listing.price is not None:

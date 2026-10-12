@@ -1539,6 +1539,20 @@ section.panel {
   border-color: currentColor;
 }
 
+.tag-business {
+  color: var(--text);
+  border-color: currentColor;
+}
+
+.card-business {
+  font-weight: 700;
+}
+
+.business-line,
+.consumer-note {
+  overflow-wrap: anywhere;
+}
+
 .tips ul {
   margin: 0;
   padding-left: 1.1rem;

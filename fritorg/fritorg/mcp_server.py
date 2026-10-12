@@ -24,6 +24,7 @@ from pydantic import ValidationError
 
 from . import (
     __version__,
+    business,
     favorites,
     images,
     listings,
@@ -279,6 +280,7 @@ def _whoami(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         "email_verified": bool(ctx.user.email_verified_at),
         "unread_messages": messages.unread_count(ctx.conn, ctx.user.id),
         "profile_url": f"{ctx.base}/bruker/{ctx.user.id}",
+        "business": business.as_dict(ctx.user.org_number, ctx.user.business_name),
     }
     if info["verification_required"]:
         info["next_steps"] = (

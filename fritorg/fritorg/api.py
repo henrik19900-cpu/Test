@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from . import (
+    business,
     favorites,
     identity,
     images,
@@ -38,6 +39,7 @@ from .schemas import (
     AppealOut,
     AuthOut,
     BlockedOut,
+    BusinessIn,
     CategoryOut,
     ContactIn,
     ConversationOut,
@@ -146,6 +148,7 @@ def _account(conn: sqlite3.Connection, user: users.User, settings: Settings) -> 
         "phone_hint": user.phone_hint,
         "email_verified": user.email_verified_at is not None,
         "member_since": user.created_at,
+        "business": business.as_dict(user.org_number, user.business_name),
         "unread_messages": messages.unread_count(conn, user.id),
         "listings": counts,
     }
@@ -489,6 +492,8 @@ def get_user(user_id: int, request: Request, conn: Conn) -> dict:
         "member_since": user.created_at,
         "active_listings": active,
         "url": f"{base_url(request)}/bruker/{user.id}",
+        "type": "business" if user.is_business else "private",
+        "business": business.as_dict(user.org_number, user.business_name),
         "rating": serializers.rating_summary_dict(ratings.summary(conn, user.id)),
     }
 
@@ -669,6 +674,23 @@ def me(conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
     return _account(conn, user, settings)
 
 
+@router.put("/me/business", response_model=AccountOut, tags=["account"], summary="Sell as a business")
+def declare_business(body: BusinessIn, conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
+    """Declare that the account sells as a business (also a sole proprietorship). Buyers then see "Bedrift"
+    with the name Enhetsregisteret has for the organisation number, and that consumer law applies. Needed
+    before syncing an inventory with PUT /api/v1/me/feeds/{feed}."""
+    business.declare(conn, user, body.org_number, business.lookup_for(settings.business_registry), body.name)
+    return _account(conn, users.get_user(conn, user.id) or user, settings)
+
+
+@router.delete(
+    "/me/business", response_model=AccountOut, tags=["account"], summary="Sell as a private person"
+)
+def remove_business(conn: Conn, user: CurrentUser, settings: SettingsDep) -> dict:
+    business.remove(conn, user)
+    return _account(conn, users.get_user(conn, user.id) or user, settings)
+
+
 @router.put("/me/feeds/{feed}", response_model=FeedSyncOut, tags=["listings"], summary="Sync an inventory")
 def sync_feed(
     feed: str, body: FeedSyncIn, request: Request, conn: Conn, user: CurrentUser, settings: SettingsDep
@@ -681,6 +703,12 @@ def sync_feed(
     Photos: upload them for new listings with POST /api/v1/listings/{id}/images (ids are in the response).
     """
     phone.ensure_verified(settings, user, base_url(request))
+    if not user.is_business:
+        raise Forbidden(
+            "Registrer bedriften din (organisasjonsnummer) før du synkroniserer et lager, så kjøperne ser at "
+            "de handler med en bedrift.",
+            hint='PUT /api/v1/me/business with {"org_number": "..."} first, or on /min-side.',
+        )
     items = [item.model_dump() for item in body.listings]
     result = inventory.sync(conn, settings, user, feed, items, remove_missing=body.remove_missing)
     return result.__dict__

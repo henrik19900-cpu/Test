@@ -24,6 +24,7 @@ def item(external_id: str, **overrides) -> dict:
 
 
 def sync(client, auth, items, feed="bruktbiler", **body):
+    client.put("/api/v1/me/business", json={"org_number": "974760673", "name": "Bilhuset AS"}, headers=auth)
     return client.put(f"/api/v1/me/feeds/{feed}", json={"listings": items, **body}, headers=auth)
 
 
@@ -92,7 +93,7 @@ def test_photos_are_added_to_synced_listings(client, auth):
 
 
 def test_limits_and_verification(tmp_path):
-    settings = Settings(data_dir=tmp_path, verification="sms", max_synced_listings=2)
+    settings = Settings(data_dir=tmp_path, verification="sms", max_synced_listings=2, business_registry="off")
     with TestClient(create_app(settings)) as client:
         data = register(client)
         auth = {"Authorization": f"Bearer {data['token']['token']}"}

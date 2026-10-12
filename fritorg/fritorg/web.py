@@ -15,6 +15,7 @@ from starlette.datastructures import FormData, UploadFile
 
 from . import (
     alerts,
+    business,
     discovery,
     favorites,
     images,
@@ -31,7 +32,15 @@ from . import (
     users,
 )
 from .deps import base_url, client_ip, get_conn, replace_params, url_with_query
-from .errors import AppError, Conflict, Forbidden, NotFound, RateLimited, ValidationProblem
+from .errors import (
+    AppError,
+    Conflict,
+    Forbidden,
+    NotFound,
+    RateLimited,
+    ServiceUnavailable,
+    ValidationProblem,
+)
 from .listings import SearchParams
 from .mailer import (
     notify_appeal_upheld,
@@ -1253,6 +1262,30 @@ def change_name(request: Request, conn: Conn, form: Form) -> Response:
     except ValidationProblem as exc:
         return redirect("/min-side#konto", flash=_problem_text(exc))
     return redirect("/min-side#konto", flash="Visningsnavnet er endret.")
+
+
+@router.post("/min-side/bedrift")
+def declare_business(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    lookup = business.lookup_for(request.app.state.settings.business_registry)
+    try:
+        _, name = business.declare(conn, user, str(form.get("org_number") or ""), lookup)
+    except (ValidationProblem, ServiceUnavailable) as exc:
+        return redirect("/min-side#bedrift", flash=_problem_text(exc))
+    return redirect("/min-side#bedrift", flash=f"Annonsene dine er nå merket som fra bedriften {name}.")
+
+
+@router.post("/min-side/bedrift/fjern")
+def remove_business(request: Request, conn: Conn, form: Form) -> Response:
+    check_csrf(request, form)
+    user = current_user(request, conn)
+    if user is None:
+        return login_redirect(request)
+    business.remove(conn, user)
+    return redirect("/min-side#bedrift", flash="Annonsene dine er nå merket som fra en privatperson.")
 
 
 @router.post("/min-side/epost")

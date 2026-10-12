@@ -160,6 +160,7 @@ def test_only_old_listings_that_nobody_follows_are_deleted(app, client, auth, se
     recent = make_listing(client, auth, title="Nylig skjult sykkel")
     imported = make_listing(client, auth, title="Stilling fra Nav")
     old = make_listing(client, auth, title="Gammel skjult sykkel")
+    client.put("/api/v1/me/business", json={"org_number": "974760673"}, headers=auth)
     feed = client.put(
         "/api/v1/me/feeds/lager",
         json={

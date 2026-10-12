@@ -5,8 +5,9 @@ Bilforhandlere, meglere, butikker, auksjonshus og arbeidsgivere kan legge ut ann
 ## Slik kommer dere i gang
 
 1. Lag en gratis konto på [{{ base }}/registrer]({{ base }}/registrer){% if settings.phone_verification_required %} og bekreft et norsk mobilnummer{% endif %}.
-2. Lag en API-nøkkel på [Min side]({{ base }}/min-side).
-3. Send hele lageret i ett kall, så ofte dere vil (for eksempel hver time):
+2. Registrer organisasjonsnummeret på [Min side]({{ base }}/min-side) under «Selger du som bedrift?» (eller med `PUT {{ base }}/api/v1/me/business`). Da er annonsene merket **Bedrift** med navnet fra Enhetsregisteret, så kjøperne ser at de handler med en bedrift og at forbrukerkjøpsloven gjelder.
+3. Lag en API-nøkkel på [Min side]({{ base }}/min-side).
+4. Send hele lageret i ett kall, så ofte dere vil (for eksempel hver time):
 
         curl -X PUT {{ base }}/api/v1/me/feeds/bruktbiler \
           -H "Authorization: Bearer DIN_NØKKEL" \

@@ -11,7 +11,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from . import __version__, favorites, messages, phone, taxonomy, users
+from . import __version__, business, favorites, messages, phone, taxonomy, users
 from .listings import DELETION_NOTICE_DAYS, REPORT_REASONS, SORTS
 from .ratings import SCORE_LABELS, stars
 from .util import format_ago_no, format_date_no, format_datetime_no, format_days_no, format_number, truncate
@@ -43,6 +43,7 @@ templates.env.filters.update(
     days_no=format_days_no,
     stars=stars,
     shorten=truncate,
+    org_no=lambda number: business.format_org_number(number, NBSP),
 )
 templates.env.globals.update(
     version=__version__,
@@ -57,6 +58,7 @@ templates.env.globals.update(
     REPORT_REASONS=REPORT_REASONS,
     DELETION_NOTICE_DAYS=DELETION_NOTICE_DAYS,
     SCORE_LABELS=SCORE_LABELS,
+    BUSINESS_REGISTRY_PAGE=business.REGISTRY_PAGE,
 )
 
 

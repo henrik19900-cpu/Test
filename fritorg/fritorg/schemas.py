@@ -163,11 +163,35 @@ class RatingSummaryOut(BaseModel):
     )
 
 
+SellerType = Literal["private", "business"]
+_SELLER_TYPE_DOC = (
+    "'business' when the seller has declared that they sell as a business (then consumer law applies to a "
+    "consumer who buys: forbrukerkjøpsloven, and usually 14 days to cancel when buying at a distance), "
+    "otherwise 'private'. None for listings from other sources."
+)
+
+
+class BusinessOut(BaseModel):
+    name: str = Field(description="The name Enhetsregisteret has for the organisation number.")
+    org_number: str
+    registry_url: str = Field(description="The entity in Enhetsregisteret, where buyers can check it.")
+    declared_by: Literal["seller"] = Field(description="The seller declared it; the number was checked.")
+
+
+class BusinessIn(BaseModel):
+    org_number: str = Field(description="The 9-digit Norwegian organisation number, e.g. '974 760 673'.")
+    name: str | None = Field(
+        None, max_length=200, description="Only used where the register is not checked (development)."
+    )
+
+
 class SellerOut(BaseModel):
     id: int
     name: str
     url: str
     member_since: str
+    type: SellerType | None = Field(None, description=_SELLER_TYPE_DOC)
+    business: BusinessOut | None = None
     verified: bool = Field(description="The seller is a verified person (see `verification`).")
     verification: Verification | None = Field(None, description=_VERIFICATION_DOC)
     new_account: bool = Field(description="The account is less than a week old.")
@@ -247,6 +271,7 @@ class ListingSummaryOut(BaseModel):
     status: str
     seller_id: int
     seller_name: str
+    seller_type: SellerType | None = Field(None, description=_SELLER_TYPE_DOC)
     source: str | None = Field(
         None,
         description="Set for listings imported from an open source, e.g. 'nav' (job ads from arbeidsplassen.no).",
@@ -372,6 +397,8 @@ class UserPublicOut(BaseModel):
     member_since: str
     active_listings: int
     url: str
+    type: SellerType = Field(description=_SELLER_TYPE_DOC)
+    business: BusinessOut | None = None
     rating: RatingSummaryOut | None = Field(None, description="Ratings from people who traded with them.")
 
 
@@ -388,6 +415,9 @@ class AccountOut(BaseModel):
     phone_hint: str | None = Field(None, description="The confirmed number, masked, e.g. '+47 •••••567'.")
     email_verified: bool = Field(description="Notifications are only sent to a verified address.")
     member_since: str
+    business: BusinessOut | None = Field(
+        None, description="Set when the account sells as a business (PUT /api/v1/me/business)."
+    )
     unread_messages: int
     listings: dict[str, int]
 

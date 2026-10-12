@@ -38,6 +38,13 @@ Alt som er ulovlig å selge eller formidle i Norge, er ikke tillatt. Det gjelder
 
 Annonser som ser ut til å gjelde noe av dette, kontrolleres av en moderator før de blir synlige. Rapporter gjerne annonser som bryter reglene.
 
+## Bedrifter og privatpersoner
+
+- Selger du som bedrift, også som enkeltpersonforetak, må du registrere organisasjonsnummeret på Min side. Annonsene dine merkes da **Bedrift**, med navnet bedriften har i Enhetsregisteret. Det er påkrevd for å synkronisere et lager.
+- Kjøper du som privatperson fra en bedrift, gjelder forbrukerkjøpsloven, og som regel har du 14 dagers angrerett når dere ikke møtes for å handle. Kjøper du fra en privatperson, gjelder kjøpsloven, og angrerett har du ikke.
+- Opplysningen om bedriften er selgerens egen. Vi sjekker at organisasjonsnummeret finnes i Enhetsregisteret, og lenker dit, så du kan se hvem bedriften er.
+- Avtalen om en handel inngås mellom kjøper og selger. {{ site_name }} er ikke part i handelen og har ikke ansvar for at den blir gjennomført.
+
 ## Bilder og tekst
 
 - Bruk bare bilder og tekst du har laget selv, eller som du har lov til å bruke. Ikke kopier bilder fra nettbutikker, produsenter eller andres annonser.
@@ -75,6 +82,7 @@ Annonser som ser ut til å gjelde noe av dette, kontrolleres av en moderator fø
 {% endif %}- Bare visningsnavnet ditt vises offentlig. E-postadressen{% if settings.phone_verification_required %} og mobilnummeret{% endif %} ditt deles aldri.
 {% endif %}- Profilen din viser visningsnavnet, når du ble medlem, om kontoen er bekreftet, annonsene dine, hvor raskt du pleier å svare, og vurderingene du har fått, med navnet til den som skrev dem.
 - Ikke del sensitive opplysninger om deg selv eller andre i annonser og meldinger, for eksempel om helse, religion, politisk syn, seksuell orientering, etnisitet eller lovbrudd, og ikke opplysninger om eller bilder av barn.
+- Selger du som bedrift, lagrer vi organisasjonsnummeret og navnet fra Enhetsregisteret. De vises på annonsene og profilen din.
 - Favoritter og lagrede søk er private. Selgere ser hvor mange som har lagret annonsen deres, men ikke hvem. E-post om nye treff sendes bare til en bekreftet adresse når du har slått det på, og hver e-post har en lenke for å melde seg av.
 - For å stoppe svindel sjekkes annonser og meldinger automatisk for kjente svindelmønstre. Meldinger med sterke svindelsignaler og saker som er rapportert, kan bli lest av en moderator.
 {% if settings.nav_import %}- **Ledige stillinger fra arbeidsplassen.no.** Stillingsannonser merket «Fra arbeidsplassen.no (Nav)» hentes fra Navs åpne stillingsfeed, som Nav lar alle publisere videre. Annonsene kan inneholde navn og kontaktopplysninger til kontaktpersoner hos arbeidsgiveren, slik arbeidsgiveren selv har publisert dem. Vi viser dem for at ledige stillinger skal være lett å finne (berettiget interesse, personvernforordningen artikkel 6 nr. 1 f). Kontaktpersonlistene fra Nav lagres ikke. Annonsene oppdateres når de endres hos Nav, og slettes hos oss så snart de er inaktive hos Nav eller visningstiden er ute. Står du i en slik annonse og vil ha opplysninger fjernet, kan du kontakte oss{% if settings.contact_email %} på {{ settings.contact_email }}{% endif %} eller arbeidsgiveren.

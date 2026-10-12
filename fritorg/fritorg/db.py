@@ -535,6 +535,14 @@ CREATE TABLE deleted_accounts (
 CREATE INDEX idx_deleted_accounts_time ON deleted_accounts(deleted_at);
 """
 
+# Sellers who sell as a business (business.py): the organisation number they gave, and the name
+# Enhetsregisteret has for it.
+SCHEMA_V13 = """
+ALTER TABLE users ADD COLUMN org_number TEXT;
+ALTER TABLE users ADD COLUMN business_name TEXT;
+ALTER TABLE users ADD COLUMN business_checked_at TEXT;
+"""
+
 
 def analyze(conn: sqlite3.Connection) -> None:
     """Refresh the statistics the query planner uses to pick an index (sampled, so it stays quick)."""
@@ -557,6 +565,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     SCHEMA_V10,
     SCHEMA_V11,
     SCHEMA_V12,
+    SCHEMA_V13,
 ]
 
 

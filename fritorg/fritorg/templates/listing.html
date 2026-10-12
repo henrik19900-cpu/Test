@@ -164,6 +164,7 @@
     <div class="panel">
       <p class="muted small">{{ listing.poster_role }}</p>
       <p class="seller-name"><a href="/bruker/{{ listing.user_id }}">{{ listing.seller_name }}</a></p>
+      {% if listing.seller_is_business %}<p class="small business-line"><span class="tag tag-business">Bedrift</span> {{ listing.seller_business_name }}, org.nr. <a href="{{ BUSINESS_REGISTRY_PAGE.format(listing.seller_org_number) }}" rel="noopener">{{ listing.seller_org_number|org_no }}</a></p>{% endif %}
       <p class="trust">
         {% if listing.seller_verified %}<span class="tag tag-verified" title="{{ listing.seller_verification_title }}">{{ icon("shield", 14) }} {{ listing.seller_verification_label }}</span>{% endif %}
         {% if listing.seller_is_new %}<span class="tag tag-new" title="Kontoen er mindre enn en uke gammel">Ny bruker</span>{% endif %}
@@ -171,6 +172,7 @@
       {% if listing.seller_rating and listing.seller_rating.count %}<p class="small rating-summary"><a href="/bruker/{{ listing.user_id }}#vurderinger"><span class="stars" aria-hidden="true">★</span> {{ listing.seller_rating.average_text }} av 5 · {{ listing.seller_rating.count }} {{ "vurdering" if listing.seller_rating.count == 1 else "vurderinger" }}</a></p>{% endif %}
       {% if response_time %}<p class="small response-time">{{ icon("chat", 16) }} {{ response_time }}</p>{% endif %}
       <p class="muted small">Medlem siden {{ listing.seller_since|date_no }}{% if listing.seller_sold %} · {{ listing.seller_sold }} solgt{% endif %}{% if listing.seller_active %} · {{ listing.seller_active }} {{ "aktiv annonse" if listing.seller_active == 1 else "aktive annonser" }}{% endif %}</p>
+      {% if listing.type == "sell" %}<p class="small consumer-note">{% if listing.seller_is_business %}Selgeren har oppgitt at den selger som bedrift. Kjøper du som privatperson, gjelder forbrukerkjøpsloven, og som regel har du 14 dagers angrerett hvis dere ikke møtes for å handle.{% else %}Selgeren er en privatperson. Da gjelder kjøpsloven, ikke forbrukerkjøpsloven eller angrerett.{% endif %} Avtalen er mellom deg og selgeren. <a href="/vilkar#bedrifter-og-privatpersoner">Les mer</a></p>{% endif %}
     </div>
     {% endif %}
 

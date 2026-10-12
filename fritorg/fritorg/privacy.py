@@ -26,6 +26,13 @@ def export_user(conn: sqlite3.Connection, user: users.User, base: str) -> dict[s
         "phone": {"hint": row["phone_hint"], "verified_at": row["phone_verified_at"]}
         if row["phone_hint"]
         else None,
+        "business": {
+            "org_number": row["org_number"],
+            "name": row["business_name"],
+            "checked_at": row["business_checked_at"],
+        }
+        if row["org_number"]
+        else None,
         "banned_at": row["banned_at"],
         "ban_reason": row["ban_reason"],
     }

@@ -55,6 +55,9 @@ class User:
     email_verified_at: str | None = None
     phone_hint: str | None = None
     price_alerts: bool = True  # e-mail when a favourite gets cheaper
+    # Sells as a business (business.py): the organisation number and the name in Enhetsregisteret.
+    org_number: str | None = None
+    business_name: str | None = None
 
     @property
     def first_name(self) -> str:
@@ -65,6 +68,10 @@ class User:
     def is_new(self) -> bool:
         """Accounts younger than a day get stricter quotas."""
         return self.created_at > iso_ago(days=1)
+
+    @property
+    def is_business(self) -> bool:
+        return self.org_number is not None
 
     @property
     def is_verified(self) -> bool:
@@ -107,6 +114,8 @@ def _user(row: sqlite3.Row) -> User:
         email_verified_at=row["email_verified_at"],
         phone_hint=row["phone_hint"],
         price_alerts=bool(row["price_alerts"]),
+        org_number=row["org_number"],
+        business_name=row["business_name"],
     )
 
 

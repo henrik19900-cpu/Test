@@ -46,7 +46,9 @@ PHOTO = make_image(1)
 def settings(tmp_path) -> Settings:
     # Most tests use simple password accounts without verification; test_phone.py covers SMS
     # verification and test_bankid.py the BankID flows.
-    return Settings(data_dir=tmp_path / "data", bankid_mode="off", verification="none")
+    return Settings(
+        data_dir=tmp_path / "data", bankid_mode="off", verification="none", business_registry="off"
+    )
 
 
 @pytest.fixture

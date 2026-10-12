@@ -891,8 +891,9 @@ TOOLS: list[Tool] = [
     Tool(
         "create_listing",
         "Create listing",
-        "Publish a listing for the user (free). Confirm the details with the user first. Listings created here are "
-        "labelled as made via an AI agent.",
+        "Publish a listing for the user (free). Confirm the details with the user first. Only things that are legal "
+        "to sell in Norway (no alcohol, tobacco, medicines, licensed weapons, fireworks, counterfeits), with the "
+        "user's own photos. Listings created here are labelled as made via an AI agent.",
         _LISTING_FIELDS
         | {
             "status": {
@@ -1188,6 +1189,12 @@ def instructions(base: str, user: users.User | None, settings: Settings) -> str:
         lines.append(
             "To move the user's own listing from another marketplace, use their own text and photos. Never copy "
             "listings from finn.no or other sites: their terms and Norwegian database law forbid it."
+        )
+        lines.append(
+            "Only what is legal to sell in Norway may be listed: no alcohol, tobacco, snus or nicotine products, "
+            "medicines or drugs, weapons that need a licence, fireworks, stolen or counterfeit goods, IDs, bank "
+            f"cards or accounts (full list: {base}/vilkar#dette-kan-du-ikke-legge-ut). Use only photos the user "
+            "took or may use, never pictures from shops or other listings."
         )
         lines.append(
             'To keep an eye on something for the user ("tell me when a cheap road bike turns up"), use save_search; '

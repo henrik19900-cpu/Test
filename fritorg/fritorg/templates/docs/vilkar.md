@@ -14,10 +14,41 @@
 {% if settings.listing_days %}- Annonser ligger ute i {{ settings.listing_days }} dager. Deretter skjules de, og du kan gjøre dem aktive igjen på Min side.
 {% endif %}{% if settings.delete_after_days %}- Annonser som ikke er aktive, for eksempel skjulte, utløpte og solgte, slettes automatisk sammen med bildene når de ikke har vært endret på {{ settings.delete_after_days|days_no }}. Du får beskjed {{ DELETION_NOTICE_DAYS|days_no }} før, på Min side og på e-post hvis du har bekreftet adressen. Gjør du annonsen aktiv igjen eller endrer den innen da, blir den ikke slettet. Annonser fra andre kilder og fra bedrifter som synkroniserer lageret sitt, følger kilden.
 {% endif %}
-- Etter en handel som selgeren har registrert, kan dere vurdere hverandre fra 1 til 5 med en kommentar, én gang og innen 14 dager. Vurderingen er offentlig på profilen til den som blir vurdert, med navnet ditt, tittelen på annonsen og datoen. Den vises når dere begge har vurdert, eller når fristen er ute, og kan ikke endres. Vurderinger skal være ærlige og handle om handelen. Usanne eller krenkende vurderinger kan rapporteres og fjernes av en moderator.
-- Ulovlige varer og tjenester, svindel, spam og støtende innhold er ikke tillatt og blir fjernet.
+- Etter en handel som selgeren har registrert, kan dere vurdere hverandre fra 1 til 5 med en kommentar, én gang og innen 14 dager. Bare de to som var med på handelen, kan vurdere den, så vurderingene kommer fra ekte handler. De sjekkes ikke før de vises. Vurderingen er offentlig på profilen til den som blir vurdert, med navnet ditt, tittelen på annonsen og datoen. Den vises når dere begge har vurdert, eller når fristen er ute, og kan ikke endres. Vurderinger skal være ærlige og handle om handelen. Usanne eller krenkende vurderinger kan rapporteres og fjernes av en moderator.
+- Det du legger ut, må være lov å selge, og du må ha rett til bildene og teksten (se under). Svindel, spam og støtende innhold er ikke tillatt og blir fjernet.
 - Kontoer som misbruker tjenesten, kan bli begrenset eller stengt.
 - Fjerner en moderator annonsen din, får du en begrunnelse på annonsen og på e-post. Mener du at avgjørelsen er feil, kan du klage én gang på annonsen. En moderator ser på saken på nytt og publiserer annonsen igjen eller forklarer hvorfor den forblir fjernet.{% if settings.contact_email %} Er kontoen din stengt, kan du klage til {{ settings.contact_email }}.{% endif %}
+
+## Dette kan du ikke legge ut
+
+Alt som er ulovlig å selge eller formidle i Norge, er ikke tillatt. Det gjelder blant annet:
+
+- **Narkotika, dopingmidler og legemidler**, også reseptfrie.
+- **Alkohol**. Tomme flasker og emballasje går bra.
+- **Tobakk, snus og nikotinprodukter**, også e-sigaretter.
+- **Våpen som krever tillatelse**, våpendeler og ammunisjon, og våpen som er forbudt å eie, som pepperspray, batonger, slagringer og springkniver.
+- **Fyrverkeri og eksplosiver.**
+- **Stjålne varer**, og ting du ikke eier eller har rett til å selge.
+- **Kopivarer og piratkopier**: falske merkevarer og kopier av filmer, spill, musikk og programvare.
+- **ID-dokumenter, bankkort, BankID og kontoer**, ekte eller falske, og opplysninger om andre personer.
+- **Seksuelle tjenester.**
+- **Lotterier, pengespill og pyramidespill.**
+- **Farlige og tilbakekalte produkter.**
+- **Dyr som ikke selges i tråd med dyrevelferdsloven.** Valper og kattunger kan ikke selges før de er 8 uker, og ville dyr og fredede arter kan ikke selges.
+
+Annonser som ser ut til å gjelde noe av dette, kontrolleres av en moderator før de blir synlige. Rapporter gjerne annonser som bryter reglene.
+
+## Bilder og tekst
+
+- Bruk bare bilder og tekst du har laget selv, eller som du har lov til å bruke. Ikke kopier bilder fra nettbutikker, produsenter eller andres annonser.
+- Du beholder rettighetene til det du legger ut. Ved å publisere gir du {{ site_name }} lov til å lagre, vise og dele annonsen gratis, også via API, MCP, eksport, søkemotorer og AI-agenter, så lenge den er publisert.
+- Mener du at en annonse bruker bilder eller tekst du har rettighetene til, kan du rapportere annonsen med grunnen «Bruker mine bilder eller min tekst»{% if settings.contact_email %} eller skrive til {{ settings.contact_email }}{% endif %}. Innhold som krenker andres rettigheter, fjernes.
+
+## Slik sorteres annonsene
+
+- Uten søkeord kommer de nyeste annonsene først.
+- Med søkeord kommer først annonsene der alle ordene står i tittelen, kategorien, stedet eller egenskapene, nyeste først. Deretter kommer resten.
+- Du kan også sortere på pris eller dato. Ingen kan betale for å komme høyere opp, og siden har ingen reklame.
 
 ## Åpne data og AI-agenter
 

@@ -47,6 +47,25 @@ def test_honest_texts_are_not_flagged(text):
     assert fraud.text_codes(text) == []
 
 
+@pytest.mark.parametrize(
+    ("text", "prohibited"),
+    [
+        ("Selger vodka og rødvin fra hytta.", True),
+        ("Snus til salgs, 10 bokser.", True),
+        ("Rifle Tikka T3 med kikkert.", True),
+        ("Fyrverkeri til nyttårsaften.", True),
+        # Norwegian writes these as one word, so they are not taken for what they hold or look like.
+        ("Vinglass i krystall, 6 stk.", False),
+        ("Whiskyglass og karaffel.", False),
+        ("Snusboks i sølv.", False),
+        ("Limpistol fra Bosch, lite brukt.", False),
+        ("Vannpistol til barna.", False),
+    ],
+)
+def test_things_that_may_not_be_sold_go_to_a_moderator(text, prohibited):
+    assert ("prohibited_item" in fraud.text_codes(text)) is prohibited
+
+
 def test_payment_links_in_messages_are_flagged():
     assessment = fraud.assess_message(
         "Jeg har betalt! Motta pengene her: https://posten-betaling.example/abc"

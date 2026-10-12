@@ -597,7 +597,10 @@ class ReplyIn(BaseModel):
 class ReportIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    reason: ReportReason = Field(description="spam, fraud, illegal, offensive, wrong_category or other")
+    reason: ReportReason = Field(
+        description="spam, fraud, illegal, offensive, wrong_category, privacy (about the reporter), copyright "
+        "(the reporter's photos or text) or other"
+    )
     comment: str | None = Field(None, max_length=2000)
 
 

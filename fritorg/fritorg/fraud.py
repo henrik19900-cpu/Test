@@ -146,8 +146,8 @@ SIGNALS: dict[str, SignalInfo] = {
         SignalInfo(
             "prohibited_item",
             50,
-            "Ser ut til å gjelde noe som ikke er lov å selge her (narkotika, reseptbelagte legemidler, falske "
-            "dokumenter eller kopivarer).",
+            "Ser ut til å gjelde noe som ikke er lov å selge her (for eksempel narkotika, legemidler, alkohol, "
+            "tobakk, våpen, fyrverkeri, falske dokumenter eller kopivarer).",
         ),
         SignalInfo("pressure", 10, "Bruker pressende formuleringer («haster», «må selges i dag»)."),
         SignalInfo("price_far_below", 50, "Prisen er under 10 % av vanlig pris for lignende annonser."),
@@ -234,7 +234,12 @@ _TEXT_RULES: list[tuple[str, re.Pattern[str]]] = [
         re.compile(
             r"\b(narkotika|kokain|amfetamin|heroin|hasj|marihuana|cannabis|mdma|ecstasy|ghb|anabole steroider"
             r"|reseptbelagt\w*|xanax|oxycodon\w*|vival|rivotril|falske? (?:sedler|pass|førerkort|id-kort|vitnemål)"
-            r"|kopivare\w*|1:1[- ]kopi|fake (?:rolex|gucci|louis vuitton|nike))\b"
+            r"|kopivare\w*|1:1[- ]kopi|fake (?:rolex|gucci|louis vuitton|nike)"
+            # Alcohol, tobacco and nicotine, weapons that need a licence or are forbidden, and explosives.
+            # Whole words only: Norwegian writes "vinglass", "snusboks" and "limpistol" as one word.
+            r"|brennevin|hjemmebrent|vodka|whiske?y|akevitt|konjakk|cognac|rødvin|hvitvin|champagne"
+            r"|snus|nikotinposer|e-sigarett(?:er)?|sigaretter|skytevåpen|hagle|rifle|revolver|pistol|ammunisjon"
+            r"|pepperspray|batong|slagring|springkniv|butterflykniv|fyrverkeri|sprengstoff|dynamitt)\b"
         ),
     ),
     ("pressure", re.compile(r"\b(haster|må selges (?:i dag|nå|raskt|fort)|urgent|asap)\b")),

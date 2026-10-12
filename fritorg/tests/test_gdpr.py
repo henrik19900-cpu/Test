@@ -117,11 +117,16 @@ def test_people_can_correct_their_name_and_report_their_own_data(client, auth, o
     refused = client.post("/min-side/navn", data={"csrf_token": csrf(client), "name": "Gratistorget"})
     assert "Velg et annet visningsnavn" in refused.text
     listing = make_listing(client, auth)
-    report = {"reason": "privacy", "comment": "Bildet viser huset mitt."}
-    assert (
-        client.post(f"/api/v1/listings/{listing['id']}/reports", json=report, headers=other_auth).status_code
-        == 202
-    )
+    for report in (
+        {"reason": "privacy", "comment": "Bildet viser huset mitt."},
+        {"reason": "copyright", "comment": "Bildet er mitt, fra min egen annonse."},
+    ):
+        assert (
+            client.post(
+                f"/api/v1/listings/{listing['id']}/reports", json=report, headers=other_auth
+            ).status_code
+            == 202
+        )
 
 
 def test_closed_accounts_have_no_public_profile(app, client, auth):
@@ -171,5 +176,8 @@ def test_the_privacy_policy_names_the_controller_processors_and_rights(client, s
         "minst 18 år",
         "Tilgangsloggen slettes etter 14 dager",
         "Personopplysninger om meg",
+        "Dette kan du ikke legge ut",
+        "Bruker mine bilder eller min tekst",
+        "Ingen kan betale for å komme høyere opp",
     ):
         assert text in page, text

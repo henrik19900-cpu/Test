@@ -156,6 +156,7 @@ REPORT_REASONS = {
     "offensive": "Støtende innhold",
     "wrong_category": "Feil kategori",
     "privacy": "Personopplysninger om meg",
+    "copyright": "Bruker mine bilder eller min tekst",
     "other": "Annet",
 }
 

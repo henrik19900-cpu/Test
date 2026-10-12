@@ -47,6 +47,10 @@ Se varen før du betaler, hold samtalen på {{ site_name }}, og oppgi aldri kort
 
 ## Selge
 
+### Hva kan jeg ikke selge?
+
+Alt som er ulovlig å selge i Norge, for eksempel alkohol, tobakk og snus, legemidler, våpen som krever tillatelse, fyrverkeri, stjålne varer og kopivarer. Hele listen står i [vilkårene]({{ base }}/vilkar#dette-kan-du-ikke-legge-ut). Bruk bare bilder du har tatt selv eller har lov til å bruke.
+
 ### Hvordan merker jeg annonsen som solgt?
 
 Åpne annonsen og trykk **Merk som solgt** (eller «gitt bort», «utleid» og så videre). Du finner også knappene under **Min side**.

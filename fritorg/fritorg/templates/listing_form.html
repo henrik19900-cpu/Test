@@ -119,7 +119,7 @@
     <button type="submit" class="button button-primary">{% if listing %}Lagre endringer{% else %}Publiser annonsen{% endif %}</button>
     <a href="{% if listing %}/annonse/{{ listing.id }}{% else %}/{% endif %}">Avbryt</a>
   </div>
-  <p class="hint">Ved å publisere godtar du <a href="/vilkar">vilkårene</a>. Annonsen blir offentlig – også for søkemotorer og AI-agenter.</p>
+  <p class="hint">Ved å publisere godtar du <a href="/vilkar">vilkårene</a> og bekrefter at varen er lov å selge (se <a href="/vilkar#dette-kan-du-ikke-legge-ut">hva som ikke er tillatt</a>) og at du har rett til bildene. Annonsen blir offentlig – også for søkemotorer og AI-agenter.</p>
 </form>
 
 {% if listing %}

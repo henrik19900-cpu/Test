@@ -65,6 +65,22 @@ def test_deleting_an_account_leaves_no_notes_about_the_person(app, client, auth)
     assert rows and all(r["note"] is None and r["user_id"] is None for r in rows)
 
 
+def test_notes_about_a_listing_the_owner_deleted_go_with_the_account(app, client, auth):
+    listing = make_listing(client, auth)
+    _moderator(app, client)
+    client.post(
+        f"/moderering/annonse/{listing['id']}/fjern",
+        data={"csrf_token": csrf(client), "note": "Kari Nordmann selger tyvgods"},
+    )
+    assert client.delete(f"/api/v1/listings/{listing['id']}", headers=auth).status_code == 204
+    decisions = client.get("/api/v1/me/export", headers=auth).json()["moderation_decisions"]
+    assert [d["action"] for d in decisions] == ["remove_listing"]  # still in the person's own copy
+    with app.state.db.session() as conn:
+        users.delete_user(conn, 1)
+        rows = [dict(r) for r in conn.execute("SELECT user_id, note FROM moderation_log")]
+    assert rows and all(r["note"] is None and r["user_id"] is None for r in rows)
+
+
 def test_an_account_under_review_is_not_deleted_on_request(app, client, auth, other_auth):
     listing = make_listing(client, auth)
     client.post(f"/api/v1/listings/{listing['id']}/reports", json={"reason": "fraud"}, headers=other_auth)

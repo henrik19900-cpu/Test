@@ -7,9 +7,13 @@ import json
 import smtplib
 
 from conftest import PHOTO, csrf, make_listing, register, web_login
+from fastapi.testclient import TestClient
+from test_bankid import simulated_login
 
-from fritorg import maintenance, messages, users
+from fritorg import mailer, maintenance, messages, recovery, users
 from fritorg.__main__ import main
+from fritorg.app import create_app
+from fritorg.config import Settings
 from fritorg.mailer import Mailer, MemoryMailer
 from fritorg.ratelimit import RateLimiter
 from fritorg.util import iso_ago
@@ -211,6 +215,44 @@ def test_the_privacy_policy_names_the_controller_processors_and_rights(client, s
         "Ingen kan betale for å komme høyere opp",
     ):
         assert text in page, text
+
+
+def _cookies_set(response) -> set[str]:
+    return {header.split("=", 1)[0] for header in response.headers.get_list("set-cookie")}
+
+
+def test_the_privacy_policy_names_every_cookie_the_site_sets(client, tmp_path):
+    register(client)
+    names = _cookies_set(client.get("/"))
+    names |= _cookies_set(
+        client.post(
+            "/logg-inn",
+            data={"email": "kari@example.no", "password": "hemmelig123", "csrf_token": csrf(client)},
+            follow_redirects=False,
+        )
+    )
+    assert names == {"ft_csrf", "ft_session", "ft_flash"}
+    policy = client.get("/vilkar").text
+    assert all(f"<code>{name}</code>" in policy for name in names)
+    # With BankID, also the one that remembers the login while the account is made (and no SMS is sent).
+    bankid_site = Settings(data_dir=tmp_path / "bankid", bankid_mode="simulated", sms_provider="twilio")
+    with TestClient(create_app(bankid_site)) as bankid:
+        assert "ft_pending" in _cookies_set(simulated_login(bankid, "Kari Nordmann", "01017012345"))
+        policy = bankid.get("/vilkar").text
+        assert "<code>ft_pending</code>" in policy and "Twilio" not in policy
+
+
+def test_the_privacy_policy_says_how_long_things_are_kept(client, settings):
+    page = client.get("/vilkar").text
+    keys = maintenance.ASSISTANT_KEY_DAYS
+    assert f"(MCP-innlogging), slettes når den ikke har vært brukt på {keys} dager" in page
+    assert f"husker vi i {maintenance.DELETION_LOG_DAYS} dager at en konto er slettet" in page
+    assert "Kontoer som en moderator har stengt, slettes ikke på denne måten" in page
+    assert "kan du slette kontoen når saken er avgjort" in page  # it is not deleted by itself then
+    assert recovery.RESET_MINUTES == 60 and mailer.VERIFY_HOURS == 72
+    assert "etter en time (nytt passord) eller tre døgn (bekreftelse av e-postadressen)" in page
+    assert "slått på fra start" in page  # e-mail alerts for saved searches and price drops (notify=1)
+    assert "tellingen glemmes etter inntil en time" in page  # the rate limits (ratelimit.py)
 
 
 def test_accounts_nobody_uses_are_deleted_after_a_notice(app, client, auth, other_auth, settings):

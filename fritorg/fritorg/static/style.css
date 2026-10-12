@@ -2060,6 +2060,12 @@ section.panel {
     justify-self: start;
   }
 
+  /* The keys table fits a 360 px phone; on a narrower one it scrolls in its frame. */
+  .token-table th,
+  .token-table td {
+    padding-inline: 0.3rem;
+  }
+
   .header-nav .nav-label {
     position: absolute;
     width: 1px;

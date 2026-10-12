@@ -281,9 +281,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         if settings.cookies_secure:  # pages set the short confirmation message without knowing the address
             flash = FLASH_COOKIE.encode() + b"="
+            # Only the attributes after the value count: the message itself may say "secure".
             response.raw_headers[:] = [
                 (key, value + b"; Secure")
-                if key == b"set-cookie" and value.startswith(flash) and b"secure" not in value.lower()
+                if key == b"set-cookie"
+                and value.startswith(flash)
+                and b"secure" not in value.partition(b";")[2].lower()
                 else (key, value)
                 for key, value in response.raw_headers
             ]

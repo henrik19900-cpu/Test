@@ -347,7 +347,7 @@ fieldset {
 .checkbox,
 .radio {
   display: flex;
-  align-items: center;
+  align-items: baseline; /* a label over several lines has its box by the first line */
   gap: 0.5rem;
   font-weight: 500;
   overflow-wrap: anywhere; /* long words in a label wrap with large or wide fonts */

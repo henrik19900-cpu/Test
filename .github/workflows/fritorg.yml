@@ -29,6 +29,36 @@ jobs:
       - run: ruff format --check .
       - run: pytest
 
+  a11y:
+    # Universal design (WCAG 2.1 AA, which Norwegian law requires): the main pages through axe in Chromium.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fritorg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install .
+      - name: Install the checker
+        working-directory: fritorg/tests/a11y
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start the site with demo data
+        run: |
+          FRITORG_DATA_DIR="$RUNNER_TEMP/data" FRITORG_SEED_DEMO=1 FRITORG_VERIFICATION=none \
+            FRITORG_BUSINESS_REGISTRY=off nohup fritorg serve --port 8010 > "$RUNNER_TEMP/server.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8010/healthz && break; sleep 1; done
+      - run: node tests/a11y/audit.mjs http://127.0.0.1:8010
+      - name: Server log
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log"
+
   docker:
     name: docker${{ matrix.arch == 'arm64' && ' (arm64)' || '' }}
     runs-on: ubuntu-latest

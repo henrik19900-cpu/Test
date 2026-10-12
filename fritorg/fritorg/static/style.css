@@ -1385,6 +1385,7 @@ section.panel {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: clamp(1.25rem, 3vw, 2.5rem);
+  overflow-wrap: anywhere; /* long addresses in the text wrap on a narrow phone */
 }
 
 .prose h2 {

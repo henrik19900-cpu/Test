@@ -10,3 +10,4 @@ dist/
 # On the server: settings with secrets, and the copied backups
 /deploy/.env
 /deploy/backup/
+node_modules/

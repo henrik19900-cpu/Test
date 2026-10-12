@@ -40,7 +40,7 @@ Koden, kommandoene (`fritorg …`) og innstillingene (`FRITORG_…`) heter forts
 - **Beskyttelse mot svindel**, moderering og rapportering (se under).
 - **Åpent for agenter:** MCP-server, REST-API med OpenAPI 3.1, `llms.txt`, eksport av alle annonser som NDJSON, Atom-feeder og JSON/Markdown-versjon av hver side.
 - **Annonser fra åpne kilder:** titusenvis av ledige stillinger fra arbeidsplassen.no (Nav), og svenske stillinger for folk som kan norsk. Alt hentes automatisk og holdes oppdatert.
-- **Universell utforming og personvern:** fungerer uten JavaScript (det lille skriptet for «Del» er et tillegg), synlig tastaturfokus og god kontrast i lyst og mørkt tema, ingen sporingskapsler og ingen reklame.
+- **Universell utforming og personvern:** fungerer uten JavaScript (det lille skriptet for «Del» er et tillegg), synlig tastaturfokus og god kontrast i lyst og mørkt tema, ingen sporingskapsler og ingen reklame. Hver endring sjekkes automatisk mot WCAG 2.1 AA, som loven krever, med [axe](https://github.com/dequelabs/axe-core): hovedsidene, logget inn og ut, på PC og på en 320 piksler bred mobil, i lyst og mørkt tema (`tests/a11y`, kjør med `npm ci` og `node audit.mjs http://127.0.0.1:8000` mot en side med demo-data).
 
 ## Kom i gang lokalt
 

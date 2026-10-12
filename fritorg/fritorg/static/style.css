@@ -2013,23 +2013,29 @@ section.panel {
     margin-top: 1rem;
   }
 
-  /* Categories as a compact grid; the subcategories are one tap away. */
-  .category-grid {
+  /* Home page categories as a compact grid; the subcategories are one tap away. When a new listing gets
+     its category, the subcategories are the only links, so they stay, with room for a thumb. */
+  .page-home .category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.6rem;
   }
 
-  .category-card {
+  .page-home .category-card {
     padding: 0.75rem;
   }
 
-  .category-head {
+  .page-home .category-head {
     margin: 0;
     gap: 0.5rem;
   }
 
-  .category-links {
+  .page-home .category-links {
     display: none;
+  }
+
+  .category-links a {
+    display: block;
+    padding-block: 0.45rem;
   }
 
   .my-listings li {

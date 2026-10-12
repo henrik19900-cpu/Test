@@ -350,6 +350,7 @@ fieldset {
   align-items: center;
   gap: 0.5rem;
   font-weight: 500;
+  overflow-wrap: anywhere; /* long words in a label wrap with large or wide fonts */
 }
 
 .radio-row {
@@ -454,6 +455,8 @@ fieldset {
   display: flex;
   width: 100%;
   margin-top: 0.5rem;
+  white-space: normal; /* a long label wraps on a narrow phone instead of widening the page */
+  text-align: center;
 }
 
 .button-small {
@@ -1065,6 +1068,7 @@ details summary {
 
 .listing-side {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   position: sticky;
   top: 1rem;
@@ -1923,7 +1927,7 @@ section.panel {
 @media (max-width: 860px) {
   .search-layout,
   .listing-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr); /* not wider than the screen, whatever the font */
   }
 
   .filters,

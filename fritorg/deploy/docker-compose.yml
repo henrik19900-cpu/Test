@@ -10,7 +10,10 @@ x-logging: &logging
 
 services:
   app:
-    build: ..
+    build:
+      context: ..
+      args:
+        COMMIT: ${COMMIT:-}  # set by update.sh, shown on /healthz
     restart: unless-stopped
     logging: *logging
     env_file: .env

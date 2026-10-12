@@ -69,7 +69,7 @@ Hos registraren: lag en **A-oppføring** for domenet (og for `www`) som peker ti
 ## 6. Hent og start Gratistorget
 
 ```sh
-git clone <adressen til repoet> fritorg-kode
+git clone https://github.com/henrik19900-cpu/Test.git fritorg-kode
 cd fritorg-kode/fritorg/deploy
 cp .env.example .env
 python3 -c "import secrets; print(secrets.token_hex(32))"   # lim inn som FRITORG_SECRET_KEY
@@ -98,13 +98,13 @@ docker compose exec app fritorg make-admin deg@example.no
 
 ## 8. Hold maskinen oppdatert
 
-Ubuntu installerer sikkerhetsoppdateringer selv (`unattended-upgrades`). Ny versjon av Gratistorget:
+Ubuntu installerer sikkerhetsoppdateringer selv (`unattended-upgrades`). Nye versjoner av Gratistorget kan publiseres automatisk fra GitHub (steg 10), eller for hånd:
 
 ```sh
-cd ~/fritorg-kode && git pull && cd fritorg/deploy && docker compose up -d --build
+cd ~/fritorg-kode/fritorg/deploy && ./update.sh
 ```
 
-Databasen oppgraderes automatisk når appen starter.
+`update.sh` henter den nyeste versjonen på `main`, bygger den og bytter over. Svarer ikke den nye versjonen, kommer den forrige tilbake av seg selv. Databasen oppgraderes automatisk når appen starter. Ikke endre filene i `fritorg-kode` på maskinen, for de blir overskrevet ved neste versjon. Bare `.env` og `backup/` blir liggende.
 
 ## 9. Sikkerhetskopi
 
@@ -140,6 +140,21 @@ docker compose up -d
 ```
 
 Kontoer som er slettet etter at kopien ble tatt, slettes igjen, og alle må logge inn på nytt. Hvordan du gjenoppretter på en ny maskin, står i README under «Gjenopprette».
+
+## 10. Publisering fra GitHub
+
+Med dette steget legges nye versjoner ut av seg selv når de kommer på `main` på GitHub og testene har gått gjennom. Da kan også Claude publisere for deg. Det gjøres én gang:
+
+```sh
+cd ~/fritorg-kode/fritorg/deploy && ./github-deploy.sh
+```
+
+Skriptet lager en egen SSH-nøkkel for GitHub og skriver ut tre hemmeligheter: `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS` og `DEPLOY_SSH_KEY`. Legg dem inn på GitHub under **repoet → Settings → Secrets and variables → Actions → New repository secret**.
+
+- Nøkkelen kan bare kjøre `update.sh`, og den publiserer bare versjoner som ligger på `main`. Den gir ingen annen tilgang til maskinen.
+- Du kan også publisere for hånd: **Actions → deploy → Run workflow**.
+- Etter publisering viser `https://ditt-domene.no/healthz` hvilken versjon (commit) som kjører.
+- Skal GitHub ikke lenger kunne publisere, sletter du linjen med `github-deploy` i `~/.ssh/authorized_keys`.
 
 ## Feilsøking
 

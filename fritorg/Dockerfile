@@ -28,6 +28,9 @@ ENV FRITORG_DATA_DIR=/data \
     FRITORG_ACCESS_LOG=0
 VOLUME ["/data"]
 EXPOSE 8000
+# The commit the image was built from (deploy/update.sh passes it), shown on /healthz.
+ARG COMMIT=""
+ENV FRITORG_COMMIT=${COMMIT}
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)"
 CMD ["fritorg", "serve"]

@@ -159,6 +159,7 @@ Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyser
 - [ ] `FRITORG_OPERATOR` og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
 - [ ] Minst én moderator, og en plan for hvem som følger med på `/moderering` hver dag.
 - [ ] `fritorg doctor` viser ingen FEIL.
+- [ ] Publisering fra GitHub er satt opp (`deploy/github-deploy.sh`, se steg 10 i `deploy/oracle-cloud.md`), så nye versjoner på `main` legges ut av seg selv.
 - [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er prøvd (se «Gjenopprette» under Drift).
 - [ ] Personvern:
   - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år) og lagringstidene
@@ -176,6 +177,7 @@ fritorg doctor [--send-test-mail ADRESSE] [--send-test-sms NUMMER]   # klar for 
 fritorg make-admin E-POST                                            # gi moderatorrettigheter
 fritorg backup MAPPE [--keep 7] [--with-key]                         # database og bilder (nøkkelen bare med --with-key)
 fritorg restore FIL --yes                                            # legg tilbake en sikkerhetskopi (stopp appen først)
+deploy/update.sh [COMMIT]                                            # publiser den nyeste versjonen på main (på serveren)
 fritorg import-nav [--until-done]                                    # hent ledige stillinger fra Nav nå
 fritorg benchmark [--listings 1000000]                               # mål søket med oppdiktede annonser
 fritorg seed [--force]                                               # demo-data (ikke i produksjon)

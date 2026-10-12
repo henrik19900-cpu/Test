@@ -253,3 +253,8 @@ def test_photos_no_listing_uses_are_cleared_out(app, client, auth, settings):
             os.utime(file, (day_ago, day_ago))
         assert images.remove_unused_files(conn, settings.uploads_dir) == 2
     assert sorted(settings.uploads_dir.rglob("*.webp")) == used
+
+
+def test_the_health_check_says_which_version_runs(tmp_path):
+    with TestClient(create_app(Settings(data_dir=tmp_path, verification="none", commit="5237e24"))) as client:
+        assert client.get("/healthz").json() == {"status": "ok", "commit": "5237e24"}

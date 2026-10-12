@@ -40,6 +40,8 @@ class Settings:
     # Who processes personal data on the operator's behalf, as shown in the privacy policy, e.g.
     # "Oracle Cloud (servere, Sverige), Twilio (SMS, USA), Proton (e-post, Sveits)".
     processors: str | None = None
+    # The commit the running version was built from (deploy/update.sh sets it), shown on /healthz.
+    commit: str | None = None
     # None = secure cookies only when base_url is https.
     secure_cookies: bool | None = None
     seed_demo: bool = False
@@ -155,6 +157,7 @@ class Settings:
             contact_email=_env("CONTACT_EMAIL"),
             operator=_env("OPERATOR"),
             processors=_env("PROCESSORS"),
+            commit=_env("COMMIT"),
             secure_cookies=None if secure is None else _env_bool("SECURE_COOKIES", False),
             seed_demo=_env_bool("SEED_DEMO", defaults.seed_demo),
             rate_limit_read_per_minute=_env_int("RATE_LIMIT_READ", defaults.rate_limit_read_per_minute),

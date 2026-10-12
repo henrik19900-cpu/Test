@@ -296,9 +296,10 @@ def web_manifest(request: Request) -> JSONResponse:
 
 
 @router.get("/healthz")
-def healthz(conn: Conn) -> JSONResponse:
+def healthz(request: Request, conn: Conn) -> JSONResponse:
     conn.execute("SELECT 1").fetchone()
-    return JSONResponse({"status": "ok"})
+    commit = request.app.state.settings.commit
+    return JSONResponse({"status": "ok", **({"commit": commit} if commit else {})})
 
 
 def recent_listings(conn: sqlite3.Connection, limit: int = 12) -> listings.SearchResult:

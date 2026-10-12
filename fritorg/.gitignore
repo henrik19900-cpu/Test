@@ -7,3 +7,6 @@ __pycache__/
 build/
 dist/
 /data/
+# On the server: settings with secrets, and the copied backups
+/deploy/.env
+/deploy/backup/

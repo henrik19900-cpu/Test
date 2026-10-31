@@ -18,7 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from . import config, db
+from . import bets, config, db
 from .matching import Aliases, Matcher
 from .sources import RawEvent, ReferenceSource, SourceError
 from .sources.nt import NorskTipping
@@ -62,6 +62,20 @@ class _Anchor:
     home: str
     away: str
     kickoff_utc: datetime
+
+
+BOOKMAKER_NAMES = {
+    "pinnacle": "Pinnacle",
+    "betfair_ex_eu": "Betfair Exchange",
+    "Betfair Exchange": "Betfair Exchange",
+}
+
+
+def competitor_sources(cfg: config.Config) -> list[str]:
+    """The odds_snapshots sources of Norsk Tipping's competitors, e.g. «the_odds_api:betsson»."""
+    if cfg.reference.source != "the_odds_api":
+        return []
+    return [f"the_odds_api:{key}" for key in cfg.reference.the_odds_api.competitors]
 
 
 def build_sources(cfg: config.Config) -> tuple[NorskTipping, ReferenceSource]:
@@ -140,6 +154,14 @@ def run_once(
                     reference.name,
                 )
                 _store_competitors(conn, reference, fetched_at, report)
+            # New reference odds before a match's kick-off are the logged bets' closing odds so far.
+            bets.update_closing(
+                conn,
+                reference.name,
+                competitor_sources(cfg),
+                cfg.margin_method,
+                BOOKMAKER_NAMES.get(cfg.reference.bookmaker, cfg.reference.bookmaker),
+            )
     finally:
         report.seconds = time.monotonic() - t0
         if own_conn:

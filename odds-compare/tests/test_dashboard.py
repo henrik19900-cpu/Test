@@ -405,3 +405,29 @@ def test_the_home_screen_files_are_served():
     assert (ROOT / "static" / "apple-touch-icon.png").exists()
     for config_file in (ROOT / ".streamlit" / "config.toml", ROOT.parent / ".streamlit" / "config.toml"):
         assert tomllib.loads(config_file.read_text(encoding="utf-8"))["server"]["enableStaticServing"] is True
+
+
+def test_a_bet_is_logged_from_a_card_and_shows_under_my_bets(filled_app):
+    app = filled_app.run()
+    [tab] = [t for t in app.tabs if t.label == "Mine spill"]
+    assert any("Ingen spill ennå" in i.value for i in tab.info)
+    save = [b for b in app.button if b.label == "Lagre spill"][0]
+    stake = [n for n in app.number_input if n.label == "Innsats (kr)"][0]
+    stake.set_value(250)
+    app = save.click().run()
+    assert not app.exception
+    [tab] = [t for t in app.tabs if t.label == "Mine spill"]
+    assert [(m.label, m.value) for m in tab.metric][0] == ("Spill", "1")
+    assert any(b.label == "Last ned spillogg (CSV)" for b in app.get("download_button"))
+
+
+def test_a_card_warns_when_norsk_tipping_moved_after_the_reference(conn):
+    store(conn, (3.70, 3.65, 1.90), (3.40, 3.60, 2.00), when=NOW)
+    [card] = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
+    assert not card.nt_moved
+    store(conn, (3.70, 3.65, 1.90), None, when=NOW + timedelta(hours=1))  # unchanged
+    [card] = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
+    assert not card.nt_moved
+    store(conn, (4.10, 3.85, 1.77), None, when=NOW + timedelta(hours=16))  # moved, as Wrexham did 31.10
+    [card] = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
+    assert card.nt_moved

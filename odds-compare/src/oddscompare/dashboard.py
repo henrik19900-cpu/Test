@@ -93,6 +93,9 @@ class Card:
     # Where the fair odds come from: None (the reference) or "konkurrenter" (their average, when the
     # reference has not priced the match yet).
     fair_from: str | None = None
+    # Norsk Tipping's odds have changed since the reference (or competitors) were last fetched, so the
+    # fair odds may be out of date: the market has likely moved too.
+    nt_moved: bool = False
 
     @property
     def nt_share_of_best(self) -> float:
@@ -179,6 +182,11 @@ def load_cards(
         card.competitors = {
             s: [event[s][o] for o in OUTCOMES] for s in competitors if set(event[s]) == set(OUTCOMES)
         }
+        fair_fetched = card.ref_fetched or max(
+            (event["fetched"][s] for s in card.competitors if s in event["fetched"]), default=None
+        )
+        if fair_fetched and card.nt_fetched > fair_fetched:
+            card.nt_moved = _nt_odds_at(conn, event_id, fair_fetched) not in (None, card.nt_odds)
         if card.ev is None and len(card.competitors) >= MIN_CONSENSUS:
             probabilities = consensus(list(card.competitors.values()), method)
             card.fair_odds = [1 / p for p in probabilities]
@@ -186,6 +194,18 @@ def load_cards(
             card.fair_from = "konkurrenter"
         cards.append(card)
     return sort_cards(cards)
+
+
+def _nt_odds_at(conn: sqlite3.Connection, event_id: int, moment: datetime) -> list[float] | None:
+    """Norsk Tipping's odds for the match as they were at moment (its last snapshot up to then)."""
+    rows = conn.execute(
+        """SELECT outcome, odds FROM odds_snapshots WHERE event_id = ? AND source = ? AND market = '1X2'
+           AND fetched_at_utc = (SELECT MAX(fetched_at_utc) FROM odds_snapshots
+                                 WHERE event_id = ? AND source = ? AND fetched_at_utc <= ?)""",
+        (event_id, NT, event_id, NT, db.iso(moment + timedelta(minutes=1))),
+    ).fetchall()
+    odds = dict(rows)
+    return [odds[o] for o in OUTCOMES] if set(odds) == set(OUTCOMES) else None
 
 
 MIN_CONSENSUS = 3  # competitors needed for fair odds from their average

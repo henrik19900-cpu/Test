@@ -90,6 +90,18 @@ Kortene viser når referanseoddsen sist ble hentet. Dashboardet varsler ikke om 
 
 Odds-API.io (`reference.source: odds_api_io`) er fortsatt støttet, men krever betalt plan. [SharpOddz](https://sportsapis.dev/apis/sharpoddz) er ikke implementert, fordi API-dokumentasjonen deres ikke er offentlig, og fordi den koster penger etter en prøvedag.
 
+## Mine spill
+
+Under «Registrer spill» på hvert kort logger du et spill: utfall, oddsen du fikk og innsatsen. Fair odds og EV i øyeblikket lagres sammen med spillet. Fanen «Mine spill» viser:
+
+- antall spill, resultat i kroner, ROI og hva EV-en tilsa
+- snitt-CLV: oddsen du tok mot fair sluttodds, altså referansens siste odds før avspark med marginen fjernet
+- hvor sikre snittene er (95 %-intervall og p-verdi), og omtrent hvor mange spill som trengs til, når det er minst 10 spill
+
+Sluttoddsen oppdateres hver gang du henter referanseodds før avspark. Hent derfor referanseodds like før kampene du har spilt på, gjerne bare for de ligaene. CLV viser om du har en fordel etter 40–100 spill, mens gevinst og tap trenger tusenvis. Resultatet (vunnet, tapt, annullert) setter du selv i tabellen etter kampen.
+
+Spilloggen kan lastes ned og opp som CSV. På Streamlit Cloud starter databasen på nytt når appen startes på nytt, så last den ned jevnlig.
+
 ## Matching av kamper
 
 En Norsk Tipping-kamp er samme kamp som en referansekamp når begge lagnavn matcher og avsparkstiden er innenfor ±30 minutter. Hjemme og borte må stemme, så byttet rekkefølge regnes ikke som match.

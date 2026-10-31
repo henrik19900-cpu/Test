@@ -91,6 +91,30 @@ MIGRATIONS = [
     JOIN odds_snapshots s ON s.event_id = f.event_id AND s.source = f.source
         AND s.market = f.market AND s.fetched_at_utc = f.fetched_at_utc;
     """,
+    # The user's own bets. The match is kept by Norsk Tipping's id and its names, not by events.id,
+    # so a bet survives a new database (Streamlit Cloud starts over) through the CSV export.
+    """
+    CREATE TABLE bets (
+        id TEXT PRIMARY KEY,
+        placed_at_utc TEXT NOT NULL,
+        nt_event_id TEXT NOT NULL DEFAULT '',
+        league TEXT NOT NULL,
+        home TEXT NOT NULL,
+        away TEXT NOT NULL,
+        kickoff_utc TEXT NOT NULL,
+        outcome TEXT NOT NULL CHECK (outcome IN ('home', 'draw', 'away')),
+        odds REAL NOT NULL CHECK (odds > 1),
+        stake REAL NOT NULL CHECK (stake > 0),
+        fair_at_bet REAL,
+        fair_source_at_bet TEXT,
+        closing_fair REAL,
+        closing_at_utc TEXT,
+        closing_source TEXT,
+        result TEXT CHECK (result IN ('won', 'lost', 'void')),
+        note TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX bets_event ON bets(nt_event_id);
+    """,
 ]
 
 

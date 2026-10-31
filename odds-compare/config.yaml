@@ -27,7 +27,8 @@ reference:
   the_odds_api:
     base_url: https://api.the-odds-api.com/v4
     bookmaker: pinnacle     # eller betfair_ex_eu
-    # Ligaer (sport keys fra GET /v4/sports). Hver liga koster 1 kreditt per oppdatering,
+    # Ligaer (sport keys fra GET /v4/sports). Referanseodds hentes bare når du ber om det
+    # (`oddscompare reference` eller knappen i dashboardet). Hver liga koster 1 kreditt per henting,
     # bare når den har kamper som kan matche Norsk Tipping. Gratisplanen har 500 i måneden.
     leagues:
       - soccer_norway_eliteserien
@@ -36,7 +37,7 @@ reference:
       - soccer_spain_la_liga
       - soccer_uefa_champs_league
       - soccer_sweden_allsvenskan
-    min_interval_minutes: 720 # 12 timer: 6 ligaer x 2 per dag = om lag 365 kreditter i måneden
+    min_interval_minutes: 5   # en ny forespørsel innen så mange minutter gjenbruker forrige svar
   odds_api_io:
     base_url: https://api.odds-api.io/v3
     bookmaker: Betfair Exchange

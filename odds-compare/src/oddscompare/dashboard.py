@@ -5,9 +5,11 @@ Kept apart from app.py (which only draws) so it can be tested without Streamlit.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -50,9 +52,10 @@ class Card:
         return calc.margin(self.ref_odds) if self.ref_odds else None
 
     def stale(self, now: datetime, after: timedelta, reference_after: timedelta | None = None) -> list[str]:
-        """The sources whose odds are older than allowed (the reference may refresh less often)."""
-        limits = {NT: (self.nt_fetched, after), "referanse": (self.ref_fetched, reference_after or after)}
-        return [name for name, (moment, limit) in limits.items() if moment and now - moment > limit]
+        """The sources whose odds are older than allowed. The reference is fetched only when asked
+        for, so it is checked only when reference_after is given."""
+        limits = {NT: (self.nt_fetched, after), "referanse": (self.ref_fetched, reference_after)}
+        return [name for name, (moment, limit) in limits.items() if moment and limit and now - moment > limit]
 
 
 def load_cards(
@@ -175,6 +178,14 @@ def last_success(conn: sqlite3.Connection, source: str) -> datetime | None:
         "SELECT MAX(started_at_utc) FROM fetch_log WHERE source = ? AND status = 'ok'", (source,)
     ).fetchone()
     return db.parse_iso(row[0]) if row and row[0] else None
+
+
+def credits_left(cache_dir: Path, source: str) -> int | None:
+    """The reference API's credits left this month, as its last answer (cached on disk) said."""
+    try:
+        return json.loads((cache_dir / f"{source}.json").read_text(encoding="utf-8")).get("remaining")
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def unmatched(conn: sqlite3.Connection, now: datetime) -> list[sqlite3.Row]:

@@ -99,10 +99,10 @@ def test_ev_colours(ev, css):
 def test_stale_odds_are_flagged(conn):
     store(conn, (2.0, 3.0, 4.0), (2.1, 3.2, 3.9), when=NOW - timedelta(minutes=45))
     [card] = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
-    assert card.stale(NOW, timedelta(minutes=30)) == ["norsk_tipping", "referanse"]
+    # The reference is fetched only when asked for, so its age is not a warning unless a limit is given.
+    assert card.stale(NOW, timedelta(minutes=30)) == ["norsk_tipping"]
+    assert card.stale(NOW, timedelta(minutes=30), timedelta(minutes=30)) == ["norsk_tipping", "referanse"]
     assert card.stale(NOW, timedelta(minutes=60)) == []
-    # The reference may be older when it refreshes less often (the free plan: every 12 hours).
-    assert card.stale(NOW, timedelta(minutes=30), timedelta(hours=12, minutes=30)) == ["norsk_tipping"]
 
 
 def test_history_has_nt_and_fair_odds_per_outcome(conn):
@@ -183,7 +183,12 @@ def filled_app(tmp_path, monkeypatch):
     now = datetime.now(UTC)
     shift = now - FIXTURE_NOW
     fetch.run_once(
-        cfg, nt=ShiftedNT(shift), reference=ShiftedReference(shift), clock=lambda: now, sleep=lambda s: None
+        cfg,
+        nt=ShiftedNT(shift),
+        reference=ShiftedReference(shift),
+        clock=lambda: now,
+        sleep=lambda s: None,
+        include_reference=True,
     )
     monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
     from streamlit.testing.v1 import AppTest
@@ -215,3 +220,22 @@ def test_show_all_and_the_unmatched_tab(filled_app):
     shown = len([m for m in app.markdown if 'class="oc-teams"' in m.value])
     assert shown >= default and shown == min(84, 24)  # one page of cards
     assert any("Alle kommende" in i.value for i in app.info) or app.dataframe
+
+
+def test_the_button_fetches_reference_odds_only_when_pressed(filled_app, monkeypatch):
+    shift = datetime.now(UTC) - FIXTURE_NOW
+    calls = []
+
+    class CountingReference(ShiftedReference):
+        def fetch(self, days_ahead, want=None):
+            calls.append(days_ahead)
+            return super().fetch(days_ahead, want)
+
+    monkeypatch.setattr(fetch, "build_sources", lambda cfg: (ShiftedNT(shift), CountingReference(shift)))
+    app = filled_app.run()
+    assert calls == []  # opening the page spends nothing
+    [button] = [b for b in app.button if b.label == "Hent referanseodds"]
+    app = button.click().run()
+    assert not app.exception
+    assert calls == [7]
+    assert any("odds_api_io: 98 kamper" in s.value for s in app.success)

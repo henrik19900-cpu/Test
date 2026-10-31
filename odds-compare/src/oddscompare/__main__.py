@@ -1,4 +1,4 @@
-"""Command line: oddscompare fetch | run --interval 15 | prune --days 90."""
+"""Command line: oddscompare fetch | run --interval 15 | reference | prune --days 90."""
 
 from __future__ import annotations
 
@@ -16,10 +16,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="vis hvert kall")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("fetch", help="hent én runde fra alle kilder")
-    run = commands.add_parser("run", help="hent i løkke")
+    commands.add_parser("fetch", help="hent én runde fra Norsk Tipping")
+    run = commands.add_parser("run", help="hent fra Norsk Tipping i løkke")
     run.add_argument(
         "--interval", type=float, help="minutter mellom hver runde (minst 5; standard fra config.yaml)"
+    )
+    commands.add_parser(
+        "reference", help="hent referanseodds nå (bruker kreditter), sammen med Norsk Tipping"
     )
     prune = commands.add_parser("prune", help="slett kamper med odds eldre enn så mange dager etter avspark")
     prune.add_argument("--days", type=int, default=90)
@@ -32,8 +35,8 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger("httpx").setLevel(logging.WARNING)
     cfg = config.load(args.config)
 
-    if args.command == "fetch":
-        report = fetch.run_once(cfg)
+    if args.command in ("fetch", "reference"):
+        report = fetch.run_once(cfg, include_reference=args.command == "reference")
         print(fetch.summary(report))
         return 0 if report.ok else 1
     if args.command == "run":

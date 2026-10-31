@@ -37,9 +37,9 @@ class TheOddsApiConfig(BaseModel):
         "soccer_uefa_champs_league",
         "soccer_sweden_allsvenskan",
     ]
-    # The free plan has 500 credits a month and each league costs 1 per refresh: 6 leagues twice a
-    # day is about 365 a month. Between refreshes the cached odds are used.
-    min_interval_minutes: float = Field(720, ge=5)
+    # Fetched only when asked for. A second request within this many minutes reuses the first answer,
+    # so a double click does not spend credits twice.
+    min_interval_minutes: float = Field(5, ge=0)
     timeout_seconds: float = Field(20, gt=0)
 
 
@@ -62,11 +62,6 @@ class ReferenceConfig(BaseModel):
     @property
     def bookmaker(self) -> str:
         return getattr(self, self.source).bookmaker
-
-    @property
-    def refresh_minutes(self) -> float:
-        """How old the reference odds may get between refreshes (0: refreshed every round)."""
-        return getattr(getattr(self, self.source), "min_interval_minutes", 0)
 
 
 class Config(BaseModel):

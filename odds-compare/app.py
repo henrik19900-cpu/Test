@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import yaml
 
-from oddscompare import calc, config, dashboard, db
+from oddscompare import calc, config, dashboard, db, fetch
 from oddscompare.matching import Aliases
 
 PAGE_SIZE = 24
@@ -88,7 +88,6 @@ def card_html(
     card: dashboard.Card,
     now: datetime,
     stale_after: timedelta,
-    ref_stale_after: timedelta,
     reference_name: str,
 ) -> str:
     e = html.escape
@@ -105,11 +104,10 @@ def card_html(
     times = f"NT {local(card.nt_fetched, '%H:%M')}"
     if card.ref_fetched:
         times += f" · {e(reference_name)} {local(card.ref_fetched, '%H:%M')}"
-    stale = card.stale(now, stale_after, ref_stale_after)
-    names = {"norsk_tipping": "Norsk Tipping", "referanse": reference_name}
+    # Only Norsk Tipping's age is warned about: the reference is as old as the last time it was asked for.
     warning = (
-        f'<div class="oc-stale">Gamle odds fra {e(" og ".join(names[s] for s in stale))}: sjekk at hentingen kjører</div>'
-        if stale
+        '<div class="oc-stale">Gamle odds fra Norsk Tipping: sjekk at hentingen kjører</div>'
+        if card.stale(now, stale_after)
         else ""
     )
     missing = "" if card.ref_odds else '<div class="oc-foot">Ingen referanseodds for denne kampen ennå.</div>'
@@ -146,6 +144,33 @@ def history_chart(frame) -> go.Figure:
     return figure
 
 
+def reference_panel(cfg: config.Config, conn, reference: str) -> None:
+    """Reference odds cost credits, so they are fetched only when this button is pressed."""
+    st.divider()
+    st.subheader("Referanseodds")
+    last = dashboard.last_success(conn, reference)
+    lines = [f"Sist hentet: {local(last) if last else 'aldri'}."]
+    if reference == "the_odds_api":
+        credits = dashboard.credits_left(cfg.cache_dir, reference)
+        if credits is not None:
+            lines.append(f"Kreditter igjen denne måneden: {credits}.")
+        lines.append(
+            f"En henting koster opptil {len(cfg.reference.the_odds_api.leagues)} kreditter, én per liga med kamper."
+        )
+    st.caption(" ".join(lines))
+    if st.button("Hent referanseodds", type="primary", use_container_width=True):
+        with st.spinner("Henter referanseodds …"):
+            report = fetch.run_once(cfg, include_reference=True)
+        st.session_state["reference_result"] = (
+            all(s.status == "ok" for s in report.sources),
+            fetch.summary(report),
+        )
+        st.rerun()
+    if "reference_result" in st.session_state:
+        ok, text = st.session_state["reference_result"]
+        (st.success if ok else st.error)(text.replace("\n", "  \n"))
+
+
 def main() -> None:
     st.set_page_config(page_title="Odds-sammenligner", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
@@ -155,8 +180,6 @@ def main() -> None:
     conn = db.connect(cfg.database)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
-    # The reference is refreshed less often on the free plan; it is old only after a missed refresh.
-    ref_stale_after = stale_after + timedelta(minutes=cfg.reference.refresh_minutes)
 
     st.title("Odds-sammenligner")
     st.caption(
@@ -171,6 +194,7 @@ def main() -> None:
         leagues = st.multiselect("Liga", sorted({c.league for c in all_cards}), placeholder="Alle ligaer")
         min_ev = st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%") / 100
         show_all = st.toggle("Vis alle kamper", help="Også kamper under minimum EV og uten referanseodds")
+        reference_panel(cfg, conn, reference)
 
     for row in dashboard.fetch_status(conn):
         name = SOURCE_NAMES.get(row["source"], row["source"])
@@ -178,9 +202,9 @@ def main() -> None:
             st.error(
                 f"{name}: siste henting {local(db.parse_iso(row['started_at_utc']))} feilet: {row['error']}"
             )
-        else:
+        elif row["source"] == dashboard.NT:
             last = db.parse_iso(row["started_at_utc"])
-            if now - last > (stale_after if row["source"] == dashboard.NT else ref_stale_after):
+            if now - last > stale_after:
                 st.warning(f"{name}: siste vellykkede henting var {local(last)}. Kjører `oddscompare run`?")
 
     matches_tab, unmatched_tab = st.tabs(["Kamper", "Umatchede kamper"])
@@ -203,7 +227,7 @@ def main() -> None:
             for column, card in zip(columns, cards[start : start + 2], strict=False):
                 with column.container(border=True):
                     st.markdown(
-                        card_html(card, now, stale_after, ref_stale_after, reference_name),
+                        card_html(card, now, stale_after, reference_name),
                         unsafe_allow_html=True,
                     )
                     with st.expander("Oddsutvikling"):

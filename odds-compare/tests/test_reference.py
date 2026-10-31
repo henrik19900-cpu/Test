@@ -251,16 +251,16 @@ def test_the_odds_api_spends_credits_only_on_leagues_with_wanted_matches(tmp_pat
     assert source.remaining == 498 and source.fetched_at == NOW
 
 
-def test_the_odds_api_reuses_its_answer_until_the_next_refresh(tmp_path):
+def test_a_second_request_within_five_minutes_reuses_the_answer(tmp_path):
     api = FakeTheOddsApi()
     now = [NOW]
     source = make_free_source(api, tmp_path, clock=lambda: now[0])
     first = source.fetch(7)
     calls = len(api.requests)
-    now[0] = NOW + timedelta(hours=11)
+    now[0] = NOW + timedelta(minutes=4)  # a double click
     assert source.fetch(7) == first and len(api.requests) == calls  # no credits spent
     assert source.fetched_at == NOW  # and the odds keep the time they were fetched
-    now[0] = NOW + timedelta(hours=12, minutes=1)
+    now[0] = NOW + timedelta(minutes=6)
     source.fetch(7)
     assert len(api.requests) > calls and source.fetched_at == now[0]
 

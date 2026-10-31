@@ -57,9 +57,11 @@ def cfg(tmp_path):
     return config.Config().resolve(root)
 
 
-def run(cfg, conn, nt, ref, when=NOW):
+def run(cfg, conn, nt, ref, when=NOW, include_reference=True):
     sleeps = []
-    report = fetch.run_once(cfg, conn, nt, ref, sleep=sleeps.append, clock=lambda: when)
+    report = fetch.run_once(
+        cfg, conn, nt, ref, sleep=sleeps.append, clock=lambda: when, include_reference=include_reference
+    )
     return report, sleeps
 
 
@@ -158,9 +160,40 @@ def test_cached_reference_odds_keep_their_time(cfg, conn):
     assert [t[0] for t in times] == [db.iso(NOW - timedelta(hours=3))]
 
 
+def test_regular_rounds_leave_the_reference_alone(cfg, conn):
+    ref = FakeReference()
+    report, _ = run(cfg, conn, FakeNT(), ref, include_reference=False)
+    assert ref.calls == 0  # no credits spent
+    assert [s.name for s in report.sources] == ["norsk_tipping"]
+    assert conn.execute("SELECT COUNT(*) FROM fetch_log WHERE source = 'odds_api_io'").fetchone()[0] == 0
+    assert "Matchet" not in fetch.summary(report)
+
+
+def test_asking_for_the_reference_reports_the_credits_left(cfg, conn):
+    ref = FakeReference()
+    ref.remaining = 488
+    report, _ = run(cfg, conn, FakeNT(), ref)
+    assert report.credits_left == 488
+    assert "Kreditter igjen denne måneden: 488." in fetch.summary(report)
+
+
+def test_the_command_line_fetches_the_reference_only_when_asked(cfg, conn, monkeypatch, tmp_path, capsys):
+    from oddscompare import __main__ as cli
+
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    nt, ref = FakeNT(), FakeReference()
+    monkeypatch.setattr(fetch, "build_sources", lambda cfg: (nt, ref))
+    assert cli.main(["--config", str(tmp_path / "config.yaml"), "fetch"]) == 0
+    assert (nt.calls, ref.calls) == (1, 0)
+    assert cli.main(["--config", str(tmp_path / "config.yaml"), "reference"]) == 0
+    assert (nt.calls, ref.calls) == (2, 1)
+    assert "Matchet" in capsys.readouterr().out
+
+
 def test_the_free_reference_is_the_default(cfg):
     assert cfg.reference.source == "the_odds_api"
-    assert cfg.reference.bookmaker == "pinnacle" and cfg.reference.refresh_minutes == 720
+    assert cfg.reference.bookmaker == "pinnacle"
+    assert cfg.reference.the_odds_api.min_interval_minutes == 5  # only a guard against double requests
     nt, reference = fetch.build_sources(cfg)
     assert reference.name == "the_odds_api"
 

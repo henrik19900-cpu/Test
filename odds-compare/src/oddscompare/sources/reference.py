@@ -4,9 +4,12 @@ Pinnacle closed its public API in July 2025. The Odds API (https://the-odds-api.
 Pinnacle's prices, taken from Pinnacle's public website, on its free plan: 500 credits a month, no
 card. /sports and /sports/{league}/events are free; /sports/{league}/odds costs 1 credit per league
 for one market and one bookmaker, however many matches it returns, and nothing when it returns
-none. So each refresh lists the matches for free, keeps those that can match a Norsk Tipping match
-(the filter fetch.py passes), and spends a credit only on leagues that have one. The answer is
-cached for min_interval_minutes (12 hours by default) to stay within the month's credits.
+none. So each request lists the matches for free, keeps those that can match a Norsk Tipping match
+(the filter fetch.py passes), and spends a credit only on leagues that have one.
+
+Reference odds are fetched only when the user asks (`oddscompare reference` or the dashboard's
+button), never in the regular rounds. A second request within min_interval_minutes reuses the
+first answer.
 
 Odds-API.io (https://docs.odds-api.io) is kept as an option for a paid key. It does not carry
 Pinnacle; Betfair Exchange is its default there.

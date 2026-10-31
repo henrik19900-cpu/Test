@@ -4,6 +4,9 @@ Norsk Tipping is fetched first; its matches are the canonical events. The refere
 asked only for the matches that can pair with one of them (each request counts against its quota).
 A source that fails is tried three times with exponential backoff, logged in fetch_log, and the
 round goes on with the other source.
+
+The reference costs credits, so it is fetched only when the user asks for it (include_reference);
+the regular rounds (`oddscompare fetch` and `run`) read Norsk Tipping alone.
 """
 
 from __future__ import annotations
@@ -43,6 +46,7 @@ class FetchReport:
     matched: int = 0
     unmatched: int = 0
     seconds: float = 0.0
+    credits_left: int | None = None  # the reference API's credits left this month, when it says
 
     @property
     def ok(self) -> bool:
@@ -85,7 +89,9 @@ def run_once(
     reference: ReferenceSource | None = None,
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    include_reference: bool = False,
 ) -> FetchReport:
+    """Fetch Norsk Tipping, and the reference too when include_reference (it costs credits)."""
     t0 = time.monotonic()
     own_conn = conn is None
     conn = conn or db.connect(cfg.database)
@@ -108,6 +114,8 @@ def run_once(
         else:
             anchors = _stored_anchors(conn, started)
 
+        if not include_reference:
+            return report
         ref_events = _attempt(
             conn,
             reference.name,
@@ -116,6 +124,7 @@ def run_once(
             sleep,
             clock,
         )
+        report.credits_left = getattr(reference, "remaining", None)
         if ref_events is not None:
             with db.transaction(conn):  # cached reference odds keep the time they were fetched, too
                 fetched_at = getattr(reference, "fetched_at", None) or started
@@ -234,7 +243,9 @@ def summary(report: FetchReport) -> str:
             lines.append(f"{s.name}: {s.n_events} kamper ({s.seconds:.1f} s)")
         else:
             lines.append(f"{s.name}: FEIL – {s.error}")
-    lines.append(
-        f"Matchet: {report.matched}, uten match: {report.unmatched}. Ferdig på {report.seconds:.1f} s."
-    )
+    if len(report.sources) > 1:
+        lines.append(f"Matchet: {report.matched}, uten match: {report.unmatched}.")
+    if report.credits_left is not None:
+        lines.append(f"Kreditter igjen denne måneden: {report.credits_left}.")
+    lines.append(f"Ferdig på {report.seconds:.1f} s.")
     return "\n".join(lines)

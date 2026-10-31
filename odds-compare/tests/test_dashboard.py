@@ -308,3 +308,74 @@ def test_sorting(conn):
     assert order("Liga") == [1.70, 2.05, 2.00]  # England, Norge, Spania
     assert order("Lavest NT-margin") == [2.00, 1.70, 2.05]  # 2.8 %, 6.3 %, 11.3 %
     assert list(dashboard.SORTS)[0] == "Beste EV"
+
+
+def test_the_page_fetches_norsk_tipping_itself_when_its_odds_are_old(tmp_path, monkeypatch):
+    """As on Streamlit Cloud, where no `oddscompare run` keeps the odds fresh."""
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    calls = []
+
+    class CountingNT(ShiftedNT):
+        def fetch(self, days_ahead):
+            calls.append("nt")
+            return super().fetch(days_ahead)
+
+    class NeverReference(ShiftedReference):
+        def fetch(self, days_ahead, want=None):
+            raise AssertionError("reference odds only with the button")
+
+    shift = datetime.now(UTC) - FIXTURE_NOW
+    monkeypatch.setattr(fetch, "build_sources", lambda cfg: (CountingNT(shift), NeverReference(shift)))
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception and calls == ["nt"]
+    assert app.metric[0].value == "84"  # the matches are on the page at once
+    app.run()  # fresh now: no second fetch
+    assert calls == ["nt"]
+
+
+def test_fair_odds_from_the_competitors_when_the_reference_has_none(conn):
+    event_id = store(conn, (2.00, 3.40, 3.60), None)
+    books = {"betsson": (2.10, 3.40, 3.50), "unibet_se": (2.05, 3.50, 3.55), "coolbet": (2.15, 3.30, 3.45)}
+    for key, (h, d, a) in books.items():
+        raw = raw_event(
+            source=f"the_odds_api:{key}", source_event_id=f"x-{key}", odds={"home": h, "draw": d, "away": a}
+        )
+        db.add_snapshot(conn, event_id, raw, NOW)
+    sources = [f"the_odds_api:{k}" for k in books]
+    [card] = dashboard.load_cards(conn, "the_odds_api", "proportional", NOW, NOW + timedelta(days=7), sources)
+    assert card.fair_from == "konkurrenter" and card.ref_odds is None
+    expected = dashboard.consensus([list(v) for v in books.values()], "proportional")
+    assert card.fair_odds == pytest.approx([1 / p for p in expected])
+    assert sum(expected) == pytest.approx(1.0)
+    # Two competitors are too few to stand in for the reference.
+    [card] = dashboard.load_cards(
+        conn, "the_odds_api", "proportional", NOW, NOW + timedelta(days=7), sources[:2]
+    )
+    assert card.fair_odds is None and card.ev is None
+
+
+def test_the_league_picker_limits_what_a_request_pays_for(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    db.log_fetch(db.connect(tmp_path / "data" / "odds.db"), "norsk_tipping", datetime.now(UTC), "ok", 0)
+    asked = []
+
+    def fake_run_once(cfg, include_reference=False, **kwargs):
+        asked.append((include_reference, cfg.reference.the_odds_api.leagues))
+        return fetch.FetchReport(started_at=datetime.now(UTC))
+
+    monkeypatch.setattr(fetch, "run_once", fake_run_once)
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    [picker] = [m for m in app.multiselect if m.label == "Ligaer"]
+    assert len(picker.value) == 21
+    picker.set_value(["soccer_norway_eliteserien", "soccer_epl"]).run()
+    assert any("opptil 2 kreditter" in c.value for c in app.caption)
+    [button] = [b for b in app.button if b.label == "Hent referanseodds"]
+    button.click().run()
+    assert asked == [(True, ["soccer_norway_eliteserien", "soccer_epl"])]

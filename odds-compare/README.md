@@ -28,6 +28,17 @@ streamlit run app.py        # http://localhost:8501
 | `oddscompare prune --days 90` | Sletter kamper (med odds) som startet for mer enn 90 dager siden. |
 | `streamlit run app.py` | Starter dashboardet. Det leser fra databasen, så det fungerer også når en kilde er nede. |
 
+### På Streamlit Community Cloud (gratis)
+
+Da kan du åpne dashboardet fra mobilen uten egen maskin:
+
+1. Gå til [share.streamlit.io](https://share.streamlit.io) og logg inn med GitHub-kontoen som eier repoet.
+2. Velg «Create app» og deretter «Deploy a public app from GitHub». Fyll inn repoet `henrik19900-cpu/Test`, branchen (`main` når PR-en er flettet) og `odds-compare/app.py` som «Main file path».
+3. Under «Advanced settings» velger du Python 3.12 eller nyere. I «Secrets» skriver du `THE_ODDS_API_KEY = "nøkkelen din"`.
+4. Trykk «Deploy». Streamlit installerer `requirements.txt`, og appen finner koden i `src/`.
+
+Gjør appen privat under «Share», så bare du kan åpne den. Ellers kan alle med lenken trykke «Hent referanseodds» og bruke kredittene dine. Uten `oddscompare run` ved siden av henter appen Norsk Tippings odds selv når siden åpnes og dataene er eldre enn 15 minutter. Streamlit Cloud lagrer ikke filer når appen startes på nytt, så historikken (oddsutviklingen) begynner på nytt da.
+
 Med Docker: `docker compose up -d --build` starter `fetcher` (henter fra Norsk Tipping hvert 15. minutt) og `dashboard` på http://127.0.0.1:8501, der knappen henter referanseodds. Begge deler mappen `data/`.
 
 ## Konfigurasjon
@@ -60,7 +71,11 @@ En runde med de 10 landene i standardkonfigen tar rundt 7 sekunder og gir rundt 
 - Adapteren kjøper bare odds for ligaer som har kamper som kan matche en Norsk Tipping-kamp. Med de 6 ligaene i standardkonfigen koster en henting høyst 6 kreditter, altså minst 83 hentinger i måneden.
 - Ber du igjen innen 5 minutter (`min_interval_minutes`), brukes forrige svar, så et dobbeltklikk ikke koster dobbelt.
 
+**Ligaer:** Standard er alle de 21 Norsk Tipping-ligaene The Odds API har: Eliteserien, Premier League, Championship, League One og Two, Champions League, Europa League, Conference League, LaLiga og LaLiga 2, Serie A og B, Bundesliga 1–3, Ligue 1 og 2, Eredivisie, Allsvenskan, Superettan og Superligaen. 31.10.2026 ga det referanse til 218 av 313 Norsk Tipping-kamper (70 %). Resten er ligaer The Odds API ikke har: norske divisjoner under Eliteserien (også OBOS-ligaen), kvinneligaer, National League, Ligue 3, Primera Federación, dansk 1. division og Eerste Divisie. En henting med alle ligaene koster opptil 21 kreditter. I dashboardet velger du hvilke ligaer hver henting skal betale for, og ser kostnaden før du trykker.
+
 **Konkurrentene til Norsk Tipping** hentes i samme forespørsel som Pinnacle, uten ekstra kostnad: opptil 10 bookmakere teller som én. Standard er Unibet, Betsson, NordicBet, Coolbet, LeoVegas, 888sport og Betway (`competitors` i `config.yaml`). Bet365 og ComeOn finnes ikke hos The Odds API. Hvert kort viser beste odds per utfall og hvem som har dem, i grønt når det er Norsk Tipping. Under «Konkurrentenes odds» står alle bookmakerne side om side med margin.
+
+Pinnacle legger ofte ut odds sent, særlig på midtukekamper. En kamp som bare konkurrentene har priset, blir likevel matchet, slik at konkurrentenes odds vises. Har minst 3 konkurrenter odds, regnes fair odds ut fra snittet av dem, med marginen fjernet hos hver. Kortet sier tydelig fra om dette, siden konkurrentene er en svakere referanse enn Pinnacle. Når Pinnacle priser kampen, brukes Pinnacle.
 
 Kortene viser når referanseoddsen sist ble hentet. Dashboardet varsler ikke om at den er gammel, siden det er du som bestemmer når den hentes. Ligaene heter som i `GET /v4/sports` (gratis), for eksempel `soccer_germany_bundesliga`. `bookmaker` kan også være `betfair_ex_eu`.
 
@@ -75,7 +90,9 @@ Lagnavn normaliseres slik:
 - små bokstaver
 - ø → o, å → a, æ → ae, og andre aksenter fjernes
 - punktum fjernes, og & leses som «and»
-- ord for klubbform fjernes, som «FK», «IL», «FC», «BK», «IF», «FF» og «SK» (se `STRIP_WORDS` i `matching.py`)
+- ord for klubbform fjernes, som «FK», «IL», «FC», «BK», «IF», «FF» og «SK» (se `STRIP_WORDS` i `matching.py`), og årstall som «1899»
+
+Er det ene navnet det andre med ekstra ord («Oviedo» og «Real Oviedo»), regnes det som treff. Unntaket er når de ekstra ordene betyr et annet lag i klubben, som «II», «U21» eller «Women». «Hoffenheim» matcher derfor aldri «Hoffenheim II».
 
 Deretter slås navnet opp i `data/team_aliases.yaml`. Som reserve brukes `rapidfuzz` med terskel 90. Treff mellom 80 og 90 brukes ikke, men vises i dashboardet under «Umatchede kamper» med et ferdig YAML-forslag som kan kopieres inn i alias-tabellen.
 

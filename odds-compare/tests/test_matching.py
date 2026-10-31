@@ -156,3 +156,42 @@ def test_at_least_95_percent_of_the_fixture_matches():
         assert abs(anchor.kickoff_utc - other.kickoff_utc) <= timedelta(minutes=30)
     names = {(a.home.strip(), o.home) for a, o, _ in result.pairs}
     assert ("GAIS", "GAIS") in names and ("IK Sirius", "IK Sirius") in names  # not the swapped twins
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("Oviedo", "Real Oviedo"),
+        ("Olympiakos", "Olympiakos Piraeus"),
+        ("Racing Santander", "Real Racing Club de Santander"),
+        ("VfL 1899 Osnabrück", "VfL Osnabruck"),  # founding years are dropped
+        ("FC Köln", "1. FC Köln"),
+        ("Benevento Calcio", "Benevento"),
+    ],
+)
+def test_a_name_with_words_added_matches(a, b):
+    assert Matcher().team_score(a, b) >= 90
+
+
+@pytest.mark.parametrize(
+    ("a", "b"),
+    [
+        ("TSG Hoffenheim", "TSG Hoffenheim II"),
+        ("Rosenborg", "Rosenborg W"),
+        ("Hammarby", "Hammarby IF DFF"),
+        ("Ajax", "Jong Ajax"),
+        ("Real Madrid", "Real Madrid Castilla Femenino"),
+    ],
+)
+def test_another_side_of_the_club_does_not_match(a, b):
+    assert Matcher().team_score(a, b) < 90
+
+
+def test_short_names_need_more_than_a_shared_word():
+    assert Matcher().team_score("AC", "AC Horsens") < 90  # «ac» is dropped; nothing of substance is left
+    assert Matcher().team_score("Real Madrid", "Real Betis") < 80
+
+
+def test_letters_unicode_does_not_split():
+    assert normalize("Jagiellonia Białystok") == "jagiellonia bialystok"
+    assert normalize("Beşiktaş") == "besiktas" and normalize("Fenerbahçe") == "fenerbahce"

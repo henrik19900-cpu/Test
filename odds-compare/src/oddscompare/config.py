@@ -29,13 +29,30 @@ class TheOddsApiConfig(BaseModel):
 
     base_url: str = "https://api.the-odds-api.com/v4"
     bookmaker: str = "pinnacle"
+    # Every league Norsk Tipping has that The Odds API covers. Each costs a credit per request, only when
+    # it has matches Norsk Tipping has too; the dashboard lets you pick fewer for a request.
     leagues: list[str] = [
         "soccer_norway_eliteserien",
         "soccer_epl",
         "soccer_efl_champ",
-        "soccer_spain_la_liga",
+        "soccer_england_league1",
+        "soccer_england_league2",
         "soccer_uefa_champs_league",
+        "soccer_uefa_europa_league",
+        "soccer_uefa_europa_conference_league",
+        "soccer_spain_la_liga",
+        "soccer_spain_segunda_division",
+        "soccer_italy_serie_a",
+        "soccer_italy_serie_b",
+        "soccer_germany_bundesliga",
+        "soccer_germany_bundesliga2",
+        "soccer_germany_liga3",
+        "soccer_france_ligue_one",
+        "soccer_france_ligue_two",
+        "soccer_netherlands_eredivisie",
         "soccer_sweden_allsvenskan",
+        "soccer_sweden_superettan",
+        "soccer_denmark_superliga",
     ]
     # Norsk Tipping's competitors, fetched with the reference at no extra cost: up to 10 bookmakers
     # in one request count as one. Keys from https://the-odds-api.com/sports-odds-data/bookmaker-apis.html

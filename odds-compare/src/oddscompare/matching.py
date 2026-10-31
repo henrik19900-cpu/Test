@@ -7,7 +7,9 @@ are within ± match_window_minutes. A name matches when:
    full stops removed, & read as «and», other punctuation as a space, and club-form words such as
    «FK», «IL», «FC», «BK» removed: see STRIP_WORDS), or
 2. the alias table (data/team_aliases.yaml) maps both to the same canonical name, or
-3. as a fall-back, rapidfuzz scores the two at fuzzy_accept (90) or more. Matches that score
+3. one is the other with words added («Oviedo» / «Real Oviedo», «Olympiakos» / «Olympiakos
+   Piraeus»), scored 95, unless the added words mark another side of the club (II, U21, women), or
+4. as a fall-back, rapidfuzz scores the two at fuzzy_accept (90) or more. Matches that score
    from fuzzy_suggest (80) up to that are not used, but logged as suggestions for the alias table.
 
 Home and away must line up: a match with the teams the other way round is not the same match.
@@ -36,7 +38,18 @@ STRIP_WORDS = frozenset(
     | {"if", "ik", "ifk", "ff", "aif", "sk", "is", "fotball", "afc", "cf", "ud", "cd", "ca"}
     | {"sc", "ac", "as", "ssc", "rc", "osc", "sv", "vfb", "vfl"}
 )
-_LETTERS = str.maketrans({"ø": "o", "Ø": "o", "å": "a", "Å": "a", "æ": "ae", "Æ": "ae", "ß": "ss"})
+# Letters that Unicode does not split into a base letter and an accent.
+_LETTERS = str.maketrans(
+    {"ø": "o", "Ø": "o", "å": "a", "Å": "a", "æ": "ae", "Æ": "ae", "ß": "ss", "ł": "l", "Ł": "l"}
+    | {"đ": "d", "Đ": "d", "ð": "d", "Ð": "d", "ı": "i", "œ": "oe", "Œ": "oe", "þ": "th", "Þ": "th"}
+)
+_YEAR = re.compile(r"\b(18|19|20)\d\d\b")  # founding years in names: «VfL 1899 Osnabrück», «Como 1907»
+# Words that make a name another side of the club, so «Hoffenheim II» never matches «Hoffenheim».
+OTHER_SIDES = frozenset(
+    {"ii", "iii", "b", "w", "women", "woman", "ladies", "fem", "femenino", "feminine", "dff", "dam", "damer"}
+    | {"kvinner", "u17", "u18", "u19", "u20", "u21", "u23", "reserves", "res", "youth", "jong"}
+)
+SUBSET_SCORE = 95.0
 
 
 class Fixture(Protocol):
@@ -51,7 +64,7 @@ class Fixture(Protocol):
 def normalize(name: str) -> str:
     text = unicodedata.normalize("NFKD", name.translate(_LETTERS).lower())
     text = "".join(c for c in text if not unicodedata.combining(c)).replace(".", "").replace("&", " and ")
-    words = re.sub(r"[^a-z0-9]+", " ", text).split()
+    words = re.sub(r"[^a-z0-9]+", " ", _YEAR.sub(" ", text)).split()
     kept = [w for w in words if w not in STRIP_WORDS]
     return " ".join(kept or words)  # a name that is only «FC» stays «fc»
 
@@ -119,7 +132,15 @@ class Matcher:
 
     def team_score(self, a: str, b: str) -> float:
         ca, cb = self._canonical(a), self._canonical(b)
-        return 100.0 if ca == cb else fuzz.token_sort_ratio(ca, cb)
+        if ca == cb:
+            return 100.0
+        score = fuzz.token_sort_ratio(ca, cb)
+        wa, wb = set(ca.split()), set(cb.split())
+        if (wa ^ wb) & OTHER_SIDES:
+            return min(score, 50.0)  # «Rosenborg» and «Rosenborg W» are alike as text, but not the same team
+        if (wa <= wb or wb <= wa) and len(min(ca, cb, key=len)) >= 4:
+            return max(score, SUBSET_SCORE)
+        return score
 
     def pair_score(self, anchor: Fixture, other: Fixture) -> tuple[float, bool]:
         """How alike two matches' teams are (the lower of the two names), and whether they are swapped."""

@@ -39,6 +39,32 @@ BOOKMAKERS = {
 }
 
 
+# The Odds API's leagues by the names people know them by.
+LEAGUE_NAMES = {
+    "soccer_norway_eliteserien": "Eliteserien",
+    "soccer_epl": "Premier League",
+    "soccer_efl_champ": "Championship",
+    "soccer_england_league1": "League One",
+    "soccer_england_league2": "League Two",
+    "soccer_uefa_champs_league": "Champions League",
+    "soccer_uefa_europa_league": "Europa League",
+    "soccer_uefa_europa_conference_league": "Conference League",
+    "soccer_spain_la_liga": "LaLiga",
+    "soccer_spain_segunda_division": "LaLiga 2",
+    "soccer_italy_serie_a": "Serie A",
+    "soccer_italy_serie_b": "Serie B",
+    "soccer_germany_bundesliga": "Bundesliga",
+    "soccer_germany_bundesliga2": "2. Bundesliga",
+    "soccer_germany_liga3": "3. Liga",
+    "soccer_france_ligue_one": "Ligue 1",
+    "soccer_france_ligue_two": "Ligue 2",
+    "soccer_netherlands_eredivisie": "Eredivisie",
+    "soccer_sweden_allsvenskan": "Allsvenskan",
+    "soccer_sweden_superettan": "Superettan",
+    "soccer_denmark_superliga": "Superligaen",
+}
+
+
 def bookmaker_name(source: str) -> str:
     """«Betsson» for the source «the_odds_api:betsson», «Norsk Tipping» for Norsk Tipping."""
     if source == NT:
@@ -64,6 +90,9 @@ class Card:
     fair_odds: list[float] | None = None
     ev: list[float] | None = None
     competitors: dict[str, list[float]] = field(default_factory=dict)  # source -> odds, in config order
+    # Where the fair odds come from: None (the reference) or "konkurrenter" (their average, when the
+    # reference has not priced the match yet).
+    fair_from: str | None = None
 
     @property
     def nt_share_of_best(self) -> float:
@@ -145,8 +174,24 @@ def load_cards(
         card.competitors = {
             s: [event[s][o] for o in OUTCOMES] for s in competitors if set(event[s]) == set(OUTCOMES)
         }
+        if card.ev is None and len(card.competitors) >= MIN_CONSENSUS:
+            probabilities = consensus(list(card.competitors.values()), method)
+            card.fair_odds = [1 / p for p in probabilities]
+            card.ev = calc.expected_value(card.nt_odds, probabilities)
+            card.fair_from = "konkurrenter"
         cards.append(card)
     return sort_cards(cards)
+
+
+MIN_CONSENSUS = 3  # competitors needed for fair odds from their average
+
+
+def consensus(books: list[list[float]], method: str) -> list[float]:
+    """The average of several bookmakers' fair probabilities, each with its own margin taken out."""
+    fair = [calc.fair_probabilities(odds, method) for odds in books]
+    average = [sum(p[i] for p in fair) / len(fair) for i in range(len(OUTCOMES))]
+    total = sum(average)
+    return [p / total for p in average]
 
 
 # How the cards can be ordered, the first being the default.

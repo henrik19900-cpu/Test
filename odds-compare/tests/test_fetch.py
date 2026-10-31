@@ -243,3 +243,32 @@ def test_competitor_odds_are_stored_on_the_paired_events(cfg, conn):
         ("Fredrikstad", "draw", 3.8),
         ("Fredrikstad", "home", 4.2),
     ]
+
+
+def test_matches_only_competitors_have_priced_are_paired_too(cfg, conn):
+    """The reference often prices midweek matches late; their competitors' odds should show meanwhile."""
+    events = parse_odds(REF_SAMPLE["odds"], REF_SAMPLE["bookmaker"])
+    brann = next(e for e in events if e.home == "SK Brann")
+    ref = FakeReference()
+    ref.fetch = lambda days_ahead, want=None: [
+        e for e in events if e.source_event_id != brann.source_event_id
+    ]
+    ref.competitor_odds = [brann.model_copy(update={"source": "odds_api_io:betsson"})]
+    report, _ = run(cfg, conn, FakeNT(), ref)
+    brann_event = conn.execute("SELECT id FROM events WHERE home = 'Brann'").fetchone()[0]
+    assert db.linked_event(conn, "odds_api_io", brann.source_event_id) == brann_event
+    sources = {
+        r[0]
+        for r in conn.execute("SELECT DISTINCT source FROM odds_snapshots WHERE event_id = ?", (brann_event,))
+    }
+    assert sources == {"norsk_tipping", "odds_api_io:betsson"}  # no reference odds yet
+    assert report.matched == N
+    # Once the reference prices it, its odds land on the same event.
+    ref.fetch = lambda days_ahead, want=None: events
+    ref.competitor_odds = []
+    run(cfg, conn, FakeNT(), ref, when=NOW + timedelta(minutes=15))
+    sources = {
+        r[0]
+        for r in conn.execute("SELECT DISTINCT source FROM odds_snapshots WHERE event_id = ?", (brann_event,))
+    }
+    assert "odds_api_io" in sources

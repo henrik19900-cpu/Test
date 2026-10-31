@@ -95,7 +95,13 @@ class TheOddsApi:
                         )
                         or []
                     )
-            cached = {"fetched_at_utc": now.isoformat(), "remaining": self.remaining, "events": events}
+            cached = {
+                "fetched_at_utc": now.isoformat(),
+                "remaining": self.remaining,
+                "leagues": self.cfg.leagues,
+                "bookmakers": self.cfg.bookmakers,
+                "events": events,
+            }
             self._save(cached)
             logger.info("The Odds API: %s credits left this month", self.remaining)
         self.fetched_at = datetime.fromisoformat(cached["fetched_at_utc"])
@@ -144,7 +150,11 @@ class TheOddsApi:
             age = now - datetime.fromisoformat(payload["fetched_at_utc"])
         except (OSError, ValueError, KeyError):
             return None
-        return payload if timedelta(0) <= age < timedelta(minutes=self.cfg.min_interval_minutes) else None
+        same_request = (
+            payload.get("leagues") == self.cfg.leagues and payload.get("bookmakers") == self.cfg.bookmakers
+        )
+        fresh = timedelta(0) <= age < timedelta(minutes=self.cfg.min_interval_minutes)
+        return payload if same_request and fresh else None
 
     def _save(self, payload: dict[str, Any]) -> None:
         if self.cache_file:

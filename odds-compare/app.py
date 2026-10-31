@@ -1,18 +1,27 @@
 """Dashboard: Norsk Tipping's odds against margin-free reference odds, one card per match.
 
-Start with `streamlit run app.py`. It only reads the database, so it works while a source is down.
+Start with `streamlit run app.py`, or deploy it on Streamlit Community Cloud (see the README). When
+Norsk Tipping's odds are older than interval_minutes (no `oddscompare run` beside it, as on Streamlit
+Cloud), the page fetches them itself. Reference odds are fetched only with the button.
 """
 
 from __future__ import annotations
 
 import html
 import os
+import sys
+import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import plotly.graph_objects as go
 import streamlit as st
 import yaml
+
+try:
+    import oddscompare  # noqa: F401  (installed with pip install -e .)
+except ImportError:  # Streamlit Cloud installs requirements.txt only: use the package from src/
+    sys.path.insert(0, str(Path(__file__).with_name("src")))
 
 from oddscompare import calc, config, dashboard, db, fetch
 from oddscompare.matching import Aliases
@@ -113,7 +122,15 @@ def card_html(
         if card.stale(now, stale_after)
         else ""
     )
-    missing = "" if card.ref_odds else '<div class="oc-foot">Ingen referanseodds for denne kampen ennå.</div>'
+    if card.fair_from == "konkurrenter":
+        missing = (
+            f'<div class="oc-foot">Fair odds fra snittet av {len(card.competitors)} konkurrenter: '
+            f"{e(reference_name)} har ikke odds på kampen ennå.</div>"
+        )
+    elif not card.ref_odds:
+        missing = '<div class="oc-foot">Ingen referanseodds for denne kampen ennå.</div>'
+    else:
+        missing = ""
     return (
         f'<div class="oc-teams">{e(card.home)} – {e(card.away)}</div>'
         f'<div class="oc-meta">{e(card.league)} · {local(card.kickoff_utc)}</div>'
@@ -182,17 +199,38 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
     st.subheader("Referanseodds")
     last = dashboard.last_success(conn, reference)
     lines = [f"Sist hentet: {local(last) if last else 'aldri'}."]
+    request_cfg = cfg
     if reference == "the_odds_api":
+        configured = cfg.reference.the_odds_api.leagues
+        leagues = st.multiselect(
+            "Ligaer",
+            configured,
+            default=configured,
+            format_func=lambda key: dashboard.LEAGUE_NAMES.get(key, key),
+            help="Hver liga koster 1 kreditt per henting, bare når Norsk Tipping har kamper i den.",
+        )
+        request_cfg = cfg.model_copy(
+            update={
+                "reference": cfg.reference.model_copy(
+                    update={
+                        "the_odds_api": cfg.reference.the_odds_api.model_copy(update={"leagues": leagues})
+                    }
+                )
+            }
+        )
         credits = dashboard.credits_left(cfg.cache_dir, reference)
         if credits is not None:
             lines.append(f"Kreditter igjen denne måneden: {credits}.")
-        lines.append(
-            f"En henting koster opptil {len(cfg.reference.the_odds_api.leagues)} kreditter, én per liga med kamper."
-        )
+        lines.append(f"Hentingen koster opptil {len(leagues)} kreditter, én per valgt liga med kamper.")
     st.caption(" ".join(lines))
-    if st.button("Hent referanseodds", type="primary", use_container_width=True):
+    if st.button(
+        "Hent referanseodds",
+        type="primary",
+        use_container_width=True,
+        disabled=request_cfg is not cfg and not leagues,
+    ):
         with st.spinner("Henter referanseodds …"):
-            report = fetch.run_once(cfg, include_reference=True)
+            report = fetch.run_once(request_cfg, include_reference=True)
         st.session_state["reference_result"] = (
             all(s.status == "ok" for s in report.sources),
             fetch.summary(report),
@@ -203,9 +241,43 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
         (st.success if ok else st.error)(text.replace("\n", "  \n"))
 
 
+def secrets_to_environment() -> None:
+    """API keys from Streamlit's secrets (Streamlit Cloud), for the code that reads them from the environment."""
+    try:
+        for name in ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY"):
+            if not os.environ.get(name) and st.secrets.get(name):
+                os.environ[name] = str(st.secrets[name])
+    except FileNotFoundError:  # no secrets.toml: .env is used instead
+        pass
+    except Exception:  # noqa: BLE001  (older Streamlit versions raise their own error for missing secrets)
+        pass
+
+
+@st.cache_resource
+def fetch_lock() -> threading.Lock:
+    """One Norsk Tipping fetch at a time, however many people have the page open."""
+    return threading.Lock()
+
+
+def refresh_norsk_tipping(cfg: config.Config, conn) -> None:
+    """Fetch Norsk Tipping when its odds are older than interval_minutes (no fetcher running beside the page)."""
+    last = dashboard.last_success(conn, dashboard.NT)
+    if last and datetime.now(UTC) - last < timedelta(minutes=cfg.interval_minutes):
+        return
+    lock = fetch_lock()
+    if not lock.acquire(blocking=False):
+        return
+    try:
+        with st.spinner("Henter Norsk Tippings odds …"):
+            fetch.run_once(cfg)
+    finally:
+        lock.release()
+
+
 def main() -> None:
     st.set_page_config(page_title="Odds-sammenligner", layout="wide")
     st.markdown(CSS, unsafe_allow_html=True)
+    secrets_to_environment()
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))
     reference = cfg.reference.source
     reference_name = dashboard.BOOKMAKERS.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
@@ -215,6 +287,7 @@ def main() -> None:
         else []
     )
     conn = db.connect(cfg.database)
+    refresh_norsk_tipping(cfg, conn)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
 

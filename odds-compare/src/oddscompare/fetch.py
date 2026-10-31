@@ -129,7 +129,16 @@ def run_once(
         if ref_events is not None:
             with db.transaction(conn):  # cached reference odds keep the time they were fetched, too
                 fetched_at = getattr(reference, "fetched_at", None) or started
-                _store_reference(conn, ref_events, anchors, matcher, fetched_at, report)
+                _store_reference(
+                    conn,
+                    ref_events,
+                    anchors,
+                    matcher,
+                    fetched_at,
+                    report,
+                    getattr(reference, "competitor_odds", None) or [],
+                    reference.name,
+                )
                 _store_competitors(conn, reference, fetched_at, report)
     finally:
         report.seconds = time.monotonic() - t0
@@ -193,14 +202,32 @@ def _stored_anchors(conn: sqlite3.Connection, now: datetime) -> list[tuple]:
 
 
 def _store_reference(
-    conn, events: list[RawEvent], anchors: list[tuple], matcher: Matcher, fetched_at, report
+    conn,
+    events: list[RawEvent],
+    anchors: list[tuple],
+    matcher: Matcher,
+    fetched_at,
+    report,
+    competitor_odds: list[RawEvent] = (),
+    source: str = "",
 ) -> None:
+    """Pair the reference's matches with Norsk Tipping's and store their odds.
+
+    Matches only the competitors have priced so far (the reference often prices midweek matches
+    late) are paired too, so their odds show; they get the reference's odds once it has them."""
+    priced = {raw.source_event_id for raw in events}
+    only_competitors = {
+        raw.source_event_id: raw.model_copy(update={"source": source})
+        for raw in competitor_odds
+        if raw.source_event_id not in priced
+    }
     taken = set()
     fresh = []
-    for raw in events:  # matches paired in an earlier round keep their pairing
+    for raw in [*events, *only_competitors.values()]:  # matches paired in an earlier round keep their pairing
         event_id = db.linked_event(conn, raw.source, raw.source_event_id)
         if event_id is not None:
-            db.add_snapshot(conn, event_id, raw, fetched_at)
+            if raw.source_event_id in priced:
+                db.add_snapshot(conn, event_id, raw, fetched_at)
             taken.add(event_id)
         else:
             fresh.append(raw)
@@ -208,7 +235,8 @@ def _store_reference(
     result = matcher.match([a for a, event_id in anchors if event_id not in taken], fresh)
     for anchor, raw, _ in result.pairs:
         db.link(conn, raw, event_of[id(anchor)])
-        db.add_snapshot(conn, event_of[id(anchor)], raw, fetched_at)
+        if raw.source_event_id in priced:
+            db.add_snapshot(conn, event_of[id(anchor)], raw, fetched_at)
     missing = {id(u.event) for u in result.unmatched}
     db.clear_unmatched(
         conn, NorskTipping.name, [(a.home, a.away, a.kickoff_utc) for a, _ in anchors if id(a) not in missing]

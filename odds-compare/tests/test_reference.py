@@ -324,3 +324,13 @@ def test_more_than_ten_bookmakers_would_cost_double_and_are_refused():
     with pytest.raises(ValueError, match="høyst 9 konkurrenter"):
         TheOddsApiConfig(competitors=[f"book{i}" for i in range(10)])
     assert TheOddsApiConfig().bookmakers[0] == "pinnacle" and len(TheOddsApiConfig().bookmakers) <= 10
+
+
+def test_another_choice_of_leagues_is_fetched_even_within_five_minutes(tmp_path):
+    api = FakeTheOddsApi()
+    source = make_free_source(api, tmp_path)
+    source.fetch(7)
+    calls = len(api.requests)
+    source.cfg = source.cfg.model_copy(update={"leagues": ["soccer_epl"]})
+    source.fetch(7)
+    assert len(api.requests) > calls

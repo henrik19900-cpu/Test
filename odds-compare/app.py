@@ -16,6 +16,7 @@ from pathlib import Path
 
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 import yaml
 
 try:
@@ -279,8 +280,43 @@ def refresh_norsk_tipping(cfg: config.Config, conn) -> None:
         lock.release()
 
 
+# Streamlit has no setting for the page head, so the tags «Add to Home Screen» reads are added from a
+# script. The files are in static/, served at app/static/ (enableStaticServing in .streamlit/config.toml).
+HOME_SCREEN = """<script>
+const doc = window.parent.document;
+const tags = [
+  ["link", {rel: "apple-touch-icon", href: "app/static/apple-touch-icon.png"}],
+  ["link", {rel: "manifest", href: "app/static/manifest.webmanifest"}],
+  ["meta", {name: "apple-mobile-web-app-title", content: "Odds"}],
+  ["meta", {name: "apple-mobile-web-app-capable", content: "yes"}],
+  ["meta", {name: "mobile-web-app-capable", content: "yes"}],
+  ["meta", {name: "theme-color", content: "#1e7b34"}],
+];
+for (const [tag, attrs] of tags) {
+  const [key, value] = Object.entries(attrs)[0];
+  if (doc.head.querySelector(`${tag}[${key}="${value}"]`)) continue;
+  const el = doc.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  doc.head.appendChild(el);
+}
+</script>"""
+
+
+def home_screen_tags() -> None:
+    """Icon, name and full-screen start for a shortcut on the phone's home screen."""
+    try:
+        components.html(HOME_SCREEN, height=0)
+    except Exception:  # noqa: BLE001  (a missing icon must never stop the page)
+        pass
+
+
 def main() -> None:
-    st.set_page_config(page_title="Odds-sammenligner", layout="wide")
+    st.set_page_config(
+        page_title="Odds-sammenligner",
+        page_icon=str(Path(__file__).with_name("static") / "icon-192.png"),
+        layout="wide",
+    )
+    home_screen_tags()
     st.markdown(CSS, unsafe_allow_html=True)
     secrets_to_environment()
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))

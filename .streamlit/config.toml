@@ -1,0 +1,4 @@
+# For odds-compare on Streamlit Community Cloud, which runs the app from the repository root:
+# serves odds-compare/static/ at app/static/ (the home-screen icon and the web app manifest).
+[server]
+enableStaticServing = true

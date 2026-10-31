@@ -391,3 +391,17 @@ def test_a_reference_with_an_unusually_wide_margin_is_flagged(conn):
         for c in dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
     }
     assert cards[1.11].doubtful and not cards[2.05].doubtful
+
+
+def test_the_home_screen_files_are_served():
+    """The icon and manifest a phone reads for «Add to Home Screen» exist and are served by Streamlit."""
+    import json
+    import tomllib
+
+    manifest = json.loads((ROOT / "static" / "manifest.webmanifest").read_text(encoding="utf-8"))
+    assert manifest["short_name"] == "Odds" and manifest["display"] == "standalone"
+    for icon in manifest["icons"]:
+        assert (ROOT / "static" / icon["src"]).exists()
+    assert (ROOT / "static" / "apple-touch-icon.png").exists()
+    for config_file in (ROOT / ".streamlit" / "config.toml", ROOT.parent / ".streamlit" / "config.toml"):
+        assert tomllib.loads(config_file.read_text(encoding="utf-8"))["server"]["enableStaticServing"] is True

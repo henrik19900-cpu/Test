@@ -1,0 +1,46 @@
+[project]
+name = "oddscompare"
+version = "0.1.0"
+description = "Odds-sammenligner: Norsk Tippings odds mot margin-fri referanseodds, kamp for kamp"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pandas>=2.2",
+    "rapidfuzz>=3.9",
+    "streamlit>=1.40",
+    "plotly>=5.24",
+    "pyyaml>=6",
+    "websockets>=15",  # 15: connects through HTTPS_PROXY when one is set
+    "python-dotenv>=1",
+    "tzdata",  # Europe/Oslo on systems without a time zone database (slim containers)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+oddscompare = "oddscompare.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oddscompare"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]  # the formatter wraps code; long strings are fine

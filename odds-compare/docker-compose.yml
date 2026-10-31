@@ -1,0 +1,24 @@
+# Two services sharing data/: one fetches every interval_minutes, the other serves the dashboard on
+# http://127.0.0.1:8501 (only on this machine). Start with `docker compose up -d --build`.
+services:
+  fetcher:
+    build: .
+    command: ["oddscompare", "run"]
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    ports:
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      - fetcher
+    restart: unless-stopped

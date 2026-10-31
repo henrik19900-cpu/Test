@@ -1,0 +1,30 @@
+# Odds-sammenligner. Stier er relative til mappen denne filen ligger i.
+
+days_ahead: 7               # kommende kamper så mange dager frem
+interval_minutes: 15        # hvor ofte `oddscompare run` henter (aldri under 5)
+margin_method: proportional # proportional | power | shin
+match_window_minutes: 30    # avsparkstid må stemme innenfor ± dette
+fuzzy_accept: 90            # fuzzy-treff fra og med denne scoren brukes
+fuzzy_suggest: 80           # treff fra denne opp til fuzzy_accept logges bare som forslag
+stale_after_minutes: 30     # dashboardet varsler når oddsen er eldre enn dette
+user_agent: "odds-compare/0.1 (personlig analyseverktoy)"
+
+database: data/odds.db
+aliases: data/team_aliases.yaml
+cache_dir: data/cache
+
+norsk_tipping:
+  min_interval_minutes: 5   # oftere enn dette brukes siste svar fra cachen
+  navigation_cache_hours: 6 # ligatreet endres sjelden og hentes på nytt etter så mange timer
+  # Land eller grupper i Oddsens fotballmeny. Tom liste = alle (rundt 200 kall første gang).
+  countries: [Norge, England, Spania, Tyskland, Italia, Frankrike, Sverige, Danmark, Nederland, Europa]
+  base_url: https://www.norsk-tipping.no/sport/oddsen/sportsbook/services
+  websocket_url: wss://velnt-opr1.sport2.norsk-tipping.no/notification/listen
+  timeout_seconds: 25
+
+reference:
+  source: odds_api_io       # den eneste som er implementert foreløpig
+  odds_api_io:
+    base_url: https://api.odds-api.io/v3
+    bookmaker: Betfair Exchange
+    leagues: []             # ligaslugs, f.eks. norway-eliteserien; tom = alle med odds hos bookmakeren

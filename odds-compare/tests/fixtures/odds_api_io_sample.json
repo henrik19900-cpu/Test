@@ -1,0 +1,4024 @@
+{
+ "fetched_at_utc": "2026-10-31T04:57:19.326319+00:00",
+ "bookmaker": "Betfair Exchange",
+ "odds": [
+  {
+   "id": 61000090,
+   "home": "Rotherham United",
+   "away": "Reading FC",
+   "date": "2026-10-31T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - League One",
+    "slug": "england-league-one"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.80",
+        "draw": "3.25",
+        "away": "2.66"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000067,
+   "home": "Stoke City",
+   "away": "Preston North End",
+   "date": "2026-10-31T12:25:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.82",
+        "draw": "3.90",
+        "away": "5.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000039,
+   "home": "Lyn Oslo",
+   "away": "Raufoss IL",
+   "date": "2026-11-01T16:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.42",
+        "draw": "5.80",
+        "away": "7.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000069,
+   "home": "Swansea City",
+   "away": "Blackburn Rovers",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.87",
+        "draw": "3.80",
+        "away": "4.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000014,
+   "home": "Feyenoord",
+   "away": "Inter Milan",
+   "date": "2026-11-03T20:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "4.60",
+        "draw": "4.20",
+        "away": "1.83"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000083,
+   "home": "Derby County",
+   "away": "Norwich City",
+   "date": "2026-11-03T19:40:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.30",
+        "draw": "4.10",
+        "away": "2.18"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000022,
+   "home": "Borussia Dortmund",
+   "away": "Real Betis",
+   "date": "2026-11-04T19:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.84",
+        "draw": "4.30",
+        "away": "4.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000038,
+   "home": "Odds BK",
+   "away": "Sandnes Ulf",
+   "date": "2026-11-01T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.79",
+        "draw": "4.90",
+        "away": "4.20"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000017,
+   "home": "Manchester United",
+   "away": "AS Roma",
+   "date": "2026-11-03T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.58",
+        "draw": "4.00",
+        "away": "2.74"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000045,
+   "home": "Manchester City",
+   "away": "Brighton & Hove Albion",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.75",
+        "draw": "4.50",
+        "away": "4.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000018,
+   "home": "Villarreal CF",
+   "away": "Paris Saint-Germain",
+   "date": "2026-11-03T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "4.90",
+        "draw": "4.60",
+        "away": "1.71"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000084,
+   "home": "West Bromwich Albion",
+   "away": "Southampton FC",
+   "date": "2026-11-03T20:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.64",
+        "draw": "4.00",
+        "away": "2.66"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000005,
+   "home": "Getafe CF",
+   "away": "Sevilla FC",
+   "date": "2026-11-01T13:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.30",
+        "draw": "3.30",
+        "away": "2.52"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000012,
+   "home": "LASK",
+   "away": "Slovan Bratislava",
+   "date": "2026-11-03T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.55",
+        "draw": "5.00",
+        "away": "6.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000047,
+   "home": "AFC Bournemouth",
+   "away": "Leeds United",
+   "date": "2026-10-31T14:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.20",
+        "draw": "3.50",
+        "away": "3.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000043,
+   "home": "Chelsea FC",
+   "away": "Manchester United",
+   "date": "2026-10-31T12:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.14",
+        "draw": "3.80",
+        "away": "3.65"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000078,
+   "home": "Queens Park Rangers",
+   "away": "Burnley FC",
+   "date": "2026-11-03T19:40:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.14",
+        "draw": "3.80",
+        "away": "3.65"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000044,
+   "home": "Hull City",
+   "away": "Ipswich Town",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.82",
+        "draw": "3.50",
+        "away": "2.74"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000072,
+   "home": "Middlesbrough FC",
+   "away": "Charlton Athletic",
+   "date": "2026-10-31T15:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.31",
+        "draw": "6.80",
+        "away": "10.60"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000025,
+   "home": "PSV Eindhoven",
+   "away": "Club Brugge",
+   "date": "2026-11-04T20:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.22",
+        "draw": "4.20",
+        "away": "3.15"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000010,
+   "home": "Shakhtar Donetsk",
+   "away": "Sporting CP",
+   "date": "2026-11-03T17:50:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.85",
+        "draw": "4.10",
+        "away": "2.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000089,
+   "home": "Hamburger SV",
+   "away": "Werder Bremen",
+   "date": "2026-10-31T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Germany - Bundesliga",
+    "slug": "germany-bundesliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.35",
+        "draw": "3.70",
+        "away": "4.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000024,
+   "home": "Slavia Prague",
+   "away": "Arsenal FC",
+   "date": "2026-11-04T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "8.40",
+        "draw": "5.50",
+        "away": "1.42"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000098,
+   "home": "Halmstads BK",
+   "away": "IK Sirius",
+   "date": "2026-11-03T18:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.40",
+        "draw": "3.85",
+        "away": "3.35"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000088,
+   "home": "Bristol City",
+   "away": "Wolverhampton Wanderers",
+   "date": "2026-11-04T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.30",
+        "draw": "3.90",
+        "away": "2.26"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000079,
+   "home": "Preston North End",
+   "away": "Sheffield United",
+   "date": "2026-11-03T19:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.05",
+        "draw": "4.10",
+        "away": "2.34"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000011,
+   "home": "Galatasaray",
+   "away": "VfB Stuttgart",
+   "date": "2026-11-03T17:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.36",
+        "draw": "4.10",
+        "away": "2.96"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000097,
+   "home": "AIK",
+   "away": "GAIS",
+   "date": "2026-11-02T18:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.20",
+        "draw": "3.25",
+        "away": "3.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000095,
+   "home": "Juventus",
+   "away": "Ajax",
+   "date": "2026-11-04T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.58",
+        "draw": "3.85",
+        "away": "4.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000016,
+   "home": "Bodo/Glimt",
+   "away": "Lille OSC",
+   "date": "2026-11-03T19:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.95",
+        "draw": "4.20",
+        "away": "3.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000023,
+   "home": "RC Lens",
+   "away": "Como 1907",
+   "date": "2026-11-04T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.15",
+        "draw": "3.95",
+        "away": "2.32"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000082,
+   "home": "Blackburn Rovers",
+   "away": "Stoke City",
+   "date": "2026-11-03T19:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.44",
+        "draw": "3.60",
+        "away": "3.15"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000004,
+   "home": "FC Barcelona",
+   "away": "Deportivo Alaves",
+   "date": "2026-10-31T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.15",
+        "draw": "11.60",
+        "away": "21.60"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000096,
+   "home": "Oxford United",
+   "away": "Hull City",
+   "date": "2026-10-31T13:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.92",
+        "draw": "3.35",
+        "away": "4.90"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000001,
+   "home": "Levante UD",
+   "away": "Atletico Madrid",
+   "date": "2026-10-31T13:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "5.80",
+        "draw": "4.60",
+        "away": "1.62"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000056,
+   "home": "Arsenal FC",
+   "away": "Hull City",
+   "date": "2026-11-07T14:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.26",
+        "draw": "7.20",
+        "away": "14.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000081,
+   "home": "Portsmouth FC",
+   "away": "Swansea City",
+   "date": "2026-11-03T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.72",
+        "draw": "3.55",
+        "away": "2.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000087,
+   "home": "Wrexham AFC",
+   "away": "Middlesbrough FC",
+   "date": "2026-11-04T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.90",
+        "draw": "3.85",
+        "away": "2.06"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000085,
+   "home": "Birmingham City",
+   "away": "Millwall FC",
+   "date": "2026-11-03T19:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.20",
+        "draw": "3.75",
+        "away": "3.55"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000094,
+   "home": "Celtic",
+   "away": "Benfica",
+   "date": "2026-11-03T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.70",
+        "draw": "3.85",
+        "away": "3.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000092,
+   "home": "Lyn Oslo W",
+   "away": "Raufoss IL W",
+   "date": "2026-11-01T17:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - 1. divisjon Women",
+    "slug": "norway-1-divisjon-women"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.08",
+        "draw": "3.30",
+        "away": "2.74"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000076,
+   "home": "Wolverhampton Wanderers",
+   "away": "Cardiff City",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.80",
+        "draw": "4.20",
+        "away": "4.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000054,
+   "home": "Leeds United",
+   "away": "Tottenham Hotspur",
+   "date": "2026-11-07T12:35:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.80",
+        "draw": "3.45",
+        "away": "2.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000064,
+   "home": "Mjallby AIF",
+   "away": "Kalmar FF",
+   "date": "2026-11-02T18:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.48",
+        "draw": "3.65",
+        "away": "3.05"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000046,
+   "home": "Brentford FC",
+   "away": "Nottingham Forest",
+   "date": "2026-10-31T15:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.12",
+        "draw": "3.80",
+        "away": "3.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000031,
+   "home": "Sarpsborg 08 FF",
+   "away": "Kristiansund BK",
+   "date": "2026-11-01T16:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.59",
+        "draw": "4.80",
+        "away": "6.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000026,
+   "home": "FC Porto",
+   "away": "SSC Napoli",
+   "date": "2026-11-04T20:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.32",
+        "draw": "3.90",
+        "away": "3.15"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000041,
+   "home": "Asane Fotball",
+   "away": "FK Haugesund",
+   "date": "2026-11-01T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "6.80",
+        "draw": "6.20",
+        "away": "1.43"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000042,
+   "home": "Kongsvinger IL",
+   "away": "Stabaek IF",
+   "date": "2026-11-02T18:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.06",
+        "draw": "4.60",
+        "away": "3.30"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000009,
+   "home": "Deportivo La Coruna",
+   "away": "CA Osasuna",
+   "date": "2026-11-02T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.24",
+        "draw": "3.35",
+        "away": "3.85"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000057,
+   "home": "Nottingham Forest",
+   "away": "Manchester City",
+   "date": "2026-11-07T17:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "5.40",
+        "draw": "4.20",
+        "away": "1.73"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000068,
+   "home": "Lincoln City",
+   "away": "Birmingham City",
+   "date": "2026-10-31T12:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.55",
+        "draw": "3.55",
+        "away": "2.26"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000077,
+   "home": "Charlton Athletic",
+   "away": "Bolton Wanderers",
+   "date": "2026-11-03T19:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.34",
+        "draw": "3.70",
+        "away": "3.25"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000019,
+   "home": "Fenerbahce",
+   "away": "Liverpool FC",
+   "date": "2026-11-04T17:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "5.10",
+        "draw": "4.50",
+        "away": "1.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000003,
+   "home": "Real Betis",
+   "away": "Malaga CF",
+   "date": "2026-10-31T17:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.39",
+        "draw": "5.70",
+        "away": "9.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000033,
+   "home": "KFUM Oslo",
+   "away": "Ham-Kam",
+   "date": "2026-11-01T16:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.12",
+        "draw": "3.65",
+        "away": "3.85"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000091,
+   "home": "Rosenborg BK",
+   "away": "Fredrikstad FK",
+   "date": "2026-11-01T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.10",
+        "draw": "3.70",
+        "away": "4.30"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000065,
+   "home": "IK Sirius",
+   "away": "Halmstads BK",
+   "date": "2026-11-03T18:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.40",
+        "draw": "5.90",
+        "away": "8.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000062,
+   "home": "BK Hacken",
+   "away": "IFK Goteborg",
+   "date": "2026-11-01T15:35:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.79",
+        "draw": "4.60",
+        "away": "4.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000080,
+   "home": "Watford FC",
+   "away": "Lincoln City",
+   "date": "2026-11-03T19:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.44",
+        "draw": "3.55",
+        "away": "3.20"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000007,
+   "home": "Elche CF",
+   "away": "Valencia CF",
+   "date": "2026-11-01T17:35:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.42",
+        "draw": "3.55",
+        "away": "3.25"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000008,
+   "home": "Athletic Bilbao",
+   "away": "Real Sociedad",
+   "date": "2026-11-01T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.24",
+        "draw": "3.85",
+        "away": "3.35"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000021,
+   "home": "RB Leipzig",
+   "away": "Manchester City",
+   "date": "2026-11-04T19:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "6.00",
+        "draw": "4.80",
+        "away": "1.59"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000027,
+   "home": "Viking FK",
+   "away": "Sabah FK",
+   "date": "2026-11-04T20:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.59",
+        "draw": "4.80",
+        "away": "5.90"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000070,
+   "home": "Bolton Wanderers",
+   "away": "Bristol City",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.20",
+        "draw": "3.65",
+        "away": "2.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000030,
+   "home": "SK Brann",
+   "away": "Molde FK",
+   "date": "2026-11-01T13:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.96",
+        "draw": "4.10",
+        "away": "2.38"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000032,
+   "home": "IK Start",
+   "away": "Lillestrom",
+   "date": "2026-11-01T16:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.00",
+        "draw": "3.80",
+        "away": "2.44"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000093,
+   "home": "Sporting Gijon",
+   "away": "Real Oviedo",
+   "date": "2026-11-01T14:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga 2",
+    "slug": "spain-laliga-2"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.14",
+        "draw": "3.40",
+        "away": "4.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000015,
+   "home": "FC Barcelona",
+   "away": "Aston Villa",
+   "date": "2026-11-03T20:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.33",
+        "draw": "7.00",
+        "away": "9.20"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000035,
+   "home": "Ranheim IL",
+   "away": "Sogndal IL",
+   "date": "2026-11-01T13:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.96",
+        "draw": "4.60",
+        "away": "3.65"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000029,
+   "home": "Aalesunds FK",
+   "away": "Sandefjord Fotball",
+   "date": "2026-10-31T17:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.00",
+        "draw": "4.30",
+        "away": "3.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000061,
+   "home": "IF Elfsborg",
+   "away": "Orgryte IS",
+   "date": "2026-11-01T15:25:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.44",
+        "draw": "5.70",
+        "away": "7.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000055,
+   "home": "Fulham FC",
+   "away": "Newcastle United",
+   "date": "2026-11-07T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.40",
+        "draw": "3.70",
+        "away": "3.15"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000028,
+   "home": "Fredrikstad FK",
+   "away": "Rosenborg BK",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "4.30",
+        "draw": "4.20",
+        "away": "1.87"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000020,
+   "home": "AEK Athens",
+   "away": "Real Madrid",
+   "date": "2026-11-04T17:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "8.40",
+        "draw": "6.40",
+        "away": "1.37"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000037,
+   "home": "IL Hodd",
+   "away": "Bryne FK",
+   "date": "2026-11-01T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.55",
+        "draw": "3.90",
+        "away": "2.16"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000059,
+   "home": "Djurgardens IF",
+   "away": "Degerfors IF",
+   "date": "2026-11-01T13:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.36",
+        "draw": "6.00",
+        "away": "9.80"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000060,
+   "home": "Vasteras SK",
+   "away": "IF Brommapojkarna",
+   "date": "2026-11-01T15:35:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.12",
+        "draw": "3.80",
+        "away": "3.75"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000073,
+   "home": "Millwall FC",
+   "away": "Derby County",
+   "date": "2026-10-31T15:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.74",
+        "draw": "4.10",
+        "away": "5.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000051,
+   "home": "Liverpool FC",
+   "away": "Arsenal FC",
+   "date": "2026-11-01T16:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.00",
+        "draw": "3.45",
+        "away": "2.64"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000034,
+   "home": "Valerenga",
+   "away": "Tromso IL",
+   "date": "2026-11-01T18:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - Eliteserien",
+    "slug": "norway-eliteserien"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.56",
+        "draw": "3.70",
+        "away": "2.90"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000040,
+   "home": "Stromsgodset IF",
+   "away": "Moss FK",
+   "date": "2026-11-01T15:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.31",
+        "draw": "7.20",
+        "away": "9.60"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000058,
+   "home": "Malmo FF",
+   "away": "Hammarby IF",
+   "date": "2026-11-01T13:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "4.40",
+        "draw": "4.30",
+        "away": "1.84"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000002,
+   "home": "Rayo Vallecano",
+   "away": "Celta Vigo",
+   "date": "2026-10-31T15:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.70",
+        "draw": "3.30",
+        "away": "3.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000075,
+   "home": "Southampton FC",
+   "away": "Queens Park Rangers",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.10",
+        "draw": "3.85",
+        "away": "3.70"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000071,
+   "home": "West Ham United",
+   "away": "West Bromwich Albion",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.71",
+        "draw": "4.40",
+        "away": "5.20"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000006,
+   "home": "Racing Santander",
+   "away": "Real Madrid",
+   "date": "2026-11-01T15:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Spain - LaLiga",
+    "slug": "spain-laliga"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "10.80",
+        "draw": "7.40",
+        "away": "1.29"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000066,
+   "home": "Norwich City",
+   "away": "Watford FC",
+   "date": "2026-10-31T12:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.61",
+        "draw": "4.60",
+        "away": "6.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000074,
+   "home": "Burnley FC",
+   "away": "Portsmouth FC",
+   "date": "2026-10-31T15:15:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.52",
+        "draw": "3.45",
+        "away": "3.15"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000013,
+   "home": "Atletico Madrid",
+   "away": "Bayern Munich",
+   "date": "2026-11-03T19:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "International Clubs - UEFA Champions League",
+    "slug": "international-clubs-uefa-champions-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.40",
+        "draw": "4.20",
+        "away": "2.10"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000053,
+   "home": "Everton FC",
+   "away": "Coventry City",
+   "date": "2026-11-06T19:55:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.77",
+        "draw": "4.20",
+        "away": "4.90"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000036,
+   "home": "Egersunds IK",
+   "away": "Strommen IF",
+   "date": "2026-11-01T16:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Norway - OBOS-ligaen",
+    "slug": "norway-obos-ligaen"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.80",
+        "draw": "4.50",
+        "away": "4.40"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000050,
+   "home": "Aston Villa",
+   "away": "Fulham FC",
+   "date": "2026-10-31T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.20",
+        "draw": "3.50",
+        "away": "3.85"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000048,
+   "home": "Coventry City",
+   "away": "Sunderland AFC",
+   "date": "2026-10-31T15:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.20",
+        "draw": "3.50",
+        "away": "2.44"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000052,
+   "home": "Newcastle United",
+   "away": "Everton FC",
+   "date": "2026-11-02T20:00:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "2.44",
+        "draw": "3.65",
+        "away": "3.10"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000086,
+   "home": "Cardiff City",
+   "away": "West Ham United",
+   "date": "2026-11-04T19:45:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Championship",
+    "slug": "england-championship"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "3.85",
+        "draw": "4.20",
+        "away": "1.96"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000049,
+   "home": "Tottenham Hotspur",
+   "away": "Crystal Palace",
+   "date": "2026-10-31T17:30:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "England - Premier League",
+    "slug": "england-premier-league"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.67",
+        "draw": "4.50",
+        "away": "5.50"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  },
+  {
+   "id": 61000063,
+   "home": "GAIS",
+   "away": "AIK",
+   "date": "2026-11-02T18:05:00Z",
+   "status": "pending",
+   "sport": {
+    "name": "Football",
+    "slug": "football"
+   },
+   "league": {
+    "name": "Sweden - Allsvenskan",
+    "slug": "sweden-allsvenskan"
+   },
+   "bookmakers": {
+    "Betfair Exchange": [
+     {
+      "name": "ML",
+      "odds": [
+       {
+        "home": "1.96",
+        "draw": "4.10",
+        "away": "4.00"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     },
+     {
+      "name": "Totals",
+      "odds": [
+       {
+        "max": 2.5,
+        "over": "1.95",
+        "under": "1.95"
+       }
+      ],
+      "updatedAt": "2026-10-31T04:56:00Z"
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -122,6 +122,11 @@ def card_html(
         if card.stale(now, stale_after)
         else ""
     )
+    if card.doubtful:
+        warning += (
+            f'<div class="oc-stale">{e(reference_name)}-marginen er uvanlig høy ({percent(card.ref_margin)}), '
+            "så fair odds og EV er usikre.</div>"
+        )
     if card.fair_from == "konkurrenter":
         missing = (
             f'<div class="oc-foot">Fair odds fra snittet av {len(card.competitors)} konkurrenter: '
@@ -226,7 +231,7 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
     if st.button(
         "Hent referanseodds",
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=request_cfg is not cfg and not leagues,
     ):
         with st.spinner("Henter referanseodds …"):
@@ -352,7 +357,7 @@ def main() -> None:
                             st.caption("Trenger minst to hentinger for å vise utviklingen.")
                         else:
                             st.plotly_chart(
-                                history_chart(frame), use_container_width=True, key=f"chart-{card.event_id}"
+                                history_chart(frame), width="stretch", key=f"chart-{card.event_id}"
                             )
         if len(cards) > shown:
             if st.button(f"Vis flere ({len(cards) - shown} til)"):
@@ -384,7 +389,7 @@ def main() -> None:
                     for r in rows
                 ],
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
             )
     conn.close()
 

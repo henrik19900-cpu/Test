@@ -120,6 +120,11 @@ class Card:
     def ref_margin(self) -> float | None:
         return calc.margin(self.ref_odds) if self.ref_odds else None
 
+    @property
+    def doubtful(self) -> bool:
+        """The reference's own margin is so wide that the fair odds taken from it are unreliable."""
+        return self.ref_margin is not None and self.ref_margin > DOUBTFUL_MARGIN
+
     def stale(self, now: datetime, after: timedelta, reference_after: timedelta | None = None) -> list[str]:
         """The sources whose odds are older than allowed. The reference is fetched only when asked
         for, so it is checked only when reference_after is given."""
@@ -184,6 +189,9 @@ def load_cards(
 
 
 MIN_CONSENSUS = 3  # competitors needed for fair odds from their average
+# Pinnacle's 1X2 margin is usually 3-6 %. Far above that, the line is early or stale, and fair odds taken
+# from it are unreliable (31.10.2026: median 4.6 %, 2 of 201 matches above 8 %, one of them at 11.7 %).
+DOUBTFUL_MARGIN = 0.08
 
 
 def consensus(books: list[list[float]], method: str) -> list[float]:
@@ -227,12 +235,14 @@ def filter_cards(cards: list[Card], leagues: list[str], min_ev: float, show_all:
 
 
 def summary(cards: list[Card]) -> dict[str, float | int | None]:
+    """The counts, and the average margins over the matches the reference itself has priced."""
     compared = [c for c in cards if c.ev is not None]
+    priced = [c for c in cards if c.ref_odds]
     return {
         "matches": len(cards),
         "positive": sum(1 for c in compared if c.best_ev > 0),
-        "nt_margin": sum(c.nt_margin for c in compared) / len(compared) if compared else None,
-        "ref_margin": sum(c.ref_margin for c in compared) / len(compared) if compared else None,
+        "nt_margin": sum(c.nt_margin for c in priced) / len(priced) if priced else None,
+        "ref_margin": sum(c.ref_margin for c in priced) / len(priced) if priced else None,
     }
 
 

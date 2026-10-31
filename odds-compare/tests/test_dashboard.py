@@ -347,6 +347,8 @@ def test_fair_odds_from_the_competitors_when_the_reference_has_none(conn):
     sources = [f"the_odds_api:{k}" for k in books]
     [card] = dashboard.load_cards(conn, "the_odds_api", "proportional", NOW, NOW + timedelta(days=7), sources)
     assert card.fair_from == "konkurrenter" and card.ref_odds is None
+    stats = dashboard.summary([card])  # margins are averaged over matches the reference priced: none here
+    assert stats["positive"] in (0, 1) and stats["nt_margin"] is None and stats["ref_margin"] is None
     expected = dashboard.consensus([list(v) for v in books.values()], "proportional")
     assert card.fair_odds == pytest.approx([1 / p for p in expected])
     assert sum(expected) == pytest.approx(1.0)
@@ -379,3 +381,13 @@ def test_the_league_picker_limits_what_a_request_pays_for(tmp_path, monkeypatch)
     [button] = [b for b in app.button if b.label == "Hent referanseodds"]
     button.click().run()
     assert asked == [(True, ["soccer_norway_eliteserien", "soccer_epl"])]
+
+
+def test_a_reference_with_an_unusually_wide_margin_is_flagged(conn):
+    store(conn, (1.11, 7.8, 14.5), (1.15, 6.37, 11.08), sid="wide")  # Pinnacle at 11.7 %, as seen 31.10.2026
+    store(conn, (2.05, 3.10, 3.30), (2.10, 3.40, 3.70), sid="normal")  # 4.1 %
+    cards = {
+        c.nt_odds[0]: c
+        for c in dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
+    }
+    assert cards[1.11].doubtful and not cards[2.05].doubtful

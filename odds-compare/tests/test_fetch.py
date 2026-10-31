@@ -147,6 +147,24 @@ def test_a_cached_norsk_tipping_answer_is_not_stored_twice(cfg, conn):
     assert tuple(rows) == (N * 3, 1)
 
 
+def test_cached_reference_odds_keep_their_time(cfg, conn):
+    ref = FakeReference()
+    ref.fetched_at = NOW - timedelta(hours=3)  # as TheOddsApi reports when it serves its cache
+    run(cfg, conn, FakeNT(), ref)
+    run(cfg, conn, FakeNT(), ref, when=NOW + timedelta(minutes=15))
+    times = conn.execute(
+        "SELECT DISTINCT fetched_at_utc FROM odds_snapshots WHERE source = 'odds_api_io'"
+    ).fetchall()
+    assert [t[0] for t in times] == [db.iso(NOW - timedelta(hours=3))]
+
+
+def test_the_free_reference_is_the_default(cfg):
+    assert cfg.reference.source == "the_odds_api"
+    assert cfg.reference.bookmaker == "pinnacle" and cfg.reference.refresh_minutes == 720
+    nt, reference = fetch.build_sources(cfg)
+    assert reference.name == "the_odds_api"
+
+
 def test_run_forever_refuses_short_intervals(cfg):
     with pytest.raises(ValueError):
         fetch.run_forever(cfg, 4)

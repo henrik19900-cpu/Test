@@ -19,7 +19,7 @@ from . import config, db
 from .matching import Aliases, Matcher
 from .sources import RawEvent, ReferenceSource, SourceError
 from .sources.nt import NorskTipping
-from .sources.reference import OddsApiIo
+from .sources.reference import OddsApiIo, TheOddsApi
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,20 @@ class _Anchor:
 
 def build_sources(cfg: config.Config) -> tuple[NorskTipping, ReferenceSource]:
     nt = NorskTipping(cfg.norsk_tipping, cfg.user_agent, cache_dir=cfg.cache_dir)
-    reference = OddsApiIo(
-        cfg.reference.odds_api_io, config.api_key("ODDS_API_IO_KEY"), cfg.user_agent, cache_dir=cfg.cache_dir
-    )
+    if cfg.reference.source == "odds_api_io":
+        reference = OddsApiIo(
+            cfg.reference.odds_api_io,
+            config.api_key("ODDS_API_IO_KEY"),
+            cfg.user_agent,
+            cache_dir=cfg.cache_dir,
+        )
+    else:
+        reference = TheOddsApi(
+            cfg.reference.the_odds_api,
+            config.api_key("THE_ODDS_API_KEY"),
+            cfg.user_agent,
+            cache_dir=cfg.cache_dir,
+        )
     return nt, reference
 
 
@@ -106,8 +117,9 @@ def run_once(
             clock,
         )
         if ref_events is not None:
-            with db.transaction(conn):
-                _store_reference(conn, ref_events, anchors, matcher, started, report)
+            with db.transaction(conn):  # cached reference odds keep the time they were fetched, too
+                fetched_at = getattr(reference, "fetched_at", None) or started
+                _store_reference(conn, ref_events, anchors, matcher, fetched_at, report)
     finally:
         report.seconds = time.monotonic() - t0
         if own_conn:

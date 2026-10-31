@@ -24,6 +24,25 @@ class NorskTippingConfig(BaseModel):
     timeout_seconds: float = Field(25, gt=0)
 
 
+class TheOddsApiConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_url: str = "https://api.the-odds-api.com/v4"
+    bookmaker: str = "pinnacle"
+    leagues: list[str] = [
+        "soccer_norway_eliteserien",
+        "soccer_epl",
+        "soccer_efl_champ",
+        "soccer_spain_la_liga",
+        "soccer_uefa_champs_league",
+        "soccer_sweden_allsvenskan",
+    ]
+    # The free plan has 500 credits a month and each league costs 1 per refresh: 6 leagues twice a
+    # day is about 365 a month. Between refreshes the cached odds are used.
+    min_interval_minutes: float = Field(720, ge=5)
+    timeout_seconds: float = Field(20, gt=0)
+
+
 class OddsApiIoConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -36,8 +55,18 @@ class OddsApiIoConfig(BaseModel):
 class ReferenceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    source: Literal["odds_api_io"] = "odds_api_io"
+    source: Literal["the_odds_api", "odds_api_io"] = "the_odds_api"
+    the_odds_api: TheOddsApiConfig = TheOddsApiConfig()
     odds_api_io: OddsApiIoConfig = OddsApiIoConfig()
+
+    @property
+    def bookmaker(self) -> str:
+        return getattr(self, self.source).bookmaker
+
+    @property
+    def refresh_minutes(self) -> float:
+        """How old the reference odds may get between refreshes (0: refreshed every round)."""
+        return getattr(getattr(self, self.source), "min_interval_minutes", 0)
 
 
 class Config(BaseModel):

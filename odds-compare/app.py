@@ -19,7 +19,16 @@ from oddscompare.matching import Aliases
 
 PAGE_SIZE = 24
 COLOURS = {"H": "#2563eb", "U": "#7c3aed", "B": "#d97706"}
-SOURCE_NAMES = {"norsk_tipping": "Norsk Tipping", "odds_api_io": "Odds-API.io"}
+SOURCE_NAMES = {
+    "norsk_tipping": "Norsk Tipping",
+    "the_odds_api": "The Odds API",
+    "odds_api_io": "Odds-API.io",
+}
+BOOKMAKER_NAMES = {
+    "pinnacle": "Pinnacle",
+    "betfair_ex_eu": "Betfair Exchange",
+    "betfair_ex_uk": "Betfair Exchange",
+}
 
 CSS = """
 <style>
@@ -75,7 +84,13 @@ def local(moment: datetime, fmt: str = "%a %d.%m %H:%M") -> str:
     return text
 
 
-def card_html(card: dashboard.Card, now: datetime, stale_after: timedelta, reference_name: str) -> str:
+def card_html(
+    card: dashboard.Card,
+    now: datetime,
+    stale_after: timedelta,
+    ref_stale_after: timedelta,
+    reference_name: str,
+) -> str:
     e = html.escape
     cells = []
     for i, label in enumerate(("H", "U", "B")):
@@ -90,9 +105,10 @@ def card_html(card: dashboard.Card, now: datetime, stale_after: timedelta, refer
     times = f"NT {local(card.nt_fetched, '%H:%M')}"
     if card.ref_fetched:
         times += f" · {e(reference_name)} {local(card.ref_fetched, '%H:%M')}"
-    stale = card.stale(now, stale_after)
+    stale = card.stale(now, stale_after, ref_stale_after)
+    names = {"norsk_tipping": "Norsk Tipping", "referanse": reference_name}
     warning = (
-        f'<div class="oc-stale">Oddsen er eldre enn {int(stale_after.total_seconds() // 60)} minutter</div>'
+        f'<div class="oc-stale">Gamle odds fra {e(" og ".join(names[s] for s in stale))}: sjekk at hentingen kjører</div>'
         if stale
         else ""
     )
@@ -135,10 +151,12 @@ def main() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))
     reference = cfg.reference.source
-    reference_name = cfg.reference.odds_api_io.bookmaker
+    reference_name = BOOKMAKER_NAMES.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
     conn = db.connect(cfg.database)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
+    # The reference is refreshed less often on the free plan; it is old only after a missed refresh.
+    ref_stale_after = stale_after + timedelta(minutes=cfg.reference.refresh_minutes)
 
     st.title("Odds-sammenligner")
     st.caption(
@@ -162,7 +180,7 @@ def main() -> None:
             )
         else:
             last = db.parse_iso(row["started_at_utc"])
-            if now - last > stale_after:
+            if now - last > (stale_after if row["source"] == dashboard.NT else ref_stale_after):
                 st.warning(f"{name}: siste vellykkede henting var {local(last)}. Kjører `oddscompare run`?")
 
     matches_tab, unmatched_tab = st.tabs(["Kamper", "Umatchede kamper"])
@@ -184,7 +202,10 @@ def main() -> None:
             columns = st.columns(2)
             for column, card in zip(columns, cards[start : start + 2], strict=False):
                 with column.container(border=True):
-                    st.markdown(card_html(card, now, stale_after, reference_name), unsafe_allow_html=True)
+                    st.markdown(
+                        card_html(card, now, stale_after, ref_stale_after, reference_name),
+                        unsafe_allow_html=True,
+                    )
                     with st.expander("Oddsutvikling"):
                         frame = dashboard.history(conn, card.event_id, reference, method)
                         if frame["tid"].nunique() < 2:

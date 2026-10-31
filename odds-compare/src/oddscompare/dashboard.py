@@ -49,10 +49,10 @@ class Card:
     def ref_margin(self) -> float | None:
         return calc.margin(self.ref_odds) if self.ref_odds else None
 
-    def stale(self, now: datetime, after: timedelta) -> list[str]:
-        """The sources whose odds are older than after."""
-        fetched = {NT: self.nt_fetched, "referanse": self.ref_fetched}
-        return [name for name, moment in fetched.items() if moment and now - moment > after]
+    def stale(self, now: datetime, after: timedelta, reference_after: timedelta | None = None) -> list[str]:
+        """The sources whose odds are older than allowed (the reference may refresh less often)."""
+        limits = {NT: (self.nt_fetched, after), "referanse": (self.ref_fetched, reference_after or after)}
+        return [name for name, (moment, limit) in limits.items() if moment and now - moment > limit]
 
 
 def load_cards(

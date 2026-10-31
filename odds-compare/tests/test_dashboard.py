@@ -101,6 +101,8 @@ def test_stale_odds_are_flagged(conn):
     [card] = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
     assert card.stale(NOW, timedelta(minutes=30)) == ["norsk_tipping", "referanse"]
     assert card.stale(NOW, timedelta(minutes=60)) == []
+    # The reference may be older when it refreshes less often (the free plan: every 12 hours).
+    assert card.stale(NOW, timedelta(minutes=30), timedelta(hours=12, minutes=30)) == ["norsk_tipping"]
 
 
 def test_history_has_nt_and_fair_odds_per_outcome(conn):

@@ -4,6 +4,8 @@ Viser, kamp for kamp, Norsk Tippings odds mot margin-fri referanseodds, og fremh
 
 Første versjon dekker fotball, markedet H/U/B (1X2), kamper de neste 7 dagene, én referansekilde, henting hvert 15. minutt med historikk i SQLite, og et Streamlit-dashboard med ett kort per kamp sortert på beste EV.
 
+Alt er gratis: Python-pakkene, SQLite, Streamlit og Docker er åpen kildekode, og referanseoddsen kommer fra gratisplanen til The Odds API.
+
 ## Kom i gang
 
 Krever Python 3.12 eller nyere.
@@ -13,7 +15,7 @@ cd odds-compare
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env        # legg inn ODDS_API_IO_KEY
+cp .env.example .env        # legg inn THE_ODDS_API_KEY (gratis, se under)
 oddscompare fetch           # én runde fra begge kildene
 streamlit run app.py        # http://localhost:8501
 ```
@@ -48,7 +50,18 @@ Endepunktene er uoffisielle og kan endres uten varsel. Når svarene ikke ser ut 
 
 En runde med de 10 landene i standardkonfigen tar rundt 7 sekunder og gir rundt 300 kamper. `robots.txt` stenger ikke `/sport/oddsen` (bare `/sport/liveoddsen`). **Les likevel Norsk Tippings vilkår før bruk.** Det er ikke gjort i dette prosjektet.
 
-**Referanseodds** kommer fra [Odds-API.io](https://docs.odds-api.io). Pinnacle stengte sitt offentlige API i juli 2025, og Odds-API.io har ikke Pinnacle. Standard bookmaker er derfor Betfair Exchange, der prisene settes av markedet. Alle navn fra `GET /bookmakers` kan brukes, for eksempel `ON Sharp`. Hver forespørsel teller mot kvoten: gamle gratisnøkler har 100 i timen, betalte planer 5 000. Derfor hentes odds bare for kamper som kan matche en Norsk Tipping-kamp, 10 per forespørsel. [SharpOddz](https://sportsapis.dev/apis/sharpoddz) er ikke implementert, fordi API-dokumentasjonen deres ikke er offentlig.
+**Referanseodds** kommer fra [The Odds API](https://the-odds-api.com). Pinnacle stengte sitt offentlige API i juli 2025, men The Odds API har Pinnacles odds, hentet fra Pinnacles nettsted, også på gratisplanen. Gratisplanen gir 500 kreditter i måneden, uten betalingskort. Registrer deg med e-post på nettstedet og legg nøkkelen i `.env` som `THE_ODDS_API_KEY`.
+
+Kredittene brukes slik:
+
+- Å liste kamper (`/events`) er gratis.
+- Odds for én liga (`/odds`) koster 1 kreditt, uansett hvor mange kamper svaret har.
+- Adapteren kjøper bare odds for ligaer som har kamper som kan matche en Norsk Tipping-kamp.
+- Svaret caches i 12 timer (`min_interval_minutes`). Med de 6 ligaene i standardkonfigen blir det om lag 365 kreditter i måneden.
+
+Norsk Tipping hentes fortsatt hvert 15. minutt, så NT-oddsen er fersk mens referansen er opptil 12 timer gammel. Dashboardet varsler først når referansen er eldre enn det. Vil du ha flere ligaer eller hyppigere referanse, må regnestykket gå opp: ligaer × oppdateringer per dag × 30 ≤ 500. Ligaene heter som i `GET /v4/sports` (gratis), for eksempel `soccer_germany_bundesliga`. `bookmaker` kan også være `betfair_ex_eu`.
+
+Odds-API.io (`reference.source: odds_api_io`) er fortsatt støttet, men krever betalt plan. [SharpOddz](https://sportsapis.dev/apis/sharpoddz) er ikke implementert, fordi API-dokumentasjonen deres ikke er offentlig, og fordi den koster penger etter en prøvedag.
 
 ## Matching av kamper
 
@@ -97,6 +110,7 @@ ruff check . && ruff format --check .
 Fixturene ligger i `tests/fixtures/`:
 
 - `nt_sample.json` er et ekte svar fra Oddsen 31.10.2026 med 88 kamper fra sju ligaer.
-- `odds_api_io_sample.json` er laget for hånd etter Odds-API.ios dokumenterte format, fordi prosjektet ikke har en API-nøkkel. Den har de samme 88 kampene med navn slik en engelskspråklig feed typisk skriver dem («Bodo/Glimt», «Odds BK», «Preston North End»), pluss 10 andre kamper. Blant dem er to med hjemme og borte byttet om på samme tidspunkt. Bytt den gjerne ut med et ekte svar: `data/cache/odds_api_io.json` har samme form.
+- `odds_api_io_sample.json` er laget for hånd etter Odds-API.ios dokumenterte format, fordi prosjektet ikke har en API-nøkkel. Den brukes til å teste matchingen og har de samme 88 kampene med navn slik en engelskspråklig feed typisk skriver dem («Bodo/Glimt», «Odds BK», «Preston North End»), pluss 10 andre kamper. Blant dem er to med hjemme og borte byttet om på samme tidspunkt. Bytt den gjerne ut med ekte navn fra referansen når du har en nøkkel: `data/cache/the_odds_api.json` har svarene.
+- Testene for The Odds API bruker svar i formatet fra v4-dokumentasjonen deres, skrevet inn i `tests/test_reference.py`.
 
 Med alias-tabellen matcher 88 av 88 kamper (100 %). Uten alias-tabellen matcher 70 av 88 (79,5 %).

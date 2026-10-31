@@ -39,6 +39,15 @@ Da kan du åpne dashboardet fra mobilen uten egen maskin:
 
 Gjør appen privat under «Share», så bare du kan åpne den. Ellers kan alle med lenken trykke «Hent referanseodds» og bruke kredittene dine. Uten `oddscompare run` ved siden av henter appen Norsk Tippings odds selv når siden åpnes og dataene er eldre enn 15 minutter. Streamlit Cloud lagrer ikke filer når appen startes på nytt, så historikken (oddsutviklingen) begynner på nytt da.
 
+### Som snarvei på telefonen
+
+Åpne appens adresse (for eksempel `https://ditt-navn.streamlit.app`) på telefonen og vent til siden har lastet:
+
+- **iPhone (Safari):** trykk del-knappen (firkanten med pil opp), velg «Legg til på Hjem-skjerm» og trykk «Legg til».
+- **Android (Chrome):** trykk ⋮ øverst til høyre, velg «Legg til på startsiden» eller «Installer app», og trykk «Legg til».
+
+Snarveien heter «Odds» og har et grønt «1X2»-ikon. Den åpner appen i fullskjerm, uten adresselinje. Har appen ikke vært brukt på en stund, sover den hos Streamlit. Trykk da «Yes, get this app back up!» og vent et halvt minutt.
+
 Med Docker: `docker compose up -d --build` starter `fetcher` (henter fra Norsk Tipping hvert 15. minutt) og `dashboard` på http://127.0.0.1:8501, der knappen henter referanseodds. Begge deler mappen `data/`.
 
 ## Konfigurasjon

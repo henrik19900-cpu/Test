@@ -60,6 +60,8 @@ En runde med de 10 landene i standardkonfigen tar rundt 7 sekunder og gir rundt 
 - Adapteren kjøper bare odds for ligaer som har kamper som kan matche en Norsk Tipping-kamp. Med de 6 ligaene i standardkonfigen koster en henting høyst 6 kreditter, altså minst 83 hentinger i måneden.
 - Ber du igjen innen 5 minutter (`min_interval_minutes`), brukes forrige svar, så et dobbeltklikk ikke koster dobbelt.
 
+**Konkurrentene til Norsk Tipping** hentes i samme forespørsel som Pinnacle, uten ekstra kostnad: opptil 10 bookmakere teller som én. Standard er Unibet, Betsson, NordicBet, Coolbet, LeoVegas, 888sport og Betway (`competitors` i `config.yaml`). Bet365 og ComeOn finnes ikke hos The Odds API. Hvert kort viser beste odds per utfall og hvem som har dem, i grønt når det er Norsk Tipping. Under «Konkurrentenes odds» står alle bookmakerne side om side med margin.
+
 Kortene viser når referanseoddsen sist ble hentet. Dashboardet varsler ikke om at den er gammel, siden det er du som bestemmer når den hentes. Ligaene heter som i `GET /v4/sports` (gratis), for eksempel `soccer_germany_bundesliga`. `bookmaker` kan også være `betfair_ex_eu`.
 
 Odds-API.io (`reference.source: odds_api_io`) er fortsatt støttet, men krever betalt plan. [SharpOddz](https://sportsapis.dev/apis/sharpoddz) er ikke implementert, fordi API-dokumentasjonen deres ikke er offentlig, og fordi den koster penger etter en prøvedag.
@@ -86,6 +88,8 @@ Deretter slås navnet opp i `data/team_aliases.yaml`. Som reserve brukes `rapidf
 - EV: `oᵢ(NT) · pᵢ − 1`
 
 Metoden velges i konfigen og kan byttes i dashboardet, som regner om direkte.
+
+Kampene kan sorteres etter beste EV (standard), avsparkstid, liga, lavest NT-margin, eller hvor nær Norsk Tipping er beste odds i markedet.
 
 ## Data
 

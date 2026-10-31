@@ -24,11 +24,6 @@ SOURCE_NAMES = {
     "the_odds_api": "The Odds API",
     "odds_api_io": "Odds-API.io",
 }
-BOOKMAKER_NAMES = {
-    "pinnacle": "Pinnacle",
-    "betfair_ex_eu": "Betfair Exchange",
-    "betfair_ex_uk": "Betfair Exchange",
-}
 
 CSS = """
 <style>
@@ -48,6 +43,14 @@ CSS = """
 .oc-ev.none { background: transparent; color: inherit; opacity: 0.6; }
 .oc-foot { font-size: 0.8rem; opacity: 0.8; margin-top: 0.5rem; }
 .oc-stale { color: #b42318; font-weight: 600; }
+.oc-best { font-size: 0.85rem; margin-top: 0.4rem; }
+.oc-best b { font-variant-numeric: tabular-nums; }
+.oc-nt-best { color: #1e7b34; font-weight: 600; }
+table.oc-books { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+table.oc-books th, table.oc-books td { padding: 0.2rem 0.4rem; text-align: right; border-bottom: 1px solid rgba(128,128,128,0.25); }
+table.oc-books th:first-child, table.oc-books td:first-child { text-align: left; }
+table.oc-books td.top { font-weight: 700; }
+table.oc-books tr.nt td { background: rgba(128,128,128,0.10); }
 /* One card per row on narrow screens (the cards are laid out in Streamlit columns). */
 @media (max-width: 700px) {
   div[data-testid="stHorizontalBlock"] { flex-direction: column !important; }
@@ -115,9 +118,38 @@ def card_html(
         f'<div class="oc-teams">{e(card.home)} – {e(card.away)}</div>'
         f'<div class="oc-meta">{e(card.league)} · {local(card.kickoff_utc)}</div>'
         f'<div class="oc-row">{"".join(cells)}</div>'
+        f"{best_line(card)}"
         f'<div class="oc-foot">NT-margin {percent(card.nt_margin)} · referansemargin {percent(card.ref_margin)}'
         f"<br>Sist hentet: {times}</div>{warning}{missing}"
     )
+
+
+def best_line(card: dashboard.Card) -> str:
+    """«Beste odds: H 2,15 Betsson · U 3,60 Norsk Tipping · …», when competitors' odds are there."""
+    if not card.competitors:
+        return ""
+    parts = []
+    for label, (price, names) in zip(("H", "U", "B"), card.best_prices(), strict=True):
+        css = ' class="oc-nt-best"' if "Norsk Tipping" in names else ""
+        parts.append(f"<span{css}>{label} <b>{odds_text(price)}</b> {html.escape(', '.join(names))}</span>")
+    return f'<div class="oc-best">Beste odds: {" · ".join(parts)}</div>'
+
+
+def books_table(card: dashboard.Card) -> str:
+    """Norsk Tipping and every competitor side by side; the best price per outcome in bold."""
+    best = [price for price, _ in card.best_prices()]
+    rows = []
+    for source, odds in {dashboard.NT: card.nt_odds, **card.competitors}.items():
+        cells = "".join(
+            f'<td class="{"top" if o == best[i] else ""}">{odds_text(o)}</td>' for i, o in enumerate(odds)
+        )
+        css = ' class="nt"' if source == dashboard.NT else ""
+        rows.append(
+            f"<tr{css}><td>{html.escape(dashboard.bookmaker_name(source))}</td>{cells}"
+            f"<td>{percent(calc.margin(odds))}</td></tr>"
+        )
+    head = "<tr><th>Bookmaker</th><th>H</th><th>U</th><th>B</th><th>Margin</th></tr>"
+    return f'<table class="oc-books">{head}{"".join(rows)}</table>'
 
 
 def history_chart(frame) -> go.Figure:
@@ -176,7 +208,12 @@ def main() -> None:
     st.markdown(CSS, unsafe_allow_html=True)
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))
     reference = cfg.reference.source
-    reference_name = BOOKMAKER_NAMES.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
+    reference_name = dashboard.BOOKMAKERS.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
+    competitors = (
+        [f"{reference}:{key}" for key in cfg.reference.the_odds_api.competitors]
+        if reference == "the_odds_api"
+        else []
+    )
     conn = db.connect(cfg.database)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
@@ -188,9 +225,12 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Filtre")
+        order = st.selectbox("Sorter etter", list(dashboard.SORTS))
         window = st.radio("Tidsvindu", dashboard.WINDOWS, index=2, horizontal=True)
         method = st.selectbox("Marginfjerning", calc.METHODS, index=calc.METHODS.index(cfg.margin_method))
-        all_cards = dashboard.load_cards(conn, reference, method, now, dashboard.window_end(window, now))
+        all_cards = dashboard.load_cards(
+            conn, reference, method, now, dashboard.window_end(window, now), competitors
+        )
         leagues = st.multiselect("Liga", sorted({c.league for c in all_cards}), placeholder="Alle ligaer")
         min_ev = st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%") / 100
         show_all = st.toggle("Vis alle kamper", help="Også kamper under minimum EV og uten referanseodds")
@@ -209,7 +249,7 @@ def main() -> None:
 
     matches_tab, unmatched_tab = st.tabs(["Kamper", "Umatchede kamper"])
     with matches_tab:
-        cards = dashboard.filter_cards(all_cards, leagues, min_ev, show_all)
+        cards = dashboard.sort_cards(dashboard.filter_cards(all_cards, leagues, min_ev, show_all), order)
         stats = dashboard.summary([c for c in all_cards if not leagues or c.league in leagues])
         top = st.columns(3)
         top[0].metric("Kamper", stats["matches"])
@@ -230,6 +270,9 @@ def main() -> None:
                         card_html(card, now, stale_after, reference_name),
                         unsafe_allow_html=True,
                     )
+                    if card.competitors:
+                        with st.expander(f"Konkurrentenes odds ({len(card.competitors)})"):
+                            st.markdown(books_table(card), unsafe_allow_html=True)
                     with st.expander("Oddsutvikling"):
                         frame = dashboard.history(conn, card.event_id, reference, method)
                         if frame["tid"].nunique() < 2:

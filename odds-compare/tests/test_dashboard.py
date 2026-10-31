@@ -48,7 +48,7 @@ def test_cards_carry_the_specification_numbers(conn):
     assert card.best_ev == pytest.approx(0.028, abs=0.001)
 
 
-def test_cards_are_sorted_by_best_ev_and_those_without_reference_come_last(conn):
+def test_cards_are_sorted_by_best_ev_and_those_without_reference_come_last(conn):  # the default order
     store(conn, (2.05, 3.10, 3.30), (2.10, 3.40, 3.70), sid="a")  # best EV -6.2 %
     store(conn, (1.70, 3.70, 4.90), (1.80, 3.80, 4.60), sid="b")  # best EV +2.8 %
     store(conn, (2.00, 3.00, 4.00), None, sid="c")
@@ -239,3 +239,72 @@ def test_the_button_fetches_reference_odds_only_when_pressed(filled_app, monkeyp
     assert not app.exception
     assert calls == [7]
     assert any("odds_api_io: 98 kamper" in s.value for s in app.success)
+
+
+def test_competitors_and_the_best_price_per_outcome(conn):
+    event_id = store(conn, (2.05, 3.60, 3.30), (2.10, 3.40, 3.70))
+    ev = raw_event(source="the_odds_api:betsson", source_event_id="r1")
+    db.add_snapshot(
+        conn, event_id, ev.model_copy(update={"odds": {"home": 2.15, "draw": 3.40, "away": 3.30}}), NOW
+    )
+    db.add_snapshot(
+        conn,
+        event_id,
+        ev.model_copy(
+            update={"source": "the_odds_api:unibet_se", "odds": {"home": 2.15, "draw": 3.5, "away": 3.25}}
+        ),
+        NOW,
+    )
+    [card] = dashboard.load_cards(
+        conn,
+        "odds_api_io",
+        "proportional",
+        NOW,
+        NOW + timedelta(days=7),
+        ["the_odds_api:betsson", "the_odds_api:unibet_se", "the_odds_api:coolbet"],
+    )
+    assert card.competitors == {
+        "the_odds_api:betsson": [2.15, 3.40, 3.30],
+        "the_odds_api:unibet_se": [2.15, 3.5, 3.25],
+    }
+    assert card.best_prices() == [
+        (2.15, ["Betsson", "Unibet"]),
+        (3.60, ["Norsk Tipping"]),
+        (3.30, ["Norsk Tipping", "Betsson"]),
+    ]
+    assert card.nt_share_of_best == 1.0  # Norsk Tipping is best on the draw
+    assert dashboard.bookmaker_name("the_odds_api:leovegas_se") == "LeoVegas"
+
+
+def test_sorting(conn):
+    store(
+        conn,
+        (1.70, 3.70, 4.90),
+        (1.80, 3.80, 4.60),
+        sid="value",
+        kickoff=KICKOFF + timedelta(days=2),
+        league="England - Premier League",
+    )
+    store(
+        conn,
+        (2.05, 3.10, 3.30),
+        (2.10, 3.40, 3.70),
+        sid="early",
+        kickoff=KICKOFF,
+        league="Norge - Eliteserien",
+    )
+    store(
+        conn,
+        (2.00, 3.60, 4.00),
+        None,
+        sid="no-ref",
+        kickoff=KICKOFF + timedelta(days=1),
+        league="Spania - Primera Division",
+    )
+    cards = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
+    order = lambda name: [c.nt_odds[0] for c in dashboard.sort_cards(cards, name)]  # noqa: E731
+    assert order("Beste EV") == [1.70, 2.05, 2.00]  # no reference odds last
+    assert order("Avsparkstid") == [2.05, 2.00, 1.70]
+    assert order("Liga") == [1.70, 2.05, 2.00]  # England, Norge, Spania
+    assert order("Lavest NT-margin") == [2.00, 1.70, 2.05]  # 2.8 %, 6.3 %, 11.3 %
+    assert list(dashboard.SORTS)[0] == "Beste EV"

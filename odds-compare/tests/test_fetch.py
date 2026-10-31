@@ -218,3 +218,28 @@ def test_config_file_is_valid(tmp_path):
     bad.write_text("interval_minutes: 2\n", encoding="utf-8")
     with pytest.raises(ValueError):
         config.load(bad)
+
+
+def test_competitor_odds_are_stored_on_the_paired_events(cfg, conn):
+    ref = FakeReference()
+    events = parse_odds(REF_SAMPLE["odds"], REF_SAMPLE["bookmaker"])
+    fredrikstad = next(e for e in events if e.home == "Fredrikstad FK")
+    unpaired = next(e for e in events if e.home == "Hamburger SV")  # Norsk Tipping does not have it
+    ref.competitor_odds = [
+        fredrikstad.model_copy(
+            update={"source": "odds_api_io:betsson", "odds": {"home": 4.2, "draw": 3.8, "away": 1.8}}
+        ),
+        unpaired.model_copy(update={"source": "odds_api_io:betsson"}),
+    ]
+    report, _ = run(cfg, conn, FakeNT(), ref)
+    assert report.competitors == {"betsson": 1}
+    assert "Konkurrenter (kamper med odds): betsson 1." in fetch.summary(report)
+    rows = conn.execute(
+        """SELECT e.home, l.outcome, l.odds FROM latest_odds l JOIN events e ON e.id = l.event_id
+           WHERE l.source = 'odds_api_io:betsson' ORDER BY l.outcome"""
+    ).fetchall()
+    assert [tuple(r) for r in rows] == [
+        ("Fredrikstad", "away", 1.8),
+        ("Fredrikstad", "draw", 3.8),
+        ("Fredrikstad", "home", 4.2),
+    ]

@@ -128,8 +128,9 @@ def test_http_errors(tmp_path, status, message, retryable):
 # The Odds API (the free default). Answers in the shape its v4 documentation gives.
 
 
-def odds_event(event_id, home, away, commence, prices, bookmaker="pinnacle", sport="soccer_epl"):
-    return {
+def odds_event(event_id, home, away, commence, prices, bookmaker="pinnacle", sport="soccer_epl", others=None):
+    """others: {bookmaker key: (home, draw, away)} for competitors' odds on the same match."""
+    event = {
         "id": event_id,
         "sport_key": sport,
         "sport_title": "EPL" if sport == "soccer_epl" else "Eliteserien - Norway",
@@ -154,10 +155,23 @@ def odds_event(event_id, home, away, commence, prices, bookmaker="pinnacle", spo
             }
         ],
     }
+    for key, (h, d, a) in (others or {}).items():
+        outcomes = [{"name": home, "price": h}, {"name": away, "price": a}, {"name": "Draw", "price": d}]
+        event["bookmakers"].append(
+            {"key": key, "title": key, "markets": [{"key": "h2h", "outcomes": outcomes}]}
+        )
+    return event
 
 
 EPL = [
-    odds_event("e1", "Chelsea", "Manchester United", "2026-10-31T13:30:00Z", (1.95, 3.9, 3.85)),
+    odds_event(
+        "e1",
+        "Chelsea",
+        "Manchester United",
+        "2026-10-31T13:30:00Z",
+        (1.95, 3.9, 3.85),
+        others={"betsson": (1.91, 3.75, 3.7), "unibet_se": (1.93, 3.8, 3.6)},
+    ),  # fmt: skip
     odds_event("e2", "Liverpool", "Arsenal", "2026-11-01T17:30:00Z", (2.30, 3.6, 3.05)),
 ]
 NORWAY = [
@@ -213,11 +227,11 @@ class FakeTheOddsApi:
         if kind == "events":  # free: no credits
             listed = [{k: v for k, v in e.items() if k != "bookmakers"} for e in events]
             return httpx.Response(200, json=listed, headers={"x-requests-remaining": str(self.credits)})
+        bookmakers = params["bookmakers"].split(",")
         assert (
-            params["bookmakers"] == "pinnacle"
-            and params["markets"] == "h2h"
-            and params["oddsFormat"] == "decimal"
-        )
+            bookmakers[0] == "pinnacle" and len(bookmakers) <= 10
+        )  # one credit per league, competitors included
+        assert params["markets"] == "h2h" and params["oddsFormat"] == "decimal"
         ids = params["eventIds"].split(",")
         self.credits -= 1
         return httpx.Response(
@@ -228,7 +242,10 @@ class FakeTheOddsApi:
 
 
 def make_free_source(api, tmp_path, key="free-key", clock=lambda: NOW):
-    cfg = TheOddsApiConfig(leagues=["soccer_epl", "soccer_norway_eliteserien", "soccer_sweden_allsvenskan"])
+    cfg = TheOddsApiConfig(
+        leagues=["soccer_epl", "soccer_norway_eliteserien", "soccer_sweden_allsvenskan"],
+        competitors=["unibet_se", "betsson"],
+    )
     return TheOddsApi(
         cfg,
         key,
@@ -284,3 +301,26 @@ def test_the_odds_api_http_errors(tmp_path, status, message, retryable):
     with pytest.raises(SourceError, match=message) as caught:
         make_free_source(FakeTheOddsApi(status), tmp_path).fetch(7)
     assert caught.value.retryable is retryable
+
+
+def test_competitors_come_in_the_same_request_at_no_extra_cost(tmp_path):
+    api = FakeTheOddsApi()
+    source = make_free_source(api, tmp_path)
+    events = source.fetch(7)
+    odds_calls = [q for p, q in api.requests if p.endswith("/odds")]
+    assert odds_calls[0]["bookmakers"].split(",") == ["pinnacle", "unibet_se", "betsson"]
+    assert api.credits == 500 - len(odds_calls)  # still one credit per league
+    assert {e.source for e in events} == {"the_odds_api"}  # the reference alone is returned
+    competitors = {(c.source, c.source_event_id): c.odds for c in source.competitor_odds}
+    assert competitors == {
+        ("the_odds_api:unibet_se", "e1"): {"home": 1.93, "draw": 3.8, "away": 3.6},
+        ("the_odds_api:betsson", "e1"): {"home": 1.91, "draw": 3.75, "away": 3.7},
+    }
+    source.fetch(7)  # from the cache within five minutes: the competitors are there too
+    assert len(source.competitor_odds) == 2
+
+
+def test_more_than_ten_bookmakers_would_cost_double_and_are_refused():
+    with pytest.raises(ValueError, match="høyst 9 konkurrenter"):
+        TheOddsApiConfig(competitors=[f"book{i}" for i in range(10)])
+    assert TheOddsApiConfig().bookmakers[0] == "pinnacle" and len(TheOddsApiConfig().bookmakers) <= 10

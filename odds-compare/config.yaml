@@ -27,6 +27,8 @@ reference:
   the_odds_api:
     base_url: https://api.the-odds-api.com/v4
     bookmaker: pinnacle     # eller betfair_ex_eu
+    # Norsk Tippings konkurrenter, hentet i samme forespørsel uten ekstra kostnad (høyst 9).
+    competitors: [unibet_se, betsson, nordicbet, coolbet, leovegas_se, sport888, betway]
     # Ligaer (sport keys fra GET /v4/sports). Referanseodds hentes bare når du ber om det
     # (`oddscompare reference` eller knappen i dashboardet). Hver liga koster 1 kreditt per henting,
     # bare når den har kamper som kan matche Norsk Tipping. Gratisplanen har 500 i måneden.

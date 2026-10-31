@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -22,6 +22,31 @@ from .sources.nt import NorskTipping
 OSLO = ZoneInfo("Europe/Oslo")
 NT = NorskTipping.name
 LABELS = dict(zip(OUTCOMES, ("H", "U", "B"), strict=True))
+BOOKMAKERS = {
+    "pinnacle": "Pinnacle",
+    "betfair_ex_eu": "Betfair Exchange",
+    "betfair_ex_uk": "Betfair Exchange",
+    "unibet_se": "Unibet",
+    "betsson": "Betsson",
+    "nordicbet": "NordicBet",
+    "coolbet": "Coolbet",
+    "leovegas_se": "LeoVegas",
+    "sport888": "888sport",
+    "betway": "Betway",
+    "williamhill": "William Hill",
+    "marathonbet": "Marathonbet",
+    "onexbet": "1xBet",
+}
+
+
+def bookmaker_name(source: str) -> str:
+    """«Betsson» for the source «the_odds_api:betsson», «Norsk Tipping» for Norsk Tipping."""
+    if source == NT:
+        return "Norsk Tipping"
+    key = source.partition(":")[2] or source
+    return BOOKMAKERS.get(key, key)
+
+
 WINDOWS = ("I dag", "48 t", "7 dager")
 
 
@@ -38,6 +63,21 @@ class Card:
     ref_fetched: datetime | None = None
     fair_odds: list[float] | None = None
     ev: list[float] | None = None
+    competitors: dict[str, list[float]] = field(default_factory=dict)  # source -> odds, in config order
+
+    @property
+    def nt_share_of_best(self) -> float:
+        """Norsk Tipping's price as a share of the best price on the market, at its closest outcome (1 = best)."""
+        return max(nt / best for nt, (best, _) in zip(self.nt_odds, self.best_prices(), strict=True))
+
+    def best_prices(self) -> list[tuple[float, list[str]]]:
+        """Per outcome: the highest price among Norsk Tipping and its competitors, and who offers it."""
+        books = {NT: self.nt_odds, **self.competitors}
+        best = []
+        for i in range(len(OUTCOMES)):
+            top = max(odds[i] for odds in books.values())
+            best.append((top, [bookmaker_name(s) for s, odds in books.items() if odds[i] == top]))
+        return best
 
     @property
     def best_ev(self) -> float | None:
@@ -59,18 +99,27 @@ class Card:
 
 
 def load_cards(
-    conn: sqlite3.Connection, reference: str, method: str, now: datetime, until: datetime
+    conn: sqlite3.Connection,
+    reference: str,
+    method: str,
+    now: datetime,
+    until: datetime,
+    competitors: list[str] = (),
 ) -> list[Card]:
-    """Every match kicking off between now and until that Norsk Tipping has odds for."""
+    """Every match kicking off between now and until that Norsk Tipping has odds for.
+
+    competitors: the sources of Norsk Tipping's competitors to show (e.g. «the_odds_api:betsson»)."""
+    sources = [NT, reference, *competitors]
     rows = conn.execute(
-        """SELECT e.id, e.league, e.home, e.away, e.kickoff_utc, l.source, l.outcome, l.odds, l.fetched_at_utc
+        f"""SELECT e.id, e.league, e.home, e.away, e.kickoff_utc, l.source, l.outcome, l.odds, l.fetched_at_utc
            FROM events e JOIN latest_odds l ON l.event_id = e.id
-           WHERE e.kickoff_utc > ? AND e.kickoff_utc <= ? AND l.source IN (?, ?) AND l.market = '1X2'""",
-        (db.iso(now), db.iso(until), NT, reference),
+           WHERE e.kickoff_utc > ? AND e.kickoff_utc <= ? AND l.market = '1X2'
+             AND l.source IN ({", ".join("?" * len(sources))})""",
+        (db.iso(now), db.iso(until), *sources),
     ).fetchall()
     events: dict[int, dict] = {}
     for r in rows:
-        event = events.setdefault(r["id"], {"row": r, NT: {}, reference: {}, "fetched": {}})
+        event = events.setdefault(r["id"], {"row": r, "fetched": {}, **{s: {} for s in sources}})
         event[r["source"]][r["outcome"]] = r["odds"]
         event["fetched"][r["source"]] = db.parse_iso(r["fetched_at_utc"])
     cards = []
@@ -93,13 +142,27 @@ def load_cards(
             probabilities = calc.fair_probabilities(card.ref_odds, method)
             card.fair_odds = [1 / p for p in probabilities]
             card.ev = calc.expected_value(card.nt_odds, probabilities)
+        card.competitors = {
+            s: [event[s][o] for o in OUTCOMES] for s in competitors if set(event[s]) == set(OUTCOMES)
+        }
         cards.append(card)
     return sort_cards(cards)
 
 
-def sort_cards(cards: list[Card]) -> list[Card]:
-    """Best EV first; matches without reference odds last, by kick-off."""
-    return sorted(cards, key=lambda c: (c.best_ev is None, -(c.best_ev or 0), c.kickoff_utc))
+# How the cards can be ordered, the first being the default.
+SORTS = {
+    # Best EV first; matches without reference odds last, by kick-off.
+    "Beste EV": lambda c: (c.best_ev is None, -(c.best_ev or 0), c.kickoff_utc),
+    "Avsparkstid": lambda c: (c.kickoff_utc, c.league, c.home),
+    "Liga": lambda c: (c.league, c.kickoff_utc, c.home),
+    "Lavest NT-margin": lambda c: (c.nt_margin, c.kickoff_utc),
+    # Where Norsk Tipping's price is closest to (or is) the best on the market, for the outcome where it is closest.
+    "NT nærmest beste odds": lambda c: (-c.nt_share_of_best, c.kickoff_utc),
+}
+
+
+def sort_cards(cards: list[Card], order: str = "Beste EV") -> list[Card]:
+    return sorted(cards, key=SORTS[order])
 
 
 def window_end(choice: str, now: datetime) -> datetime:

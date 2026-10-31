@@ -8,7 +8,7 @@ from typing import Literal
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MarginMethod = Literal["proportional", "power", "shin"]
 
@@ -37,10 +37,34 @@ class TheOddsApiConfig(BaseModel):
         "soccer_uefa_champs_league",
         "soccer_sweden_allsvenskan",
     ]
+    # Norsk Tipping's competitors, fetched with the reference at no extra cost: up to 10 bookmakers
+    # in one request count as one. Keys from https://the-odds-api.com/sports-odds-data/bookmaker-apis.html
+    competitors: list[str] = [
+        "unibet_se",
+        "betsson",
+        "nordicbet",
+        "coolbet",
+        "leovegas_se",
+        "sport888",
+        "betway",
+    ]
     # Fetched only when asked for. A second request within this many minutes reuses the first answer,
     # so a double click does not spend credits twice.
     min_interval_minutes: float = Field(5, ge=0)
     timeout_seconds: float = Field(20, gt=0)
+
+    @model_validator(mode="after")
+    def _one_credit_per_league(self) -> TheOddsApiConfig:
+        if len(self.bookmakers) > 10:
+            raise ValueError(
+                "høyst 9 konkurrenter ved siden av referansen: 11 bookmakere eller flere koster 2 kreditter per liga"
+            )
+        return self
+
+    @property
+    def bookmakers(self) -> list[str]:
+        """The reference first, then the competitors, each once."""
+        return list(dict.fromkeys([self.bookmaker, *self.competitors]))
 
 
 class OddsApiIoConfig(BaseModel):

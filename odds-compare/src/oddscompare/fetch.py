@@ -47,6 +47,7 @@ class FetchReport:
     unmatched: int = 0
     seconds: float = 0.0
     credits_left: int | None = None  # the reference API's credits left this month, when it says
+    competitors: dict[str, int] = field(default_factory=dict)  # bookmaker -> matches with its odds
 
     @property
     def ok(self) -> bool:
@@ -129,6 +130,7 @@ def run_once(
             with db.transaction(conn):  # cached reference odds keep the time they were fetched, too
                 fetched_at = getattr(reference, "fetched_at", None) or started
                 _store_reference(conn, ref_events, anchors, matcher, fetched_at, report)
+                _store_competitors(conn, reference, fetched_at, report)
     finally:
         report.seconds = time.monotonic() - t0
         if own_conn:
@@ -221,6 +223,16 @@ def _store_reference(
     report.unmatched = len(result.unmatched)
 
 
+def _store_competitors(conn, reference, fetched_at: datetime, report: FetchReport) -> None:
+    """The competitors' odds go on the events their reference match was paired with."""
+    for raw in getattr(reference, "competitor_odds", None) or []:
+        event_id = db.linked_event(conn, reference.name, raw.source_event_id)
+        if event_id is not None:
+            db.add_snapshot(conn, event_id, raw, fetched_at)
+            bookmaker = raw.source.partition(":")[2]
+            report.competitors[bookmaker] = report.competitors.get(bookmaker, 0) + 1
+
+
 def run_forever(
     cfg: config.Config, interval_minutes: float, sleep: Callable[[float], None] = time.sleep
 ) -> None:
@@ -245,6 +257,9 @@ def summary(report: FetchReport) -> str:
             lines.append(f"{s.name}: FEIL – {s.error}")
     if len(report.sources) > 1:
         lines.append(f"Matchet: {report.matched}, uten match: {report.unmatched}.")
+    if report.competitors:
+        counts = ", ".join(f"{name} {n}" for name, n in sorted(report.competitors.items()))
+        lines.append(f"Konkurrenter (kamper med odds): {counts}.")
     if report.credits_left is not None:
         lines.append(f"Kreditter igjen denne måneden: {report.credits_left}.")
     lines.append(f"Ferdig på {report.seconds:.1f} s.")

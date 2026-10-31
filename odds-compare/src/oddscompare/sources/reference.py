@@ -11,6 +11,9 @@ Reference odds are fetched only when the user asks (`oddscompare reference` or t
 button), never in the regular rounds. A second request within min_interval_minutes reuses the
 first answer.
 
+Norsk Tipping's competitors (config: competitors) are asked for in the same request: up to 10
+bookmakers cost the same single credit per league. Their odds are kept in competitor_odds.
+
 Odds-API.io (https://docs.odds-api.io) is kept as an option for a paid key. It does not carry
 Pinnacle; Betfair Exchange is its default there.
 """
@@ -55,6 +58,9 @@ class TheOddsApi:
         self.clock = clock
         self.fetched_at: datetime | None = None  # when the odds of the last fetch() were read from the API
         self.remaining: int | None = None  # credits left this month, as the API last reported
+        # The competitors' odds from the last fetch(), one RawEvent per bookmaker and match, with the
+        # reference's event ids (the same match) and source "the_odds_api:<bookmaker>".
+        self.competitor_odds: list[RawEvent] = []
 
     def fetch(self, days_ahead: int, want: EventFilter | None = None) -> list[RawEvent]:
         if not self.api_key:
@@ -81,7 +87,7 @@ class TheOddsApi:
                         self._get(
                             f"/sports/{league}/odds",
                             **window,
-                            bookmakers=self.cfg.bookmaker,
+                            bookmakers=",".join(self.cfg.bookmakers),  # up to 10 cost the same as one
                             markets="h2h",
                             oddsFormat="decimal",
                             dateFormat="iso",
@@ -93,6 +99,11 @@ class TheOddsApi:
             self._save(cached)
             logger.info("The Odds API: %s credits left this month", self.remaining)
         self.fetched_at = datetime.fromisoformat(cached["fetched_at_utc"])
+        self.competitor_odds = [
+            raw
+            for key in self.cfg.competitors
+            for raw in parse_h2h(cached["events"], key, f"{self.name}:{key}")
+        ]
         return parse_h2h(cached["events"], self.cfg.bookmaker, self.name)
 
     def _get(self, path: str, **params: Any) -> Any:

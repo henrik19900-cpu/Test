@@ -159,7 +159,7 @@ def load(path: str | Path | None = None) -> Config:
     return Config.model_validate(data or {}).resolve(path.parent)
 
 
-SECRET_NAMES = ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY", "NTFY_TOPIC", "NTFY_TOKEN")
+SECRET_NAMES = ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY", "NTFY_TOPIC", "NTFY_TOKEN", "DATABASE_URL")
 
 
 def apply_secrets(secrets: Mapping) -> None:

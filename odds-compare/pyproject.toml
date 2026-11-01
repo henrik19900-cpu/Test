@@ -15,6 +15,7 @@ dependencies = [
     "websockets>=15",  # 15: connects through HTTPS_PROXY when one is set
     "python-dotenv>=1",
     "tzdata",  # Europe/Oslo on systems without a time zone database (slim containers)
+    "psycopg[binary]>=3.2",  # the bet log in a Postgres database (DATABASE_URL), e.g. Neon's free plan
 ]
 
 [project.optional-dependencies]

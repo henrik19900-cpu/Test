@@ -630,3 +630,39 @@ def test_secrets_that_cannot_be_read_are_reported_with_how_to_fix_them(tmp_path,
     assert not app.exception
     [error] = [e.value for e in app.error if "Secrets" in e.value]
     assert "kunne ikke leses" in error and 'THE_ODDS_API_KEY = "nøkkelen"' in error
+
+
+def test_the_app_reads_the_stored_bet_log_back_after_a_restart(tmp_path, monkeypatch):
+    import streamlit
+
+    from oddscompare import bets, remote
+
+    before = db.connect(tmp_path / "before.db")
+    bet_id = bets.add(
+        before, nt_event_id="1", league="England - Championship", home="Wrexham", away="Middlesbrough",
+        kickoff_utc=datetime.now(UTC) + timedelta(days=1), outcome="home", odds=4.10, stake=250.0,
+    )  # fmt: skip
+    stored = {remote.BETS: bets.to_csv(bets.all_bets(before))}
+
+    class Store:
+        def get(self, key):
+            return stored.get(key)
+
+        def put(self, key, value):
+            stored[key] = value
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    db.log_fetch(db.connect(tmp_path / "data" / "odds.db"), "norsk_tipping", datetime.now(UTC), "ok", 0)
+    monkeypatch.setattr(remote, "store_from_env", lambda: Store())
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    streamlit.cache_resource.clear()  # a new app process
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    [tab] = [t for t in app.tabs if t.label == "Mine spill"]
+    assert tab.metric[0].label == "Spill" and tab.metric[0].value == "1"
+    assert any("lagres i databasen" in c.value for c in tab.caption)
+    assert bets.all_bets(db.connect(tmp_path / "data" / "odds.db"))[0]["id"] == bet_id
+    streamlit.cache_resource.clear()

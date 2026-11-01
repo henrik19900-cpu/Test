@@ -24,7 +24,7 @@ try:
 except ImportError:  # Streamlit Cloud installs requirements.txt only: use the package from src/
     sys.path.insert(0, str(Path(__file__).with_name("src")))
 
-from oddscompare import bets, calc, config, dashboard, db, fetch
+from oddscompare import bets, calc, config, dashboard, db, fetch, remote
 from oddscompare.matching import Aliases
 from oddscompare.sources import OUTCOMES
 
@@ -443,7 +443,49 @@ def market_tab(
     )
 
 
-def bets_tab(conn) -> None:
+@st.cache_resource
+def bet_log_sync() -> dict:
+    """Shared by every session of this app process: whether the stored bet log has been read back, and
+    the digest of what was last written."""
+    return {"restored": None, "digest": None, "error": None}
+
+
+def sync_bet_log(conn) -> dict | None:
+    """With DATABASE_URL: read the stored bet log back once per app process (after a restart the local one
+    is empty), then write it whenever it changed. None without a database."""
+    store = remote.store_from_env()
+    if store is None:
+        return None
+    state = bet_log_sync()
+    try:
+        if state["restored"] is None:
+            state["restored"] = remote.restore_bets(conn, store)
+        state["digest"] = remote.backup_bets(conn, store, state["digest"])
+        state["error"] = None
+    except Exception as e:  # noqa: BLE001  (the bet log here still works; it is written next time)
+        state["error"] = f"{type(e).__name__}: {e}"
+    return state
+
+
+def bet_log_status(state: dict | None) -> None:
+    if state is None:
+        st.caption(
+            "Spilloggen ligger bare i appen og forsvinner når den starter på nytt. Last den ned jevnlig, "
+            "eller legg `DATABASE_URL` til en gratis database under «Secrets» (se README, «Varig spillogg»)."
+        )
+    elif state["error"]:
+        restored = state["restored"] is not None
+        st.warning(
+            "Fikk ikke kontakt med databasen for spilloggen"
+            + ("" if restored else ", så den lagrede spilloggen er ikke lest inn ennå")
+            + f". Den prøves igjen ved neste klikk. ({state['error']})"
+        )
+    else:
+        st.caption("Spilloggen lagres i databasen, og kommer tilbake når appen starter på nytt.")
+
+
+def bets_tab(conn, sync: dict | None = None) -> None:
+    bet_log_status(sync)
     rows = bets.all_bets(conn)
     if not rows:
         st.info(
@@ -685,6 +727,7 @@ def main() -> None:
         else []
     )
     conn = db.connect(cfg.database)
+    sync = sync_bet_log(conn)  # first: after a restart the bet log comes back before anything shows it
     refresh_norsk_tipping(cfg, conn)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
@@ -804,7 +847,7 @@ def main() -> None:
         )
 
     with my_bets_tab:
-        bets_tab(conn)
+        bets_tab(conn, sync)
 
     with unmatched_tab:
         rows = dashboard.unmatched(conn, now)
@@ -833,6 +876,7 @@ def main() -> None:
                 hide_index=True,
                 width="stretch",
             )
+    sync_bet_log(conn)  # a change made in this run (one followed by st.rerun() is written on the next)
     conn.close()
 
 

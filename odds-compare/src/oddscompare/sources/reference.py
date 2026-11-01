@@ -58,6 +58,7 @@ class TheOddsApi:
         self.clock = clock
         self.fetched_at: datetime | None = None  # when the odds of the last fetch() were read from the API
         self.remaining: int | None = None  # credits left this month, as the API last reported
+        self.spent = 0  # credits the last fetch() cost, as the API reported per call (0 for a cached answer)
         # The competitors' odds from the last fetch(), one RawEvent per bookmaker and match, with the
         # reference's event ids (the same match) and source "the_odds_api:<bookmaker>".
         self.competitor_odds: list[RawEvent] = []
@@ -68,6 +69,7 @@ class TheOddsApi:
                 "THE_ODDS_API_KEY mangler i .env (gratis nøkkel: the-odds-api.com)", retryable=False
             )
         now = self.clock()
+        self.spent = 0
         cached = self._cached(now)
         if cached is None:
             window = {
@@ -119,11 +121,13 @@ class TheOddsApi:
             )
         except httpx.HTTPError as e:
             raise SourceError(f"The Odds API svarte ikke ({type(e).__name__})") from e
-        if "x-requests-remaining" in response.headers:
-            try:
+        try:
+            if "x-requests-remaining" in response.headers:
                 self.remaining = int(float(response.headers["x-requests-remaining"]))
-            except ValueError:
-                pass
+            if "x-requests-last" in response.headers:
+                self.spent += int(float(response.headers["x-requests-last"]))
+        except ValueError:
+            pass
         if response.status_code == 401:
             raise SourceError(
                 "The Odds API avviste nøkkelen, eller månedens kreditter er brukt opp (sjekk THE_ODDS_API_KEY)",

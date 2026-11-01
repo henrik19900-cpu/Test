@@ -9,6 +9,11 @@ on:
   schedule:
     - cron: "4,19,34,49 * * * *"
   workflow_dispatch:
+    inputs:
+      test_alert:
+        description: "Send ett testvarsel nå: beste utfall, uansett terskel"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,7 +70,7 @@ jobs:
       - name: Watch
         if: steps.secrets.outputs.ready == 'true'
         working-directory: odds-compare
-        run: oddscompare watch
+        run: oddscompare watch ${{ inputs.test_alert && '--test' || '' }}
 
       - name: Save the database
         if: always() && steps.secrets.outputs.ready == 'true'

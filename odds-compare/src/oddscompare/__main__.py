@@ -24,9 +24,12 @@ def main(argv: list[str] | None = None) -> int:
     commands.add_parser(
         "reference", help="hent referanseodds nå (bruker kreditter), sammen med Norsk Tipping"
     )
-    commands.add_parser(
+    watch = commands.add_parser(
         "watch",
         help="én varslingsrunde: Norsk Tipping, referanseodds for kamper som starter snart, varsel ved verdispill",
+    )
+    watch.add_argument(
+        "--test", action="store_true", help="send også ett testvarsel for beste utfall nå, uansett terskel"
     )
     commands.add_parser("notify-test", help="send et testvarsel til ntfy-emnet i NTFY_TOPIC")
     prune = commands.add_parser("prune", help="slett kamper med odds eldre enn så mange dager etter avspark")
@@ -66,11 +69,10 @@ def main(argv: list[str] | None = None) -> int:
             print("Testvarsel sendt. Det skal dukke opp i ntfy-appen om noen sekunder.")
             return 0
         conn = db.connect(cfg.database)
-        report = alerts.watch(cfg, conn, notify)
+        report = alerts.watch(cfg, conn, notify, test=args.test)
         conn.close()
         print(report.summary())
-        # A failing Norsk Tipping makes the run red, so a changed site shows on GitHub.
-        return 1 if report.fetch and report.fetch.sources[0].status != "ok" else 0
+        return 0 if report.ok else 1
     if args.command == "run":
         interval = args.interval or cfg.interval_minutes
         if interval < 5:

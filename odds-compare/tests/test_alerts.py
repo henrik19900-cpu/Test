@@ -192,3 +192,12 @@ def test_the_summary_says_when_the_reference_failed(setup):
 
     report = run(cfg, conn, sent, FakeNT(), Down())
     assert "feilet (se over)" in report.summary() and sent == []
+    assert not report.ok  # a rejected key makes the run red on GitHub
+    assert run(cfg, conn, sent, FakeNT(), FakeReference()).ok
+
+
+def test_secrets_pasted_with_spaces_or_a_line_break_still_work(monkeypatch):
+    monkeypatch.setenv("THE_ODDS_API_KEY", " fake-key-123 \n")
+    assert config.api_key("THE_ODDS_API_KEY") == "fake-key-123"
+    monkeypatch.setenv("NTFY_TOPIC", "  ")
+    assert config.api_key("NTFY_TOPIC") is None

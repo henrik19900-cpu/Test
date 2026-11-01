@@ -55,6 +55,11 @@ class WatchReport:
     credits_spent: int = 0
     sent: list[Opportunity] = field(default_factory=list)
 
+    @property
+    def ok(self) -> bool:
+        """Every source answered (a changed site or a rejected key makes the run red on GitHub)."""
+        return self.fetch is None or all(s.status == "ok" for s in self.fetch.sources)
+
     def summary(self) -> str:
         lines = [fetch.summary(self.fetch)] if self.fetch else []
         reference_failed = self.fetch and any(s.status != "ok" for s in self.fetch.sources[1:])

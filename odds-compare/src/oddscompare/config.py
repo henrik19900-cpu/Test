@@ -159,4 +159,5 @@ def load(path: str | Path | None = None) -> Config:
 
 
 def api_key(name: str) -> str | None:
-    return os.environ.get(name) or None
+    """A key or secret from the environment, without the spaces and line breaks a copy often brings along."""
+    return (os.environ.get(name) or "").strip() or None

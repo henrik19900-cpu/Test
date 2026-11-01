@@ -69,8 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         report = alerts.watch(cfg, conn, notify)
         conn.close()
         print(report.summary())
-        # A failing Norsk Tipping makes the run red, so a changed site shows on GitHub.
-        return 1 if report.fetch and report.fetch.sources[0].status != "ok" else 0
+        return 0 if report.ok else 1
     if args.command == "run":
         interval = args.interval or cfg.interval_minutes
         if interval < 5:

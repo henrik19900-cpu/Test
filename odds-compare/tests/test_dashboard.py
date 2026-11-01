@@ -666,3 +666,35 @@ def test_the_app_reads_the_stored_bet_log_back_after_a_restart(tmp_path, monkeyp
     assert any("lagres i databasen" in c.value for c in tab.caption)
     assert bets.all_bets(db.connect(tmp_path / "data" / "odds.db"))[0]["id"] == bet_id
     streamlit.cache_resource.clear()
+
+
+def test_code_changed_on_disk_is_imported_again(filled_app):
+    """As on Streamlit Cloud after a pull: the new app.py reruns while the old modules are still loaded."""
+    import os
+    import sys
+
+    import oddscompare.dashboard as loaded
+
+    def package():
+        return {n: m for n, m in sys.modules.items() if n == "oddscompare" or n.startswith("oddscompare.")}
+
+    before = package()
+    path = Path(loaded.__file__)
+    stat = path.stat()
+    search_cards = loaded.search_cards
+    try:
+        app = filled_app.run()
+        assert not app.exception and sys.modules["oddscompare.dashboard"] is loaded  # nothing changed
+        app.run()
+        assert sys.modules["oddscompare.dashboard"] is loaded
+        del loaded.search_cards  # the code loaded before the pull...
+        os.utime(path, (stat.st_atime, stat.st_mtime + 30))  # ...and the file the pull changed
+        app.run()
+        assert not app.exception and sys.modules["oddscompare.dashboard"] is not loaded
+        assert sys.modules["oddscompare.dashboard"].search_cards
+    finally:
+        loaded.search_cards = search_cards
+        os.utime(path, (stat.st_atime, stat.st_mtime))
+        for name in package():
+            del sys.modules[name]
+        sys.modules.update(before)

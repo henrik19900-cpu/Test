@@ -19,14 +19,63 @@ import streamlit as st
 import streamlit.components.v1 as components
 import yaml
 
+
+def _mtime(module) -> float | None:
+    try:
+        return os.path.getmtime(module.__file__)
+    except (TypeError, OSError):
+        return None
+
+
+def forget_changed_package(package: str = "oddscompare") -> bool:
+    """Streamlit Cloud pulls new code and reruns this script, but the package's modules imported before
+    stay loaded, so the new app.py meets old code (an AttributeError). When a module's file changed since
+    it was imported, the whole package is dropped here and imported again below. Returns whether it was."""
+    loaded = {n: m for n, m in list(sys.modules.items()) if n == package or n.startswith(f"{package}.")}
+    if not loaded:
+        return False
+    recorded = getattr(sys.modules.get(package), "_imported_mtimes", None)
+    if recorded is None:  # imported by an app.py without this, or by tests: changed since the process began?
+        started = _process_started()
+        stale = started is not None and any((_mtime(m) or 0) > started for m in loaded.values())
+    else:
+        stale = any(_mtime(loaded[n]) != t for n, t in recorded.items() if n in loaded)
+        recorded.update({n: _mtime(m) for n, m in loaded.items() if n not in recorded})  # imported later
+    if stale:
+        for name in loaded:
+            del sys.modules[name]
+    return stale
+
+
+def _process_started() -> float | None:
+    """When this process started (Linux), from /proc."""
+    try:
+        with open(f"/proc/{os.getpid()}/stat", encoding="ascii") as f:
+            ticks = int(f.read().rsplit(")", 1)[1].split()[19])  # field 22, starttime
+        with open("/proc/stat", encoding="ascii") as f:
+            boot = next(int(line.split()[1]) for line in f if line.startswith("btime "))
+        return boot + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration):
+        return None
+
+
+def remember_package(package: str = "oddscompare") -> None:
+    loaded = {n: m for n, m in list(sys.modules.items()) if n == package or n.startswith(f"{package}.")}
+    if getattr(sys.modules[package], "_imported_mtimes", None) is None:
+        sys.modules[package]._imported_mtimes = {n: _mtime(m) for n, m in loaded.items()}
+
+
+forget_changed_package()
 try:
     import oddscompare  # noqa: F401  (installed with pip install -e .)
 except ImportError:  # Streamlit Cloud installs requirements.txt only: use the package from src/
     sys.path.insert(0, str(Path(__file__).with_name("src")))
 
-from oddscompare import bets, calc, config, dashboard, db, fetch, remote
-from oddscompare.matching import Aliases
-from oddscompare.sources import OUTCOMES
+from oddscompare import bets, calc, config, dashboard, db, fetch, remote  # noqa: E402
+from oddscompare.matching import Aliases  # noqa: E402
+from oddscompare.sources import OUTCOMES  # noqa: E402
+
+remember_package()
 
 PAGE_SIZE = 24
 COLOURS = {"H": "#2563eb", "U": "#7c3aed", "B": "#d97706"}

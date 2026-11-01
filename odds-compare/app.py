@@ -597,16 +597,23 @@ def reference_result(where: str) -> None:
             (st.success if ok else st.error)(text.replace("\n", "  \n"))
 
 
-def secrets_to_environment() -> None:
-    """API keys from Streamlit's secrets (Streamlit Cloud), for the code that reads them from the environment."""
+SECRETS_HELP = (
+    "Gå til «Manage app» nederst til høyre → ⋮ → «Settings» → «Secrets», og skriv nøkkelen på én linje, "
+    'med anførselstegn: `THE_ODDS_API_KEY = "nøkkelen"`. Trykk «Save», så starter appen på nytt.'
+)
+
+
+def secrets_to_environment() -> str | None:
+    """API keys from Streamlit's secrets (Streamlit Cloud), for the code that reads them from the environment.
+
+    A key under a heading such as [secrets] counts too. Returns what to tell the user when the secrets
+    could not be read (a value without quotes is not valid TOML), else None."""
     try:
-        for name in ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY"):
-            if not os.environ.get(name) and st.secrets.get(name):
-                os.environ[name] = str(st.secrets[name])
-    except FileNotFoundError:  # no secrets.toml: .env is used instead
-        pass
-    except Exception:  # noqa: BLE001  (older Streamlit versions raise their own error for missing secrets)
-        pass
+        config.apply_secrets(st.secrets)
+    except Exception as e:  # noqa: BLE001  (no secrets at all: .env is used instead)
+        if "pars" in str(e).lower():
+            return f"Streamlits «Secrets» kunne ikke leses. {SECRETS_HELP}"
+    return None
 
 
 @st.cache_resource
@@ -668,7 +675,7 @@ def main() -> None:
     )
     home_screen_tags()
     st.markdown(CSS, unsafe_allow_html=True)
-    secrets_to_environment()
+    secrets_problem = secrets_to_environment()
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))
     reference = cfg.reference.source
     reference_name = dashboard.BOOKMAKERS.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
@@ -686,6 +693,8 @@ def main() -> None:
     st.caption(
         f"Norsk Tipping mot margin-fri referanse ({SOURCE_NAMES.get(reference, reference)}: {reference_name})"
     )
+    if secrets_problem:
+        st.error(secrets_problem)
 
     with st.sidebar:
         st.header("Filtre")

@@ -575,3 +575,25 @@ def test_without_reference_odds_the_page_shows_norsk_tippings_odds_and_offers_th
     app = button.click().run()
     assert not app.exception and asked == [21]
     assert any("Ferdig på" in s.value for s in app.success)  # the result shows on the page, too
+
+
+def test_secrets_that_cannot_be_read_are_reported_with_how_to_fix_them(tmp_path, monkeypatch):
+    """A value without quotes is not valid TOML; Streamlit then raises on every use of st.secrets."""
+    import streamlit
+    from streamlit.errors import StreamlitSecretNotFoundError
+
+    class Unreadable:
+        def __getattr__(self, name):
+            raise StreamlitSecretNotFoundError("Error parsing secrets file at /app/.streamlit/secrets.toml")
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    db.log_fetch(db.connect(tmp_path / "data" / "odds.db"), "norsk_tipping", datetime.now(UTC), "ok", 0)
+    monkeypatch.setattr(streamlit, "secrets", Unreadable())
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    [error] = [e.value for e in app.error if "Secrets" in e.value]
+    assert "kunne ikke leses" in error and 'THE_ODDS_API_KEY = "nøkkelen"' in error

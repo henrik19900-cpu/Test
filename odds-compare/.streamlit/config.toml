@@ -1,0 +1,3 @@
+# Serves static/ at app/static/: the home-screen icon and the web app manifest.
+[server]
+enableStaticServing = true

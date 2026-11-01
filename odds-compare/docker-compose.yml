@@ -1,0 +1,28 @@
+# Two services sharing data/: one fetches Norsk Tipping every interval_minutes, the other serves the
+# dashboard on http://127.0.0.1:8501 (only on this machine), where reference odds are fetched on
+# request. Start with `docker compose up -d --build`.
+services:
+  fetcher:
+    build: .
+    command: ["oddscompare", "run"]
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    env_file: # the «Hent referanseodds» button needs the API key
+      - path: .env
+        required: false
+    ports:
+      - "127.0.0.1:8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    depends_on:
+      - fetcher
+    restart: unless-stopped

@@ -1,0 +1,77 @@
+name: odds-alerts
+
+# Every 15 minutes: Norsk Tipping's odds (free), reference odds for the matches starting soon (one credit
+# per league), and a phone notification through ntfy when a bet is worth it. See odds-compare/README.md,
+# «Varsler». Until the secrets THE_ODDS_API_KEY and NTFY_TOPIC are set (Settings → Secrets and variables →
+# Actions), this does nothing. GitHub runs scheduled workflows from the default branch only, and pauses
+# them after 60 days without activity in the repository.
+on:
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: odds-alerts
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+    steps:
+      - name: Check the secrets
+        id: secrets
+        run: |
+          if [ -z "$NTFY_TOPIC" ] || [ -z "$THE_ODDS_API_KEY" ]; then
+            echo "::notice::Set the secrets THE_ODDS_API_KEY and NTFY_TOPIC to get alerts (odds-compare/README.md, «Varsler»)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: odds-compare/requirements.txt
+
+      - name: Install
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: odds-compare
+        run: pip install --quiet .
+
+      # The database (odds history, alerts sent, credits spent) lives in the Actions cache between runs.
+      - name: Restore the database
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            odds-compare/data/odds.db
+            odds-compare/data/cache
+          key: odds-watch-${{ github.run_id }}
+          restore-keys: odds-watch-
+
+      - name: Watch
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: odds-compare
+        run: oddscompare watch
+
+      - name: Save the database
+        if: always() && steps.secrets.outputs.ready == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            odds-compare/data/odds.db
+            odds-compare/data/cache
+          key: odds-watch-${{ github.run_id }}-${{ github.run_attempt }}

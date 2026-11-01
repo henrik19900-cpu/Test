@@ -1,0 +1,48 @@
+name: odds-compare
+
+on:
+  push:
+    branches: [main]
+    paths: ["odds-compare/**", ".github/workflows/odds-compare.yml"]
+  pull_request:
+    paths: ["odds-compare/**", ".github/workflows/odds-compare.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: odds-compare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: odds-compare
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose config --quiet
+      - run: docker compose build
+      - name: The image runs the command line and the dashboard
+        run: |
+          docker compose run --rm --no-deps fetcher oddscompare --help
+          docker compose up -d --no-deps dashboard  # not the fetcher: CI must not call Norsk Tipping
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8501/_stcore/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8501/_stcore/health
+      - if: always()
+        run: docker compose down

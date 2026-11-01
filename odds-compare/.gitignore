@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+.env
+# The database and the cached source responses; the alias table is kept
+/data/*
+!/data/team_aliases.yaml

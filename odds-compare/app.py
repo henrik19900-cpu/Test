@@ -574,16 +574,27 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
         width="stretch",
         disabled=request_cfg is not cfg and not leagues,
     ):
-        with st.spinner("Henter referanseodds …"):
-            report = fetch.run_once(request_cfg, include_reference=True)
-        st.session_state["reference_result"] = (
-            all(s.status == "ok" for s in report.sources),
-            fetch.summary(report),
-        )
-        st.rerun()
+        fetch_reference(request_cfg, "sidebar")
+    reference_result("sidebar")
+
+
+def fetch_reference(request_cfg: config.Config, where: str) -> None:
+    """Buy reference odds now; the result is shown where the button was (the sidebar or the page)."""
+    with st.spinner("Henter referanseodds …"):
+        report = fetch.run_once(request_cfg, include_reference=True)
+    st.session_state["reference_result"] = (
+        all(s.status == "ok" for s in report.sources),
+        fetch.summary(report),
+        where,
+    )
+    st.rerun()
+
+
+def reference_result(where: str) -> None:
     if "reference_result" in st.session_state:
-        ok, text = st.session_state["reference_result"]
-        (st.success if ok else st.error)(text.replace("\n", "  \n"))
+        ok, text, shown_at = st.session_state["reference_result"]
+        if shown_at == where:
+            (st.success if ok else st.error)(text.replace("\n", "  \n"))
 
 
 def secrets_to_environment() -> None:
@@ -708,8 +719,24 @@ def main() -> None:
         ["Kamper", "NT mot markedet", "Mine spill", "Umatchede kamper"]
     )
     with matches_tab:
+        # Before any reference odds are fetched here, nothing has EV, and the EV filter would hide every match:
+        # Norsk Tipping's odds are shown instead, with the fetch on the page (the sidebar is hidden on phones).
+        no_ev_yet = bool(all_cards) and all(c.ev is None for c in all_cards)
+        if no_ev_yet:
+            n = len(cfg.reference.the_odds_api.leagues) if reference == "the_odds_api" else None
+            st.info(
+                "Ingen referanseodds er hentet her ennå, så EV kan ikke regnes ut. Under ser du Norsk Tippings "
+                "odds for alle kamper. Hent referanseoddsen med knappen, eller velg færre ligaer under "
+                "«Referanseodds» i menyen (›› øverst til venstre på mobil)."
+            )
+            label = (
+                f"Hent referanseodds for alle ligaer (opptil {n} kreditter)" if n else "Hent referanseodds nå"
+            )
+            if st.button(label, type="primary"):
+                fetch_reference(cfg, "page")
+        reference_result("page")
         cards = dashboard.sort_cards(
-            dashboard.filter_cards(all_cards, leagues, min_ev, show_all, nt_best_only), order
+            dashboard.filter_cards(all_cards, leagues, min_ev, show_all or no_ev_yet, nt_best_only), order
         )
         stats = dashboard.summary([c for c in all_cards if not leagues or c.league in leagues])
         top = st.columns(3)

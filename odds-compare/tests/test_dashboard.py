@@ -545,3 +545,33 @@ def test_the_outcomes_where_norsk_tipping_has_the_best_price():
     assert best[1].runner_up == "Betsson" and best[1].lead == 0.0
     assert alone.nt_best_outcomes() == [0, 1] and behind.nt_best_outcomes() == []
     assert dashboard.filter_cards([alone, behind], [], 0.05, False, nt_best_only=True) == [alone]
+
+
+def test_without_reference_odds_the_page_shows_norsk_tippings_odds_and_offers_the_fetch(
+    tmp_path, monkeypatch
+):
+    """As on a new Streamlit Cloud app: no reference odds yet, and the sidebar is hidden on a phone."""
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    shift = datetime.now(UTC) - FIXTURE_NOW
+    monkeypatch.setattr(fetch, "build_sources", lambda cfg: (ShiftedNT(shift), ShiftedReference(shift)))
+    real_run_once, asked = fetch.run_once, []
+
+    def run_once(cfg, include_reference=False, **kwargs):
+        if include_reference:
+            asked.append(len(cfg.reference.the_odds_api.leagues))
+            return fetch.FetchReport(started_at=datetime.now(UTC))
+        return real_run_once(cfg, **kwargs)
+
+    monkeypatch.setattr(fetch, "run_once", run_once)
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception and asked == []  # opening the page spends nothing
+    assert [m for m in app.markdown if 'class="oc-teams"' in m.value]  # Norsk Tipping's odds, without EV
+    assert any("Ingen referanseodds er hentet her ennå" in i.value for i in app.info)
+    [button] = [b for b in app.button if b.label.startswith("Hent referanseodds for alle ligaer")]
+    assert "opptil 21 kreditter" in button.label
+    app = button.click().run()
+    assert not app.exception and asked == [21]
+    assert any("Ferdig på" in s.value for s in app.success)  # the result shows on the page, too

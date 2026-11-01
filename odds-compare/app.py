@@ -669,6 +669,37 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
     reference_result("sidebar")
 
 
+def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str) -> None:
+    """Both fetches on the page, where a phone shows them (it hides the sidebar), with when each was last."""
+    nt_last = dashboard.last_success(conn, dashboard.NT)
+    ref_last = dashboard.last_success(conn, reference)
+    n = len(cfg.reference.the_odds_api.leagues) if reference == "the_odds_api" else None
+    credits = dashboard.credits_left(cfg.cache_dir, reference)
+    left, right = st.columns(2)
+    if left.button(
+        "Oppdater Norsk Tipping",
+        width="stretch",
+        help=f"Gratis. Skjer også av seg selv når oddsen er eldre enn {cfg.interval_minutes:g} minutter.",
+    ):
+        refresh_norsk_tipping(cfg, conn, force=True)
+        st.rerun()
+    if right.button(
+        f"Oppdater referanseodds (opptil {n} kreditter)" if n else "Oppdater referanseodds",
+        type="primary",
+        width="stretch",
+        help=f"{reference_name} og konkurrentene, for alle ligaer. Færre ligaer kan velges i menyen (››). "
+        "En ny henting innen 5 minutter bruker forrige svar og koster ingenting.",
+    ):
+        fetch_reference(cfg, "page")
+    parts = [
+        f"Norsk Tipping: {local(nt_last) if nt_last else 'aldri hentet'}",
+        f"{reference_name}: {local(ref_last) if ref_last else 'aldri hentet'}",
+    ]
+    if credits is not None:
+        parts.append(f"{credits} kreditter igjen denne måneden")
+    st.caption(" · ".join(parts))
+
+
 def fetch_reference(request_cfg: config.Config, where: str) -> None:
     """Buy reference odds now; the result is shown where the button was (the sidebar or the page)."""
     with st.spinner("Henter referanseodds …"):
@@ -713,10 +744,11 @@ def fetch_lock() -> threading.Lock:
     return threading.Lock()
 
 
-def refresh_norsk_tipping(cfg: config.Config, conn) -> None:
-    """Fetch Norsk Tipping when its odds are older than interval_minutes (no fetcher running beside the page)."""
+def refresh_norsk_tipping(cfg: config.Config, conn, force: bool = False) -> None:
+    """Fetch Norsk Tipping when its odds are older than interval_minutes (no fetcher running beside the page),
+    or now with force (the source still asks Norsk Tipping at most once per min_interval_minutes)."""
     last = dashboard.last_success(conn, dashboard.NT)
-    if last and datetime.now(UTC) - last < timedelta(minutes=cfg.interval_minutes):
+    if not force and last and datetime.now(UTC) - last < timedelta(minutes=cfg.interval_minutes):
         return
     lock = fetch_lock()
     if not lock.acquire(blocking=False):
@@ -824,20 +856,15 @@ def main() -> None:
     )
     with matches_tab:
         # Before any reference odds are fetched here, nothing has EV, and the EV filter would hide every match:
-        # Norsk Tipping's odds are shown instead, with the fetch on the page (the sidebar is hidden on phones).
+        # Norsk Tipping's odds are shown instead (the buttons are on the page; phones hide the sidebar).
         no_ev_yet = bool(all_cards) and all(c.ev is None for c in all_cards)
         if no_ev_yet:
-            n = len(cfg.reference.the_odds_api.leagues) if reference == "the_odds_api" else None
             st.info(
                 "Ingen referanseodds er hentet her ennå, så EV kan ikke regnes ut. Under ser du Norsk Tippings "
-                "odds for alle kamper. Hent referanseoddsen med knappen, eller velg færre ligaer under "
+                "odds for alle kamper. Trykk «Oppdater referanseodds», eller velg færre ligaer under "
                 "«Referanseodds» i menyen (›› øverst til venstre på mobil)."
             )
-            label = (
-                f"Hent referanseodds for alle ligaer (opptil {n} kreditter)" if n else "Hent referanseodds nå"
-            )
-            if st.button(label, type="primary"):
-                fetch_reference(cfg, "page")
+        update_buttons(cfg, conn, reference, reference_name)
         reference_result("page")
         query = st.text_input("Søk etter lag", placeholder="For eksempel Brann, Bodø/Glimt eller Arsenal")
         cards = dashboard.sort_cards(

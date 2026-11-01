@@ -603,7 +603,7 @@ def test_without_reference_odds_the_page_shows_norsk_tippings_odds_and_offers_th
     assert not app.exception and asked == []  # opening the page spends nothing
     assert [m for m in app.markdown if 'class="oc-teams"' in m.value]  # Norsk Tipping's odds, without EV
     assert any("Ingen referanseodds er hentet her ennå" in i.value for i in app.info)
-    [button] = [b for b in app.button if b.label.startswith("Hent referanseodds for alle ligaer")]
+    [button] = [b for b in app.button if b.label.startswith("Oppdater referanseodds")]
     assert "opptil 21 kreditter" in button.label
     app = button.click().run()
     assert not app.exception and asked == [21]
@@ -698,3 +698,38 @@ def test_code_changed_on_disk_is_imported_again(filled_app):
         for name in package():
             del sys.modules[name]
         sys.modules.update(before)
+
+
+def test_the_update_buttons_fetch_norsk_tipping_now_and_reference_odds(tmp_path, monkeypatch):
+    """On the page, where a phone shows them: Norsk Tipping now (free), and the reference (credits)."""
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    shift = datetime.now(UTC) - FIXTURE_NOW
+    nt_calls, asked = [], []
+
+    class CountingNT(ShiftedNT):
+        def fetch(self, days_ahead):
+            nt_calls.append(1)
+            return super().fetch(days_ahead)
+
+    monkeypatch.setattr(fetch, "build_sources", lambda cfg: (CountingNT(shift), ShiftedReference(shift)))
+    real_run_once = fetch.run_once
+
+    def run_once(cfg, include_reference=False, **kwargs):
+        if include_reference:
+            asked.append(len(cfg.reference.the_odds_api.leagues))
+            return fetch.FetchReport(started_at=datetime.now(UTC))
+        return real_run_once(cfg, **kwargs)
+
+    monkeypatch.setattr(fetch, "run_once", run_once)
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception and len(nt_calls) == 1 and asked == []  # old odds: fetched once on opening
+    assert any("Norsk Tipping: " in c.value and "aldri hentet" in c.value for c in app.caption)
+    [nt_button] = [b for b in app.button if b.label == "Oppdater Norsk Tipping"]
+    app = nt_button.click().run()
+    assert not app.exception and len(nt_calls) == 2 and asked == []  # fresh, but fetched again when asked
+    [ref_button] = [b for b in app.button if b.label.startswith("Oppdater referanseodds")]
+    app = ref_button.click().run()
+    assert not app.exception and asked == [21]

@@ -71,6 +71,8 @@ alerts:
   max_credits_per_day: 20
   reserve_credits: 30         # de siste kredittene i måneden brukes aldri av overvåkeren
   ntfy_server: https://ntfy.sh
-  app_url: ""                 # åpnes når du trykker på varselet, f.eks. Streamlit-appens adresse
+  # Åpnes når du trykker på varselet eller knappen «Åpne odds-siden»: forhåndsvisningen i Claude (viser
+  # oddsen fra siste gang den ble oppdatert). Bytt gjerne til Streamlit-appens adresse, som alltid er fersk.
+  app_url: "https://claude.ai/artifact/3mQmFyoULT9TofNghC3NdV"
   keep_days: 7                # så lenge overvåkeren tar vare på ferdigspilte kamper
   days_ahead: 2               # så langt frem overvåkeren leser Norsk Tipping

@@ -705,8 +705,11 @@ def main() -> None:
             conn, reference, method, now, dashboard.window_end(window, now), competitors
         )
         leagues = st.multiselect("Liga", sorted({c.league for c in all_cards}), placeholder="Alle ligaer")
-        min_ev = st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%") / 100
-        show_all = st.toggle("Vis alle kamper", help="Også kamper under minimum EV og uten referanseodds")
+        value_only = st.toggle("Bare verdispill", help="Bare kamper med EV over minimum EV. Av: alle kamper.")
+        min_ev = (
+            st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%", disabled=not value_only) / 100
+        )
+        show_all = not value_only
         nt_best_only = st.toggle(
             "Bare der NT har best odds",
             help="Kamper der Norsk Tipping har beste odds på minst ett utfall blant konkurrentene, uansett EV",
@@ -744,8 +747,12 @@ def main() -> None:
             if st.button(label, type="primary"):
                 fetch_reference(cfg, "page")
         reference_result("page")
+        query = st.text_input("Søk etter lag", placeholder="For eksempel Brann, Bodø/Glimt eller Arsenal")
         cards = dashboard.sort_cards(
-            dashboard.filter_cards(all_cards, leagues, min_ev, show_all or no_ev_yet, nt_best_only), order
+            dashboard.search_cards(
+                dashboard.filter_cards(all_cards, leagues, min_ev, show_all or no_ev_yet, nt_best_only), query
+            ),
+            order,
         )
         stats = dashboard.summary([c for c in all_cards if not leagues or c.league in leagues])
         top = st.columns(3)
@@ -757,7 +764,11 @@ def main() -> None:
         if not all_cards:
             st.info("Ingen kamper i databasen for dette tidsvinduet. Kjør `oddscompare fetch` først.")
         elif not cards:
-            st.info("Ingen kamper med EV over minimum. Senk minimum EV eller slå på «Vis alle kamper».")
+            st.info(
+                f"Ingen kamper med «{query.strip()}» i tidsvinduet."
+                if query.strip()
+                else "Ingen kamper med EV over minimum. Senk minimum EV eller slå av «Bare verdispill»."
+            )
         shown = st.session_state.get("shown", PAGE_SIZE)
         for start in range(0, min(len(cards), shown), 2):
             columns = st.columns(2)

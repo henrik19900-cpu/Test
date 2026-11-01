@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from . import calc, db
-from .matching import Aliases
+from .matching import Aliases, normalize
 from .sources import OUTCOMES
 from .sources.nt import NorskTipping
 
@@ -285,6 +285,20 @@ def filter_cards(
     if show_all:
         return picked
     return [c for c in picked if c.best_ev is not None and c.best_ev >= min_ev]
+
+
+def search_cards(cards: list[Card], query: str) -> list[Card]:
+    """Matches where a team's name contains what was typed, in any case and with or without ø, å, æ or
+    accents («bodo» finds Bodø/Glimt), or with words like FK and FC («fk haugesund» finds Haugesund)."""
+    typed = query.strip().lower()
+    if not typed:
+        return cards
+    wanted = normalize(typed)
+    return [
+        c
+        for c in cards
+        if any(wanted in normalize(team) or typed in team.lower() for team in (c.home, c.away))
+    ]
 
 
 @dataclass

@@ -518,4 +518,30 @@ def test_the_market_tab_and_the_positions_on_the_cards(tmp_path, monkeypatch):
     [tab] = [t for t in app.tabs if t.label == "NT mot markedet"]
     assert [m.label for m in tab.metric][:2] == ["NT har beste odds", "NT har dårligste odds"]
     assert any("beste odds på" in m.value for m in tab.markdown)
-    assert tab.get("plotly_chart") and tab.dataframe
+    assert tab.get("plotly_chart") and len(tab.dataframe) == 2
+    assert any(
+        "Her har Norsk Tipping best odds** (1 utfall" in m.value for m in tab.markdown
+    )  # the shared draw
+    [best_only] = [t for t in app.toggle if t.label == "Bare der NT har best odds"]
+    app = best_only.set_value(True).run()
+    assert len([m for m in app.markdown if 'class="oc-teams"' in m.value]) == 1
+
+
+def test_the_outcomes_where_norsk_tipping_has_the_best_price():
+    alone = card_with_competitors(
+        (2.20, 3.40, 3.10),
+        {"betsson": (2.10, 3.40, 3.30), "unibet_se": (2.05, 3.30, 3.40)},
+        ref=(2.08, 3.55, 4.00),
+    )
+    behind = card_with_competitors((1.50, 4.00, 6.00), {"betsson": (1.55, 4.10, 6.50)})
+    best = dashboard.nt_best([behind, alone])
+    assert [(b.outcome, b.shared) for b in best] == [(0, False), (1, True)]  # biggest lead first
+    home = best[0]
+    assert (
+        home.runner_up == "Betsson"
+        and home.runner_up_odds == 2.10
+        and home.lead == pytest.approx(2.20 / 2.10 - 1)
+    )
+    assert best[1].runner_up == "Betsson" and best[1].lead == 0.0
+    assert alone.nt_best_outcomes() == [0, 1] and behind.nt_best_outcomes() == []
+    assert dashboard.filter_cards([alone, behind], [], 0.05, False, nt_best_only=True) == [alone]

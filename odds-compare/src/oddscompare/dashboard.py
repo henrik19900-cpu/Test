@@ -113,6 +113,10 @@ class Card:
         others = [odds[i] for odds in self.competitors.values()]
         return 1 + sum(o > nt for o in others), 1 + len(others), nt / max([nt, *others]) - 1
 
+    def nt_best_outcomes(self) -> list[int]:
+        """The outcomes where Norsk Tipping's price is the best (alone or shared) among its competitors."""
+        return [i for i in range(len(OUTCOMES)) if (p := self.position(i)) is not None and p[0] == 1]
+
     def nt_worst(self, i: int) -> bool:
         """Every competitor offers at least as much on outcome i, and one offers more."""
         others = [odds[i] for odds in self.competitors.values()]
@@ -270,11 +274,51 @@ def window_end(choice: str, now: datetime) -> datetime:
     return now + timedelta(days=7)
 
 
-def filter_cards(cards: list[Card], leagues: list[str], min_ev: float, show_all: bool) -> list[Card]:
+def filter_cards(
+    cards: list[Card], leagues: list[str], min_ev: float, show_all: bool, nt_best_only: bool = False
+) -> list[Card]:
+    """The cards in the leagues picked; with nt_best_only, only matches where Norsk Tipping has the best
+    price on at least one outcome (whatever the EV)."""
     picked = [c for c in cards if not leagues or c.league in leagues]
+    if nt_best_only:
+        return [c for c in picked if c.nt_best_outcomes()]
     if show_all:
         return picked
     return [c for c in picked if c.best_ev is not None and c.best_ev >= min_ev]
+
+
+@dataclass
+class NtBest:
+    """An outcome where Norsk Tipping has the best price among its competitors."""
+
+    card: Card
+    outcome: int
+    odds: float
+    runner_up: str  # the next best bookmaker(s), or those sharing the best price
+    runner_up_odds: float
+    shared: bool
+    lead: float  # Norsk Tipping's price over the next best (0 when shared)
+
+    @property
+    def ev(self) -> float | None:
+        return self.card.ev[self.outcome] if self.card.ev else None
+
+
+def nt_best(cards: list[Card]) -> list[NtBest]:
+    """Every outcome where Norsk Tipping has the best price, the biggest lead first."""
+    found = []
+    for card in cards:
+        for i in card.nt_best_outcomes():
+            others = {bookmaker_name(s): odds[i] for s, odds in card.competitors.items()}
+            nt = card.nt_odds[i]
+            equal = [name for name, o in others.items() if o == nt]
+            if equal:
+                found.append(NtBest(card, i, nt, ", ".join(equal), nt, True, 0.0))
+            else:
+                second = max(others.values())
+                names = ", ".join(name for name, o in others.items() if o == second)
+                found.append(NtBest(card, i, nt, names, second, False, nt / second - 1))
+    return sorted(found, key=lambda b: (-b.lead, b.card.kickoff_utc))
 
 
 def summary(cards: list[Card]) -> dict[str, float | int | None]:

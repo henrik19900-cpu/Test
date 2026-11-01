@@ -359,6 +359,36 @@ def market_tab(
         "NT-margin / konkurrenter", f"{percent(margins.get('Norsk Tipping'))} / {percent(competitors_mean)}"
     )
 
+    best = dashboard.nt_best(cards)
+    st.markdown(f"**Her har Norsk Tipping best odds** ({len(best)} utfall, blant {m.matches} kamper)")
+    if best:
+        st.dataframe(
+            [
+                {
+                    "Avspark": local(b.card.kickoff_utc),
+                    "Kamp": f"{b.card.home} – {b.card.away}",
+                    "Liga": b.card.league,
+                    "Utfall": ("H", "U", "B")[b.outcome],
+                    "NT-odds": odds_text(b.odds),
+                    "Nest beste": f"{odds_text(b.runner_up_odds)} {b.runner_up}"
+                    if not b.shared
+                    else f"delt med {b.runner_up}",
+                    "NT bedre med": percent(b.lead, signed=True) if not b.shared else "delt",
+                    "Fair": odds_text(b.card.fair_odds[b.outcome]) if b.card.fair_odds else "–",
+                    "EV": percent(b.ev, signed=True),
+                }
+                for b in best
+            ],
+            hide_index=True,
+            width="stretch",
+        )
+        st.caption(
+            "Beste odds blant konkurrentene betyr ikke at spillet har verdi: EV-kolonnen sammenligner med Pinnacles "
+            "fair odds. Slå på «Bare der NT har best odds» i sidepanelet for å se kortene."
+        )
+    else:
+        st.caption("Norsk Tipping har ikke beste odds på noen utfall i dette utvalget.")
+
     names = [name for name, _, _ in m.margins]
     values = [value * 100 for _, value, _ in m.margins]
     labelled = {"Norsk Tipping", names[0], names[-1]}  # the one the chart is about, and the two ends
@@ -657,6 +687,10 @@ def main() -> None:
         leagues = st.multiselect("Liga", sorted({c.league for c in all_cards}), placeholder="Alle ligaer")
         min_ev = st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%") / 100
         show_all = st.toggle("Vis alle kamper", help="Også kamper under minimum EV og uten referanseodds")
+        nt_best_only = st.toggle(
+            "Bare der NT har best odds",
+            help="Kamper der Norsk Tipping har beste odds på minst ett utfall blant konkurrentene, uansett EV",
+        )
         reference_panel(cfg, conn, reference)
 
     for row in dashboard.fetch_status(conn):
@@ -674,7 +708,9 @@ def main() -> None:
         ["Kamper", "NT mot markedet", "Mine spill", "Umatchede kamper"]
     )
     with matches_tab:
-        cards = dashboard.sort_cards(dashboard.filter_cards(all_cards, leagues, min_ev, show_all), order)
+        cards = dashboard.sort_cards(
+            dashboard.filter_cards(all_cards, leagues, min_ev, show_all, nt_best_only), order
+        )
         stats = dashboard.summary([c for c in all_cards if not leagues or c.league in leagues])
         top = st.columns(3)
         top[0].metric("Kamper", stats["matches"])

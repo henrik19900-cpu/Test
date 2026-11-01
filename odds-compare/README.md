@@ -100,7 +100,22 @@ Under «Registrer spill» på hvert kort logger du et spill: utfall, oddsen du f
 
 Sluttoddsen oppdateres hver gang du henter referanseodds før avspark. Hent derfor referanseodds like før kampene du har spilt på, gjerne bare for de ligaene. CLV viser om du har en fordel etter 40–100 spill, mens gevinst og tap trenger tusenvis. Resultatet (vunnet, tapt, annullert) setter du selv i tabellen etter kampen.
 
-Spilloggen kan lastes ned og opp som CSV. På Streamlit Cloud starter databasen på nytt når appen startes på nytt, så last den ned jevnlig.
+Spilloggen kan lastes ned og opp som CSV. På Streamlit Cloud starter databasen på nytt når appen startes på nytt. Da forsvinner spilloggen, med mindre den også lagres i en database utenfor appen (under).
+
+### Varig spillogg
+
+Med `DATABASE_URL` til en Postgres-database lagrer appen spilloggen der i tillegg. Hver gang den endres, lagres den på nytt, og forrige versjon tas vare på. Når appen starter på nytt, leses den inn igjen av seg selv. Gratisplanen til [Neon](https://neon.com) holder godt: 0,5 GB, og databasen sover når den ikke brukes og våkner av seg selv ved neste spørring. Supabase passer dårligere, siden gratisprosjekter settes på pause etter en uke uten bruk.
+
+1. Gå til [neon.com](https://neon.com) og logg inn med GitHub.
+2. Lag et prosjekt, for eksempel `odds`, med region «AWS Europe Central 1 (Frankfurt)».
+3. Trykk «Connect» og kopier «Connection string». Den begynner med `postgresql://`.
+4. I Streamlit: «Manage app» → ⋮ → «Settings» → «Secrets». Legg til en linje under API-nøkkelen, med anførselstegn:
+   ```
+   DATABASE_URL = "postgresql://…"
+   ```
+5. Trykk «Save». Under «Mine spill» står det nå «Spilloggen lagres i databasen».
+
+Spilloggen ligger som CSV i tabellen `oddscompare_store` (nøklene `bets.csv` og `bets.previous.csv`), som appen lager selv. Lokalt kan du legge `DATABASE_URL` i `.env`. Svarer ikke databasen, virker spilloggen i appen som før, og den lagres ved neste klikk.
 
 ## Varsler
 

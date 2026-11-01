@@ -19,14 +19,63 @@ import streamlit as st
 import streamlit.components.v1 as components
 import yaml
 
+
+def _mtime(module) -> float | None:
+    try:
+        return os.path.getmtime(module.__file__)
+    except (TypeError, OSError):
+        return None
+
+
+def forget_changed_package(package: str = "oddscompare") -> bool:
+    """Streamlit Cloud pulls new code and reruns this script, but the package's modules imported before
+    stay loaded, so the new app.py meets old code (an AttributeError). When a module's file changed since
+    it was imported, the whole package is dropped here and imported again below. Returns whether it was."""
+    loaded = {n: m for n, m in list(sys.modules.items()) if n == package or n.startswith(f"{package}.")}
+    if not loaded:
+        return False
+    recorded = getattr(sys.modules.get(package), "_imported_mtimes", None)
+    if recorded is None:  # imported by an app.py without this, or by tests: changed since the process began?
+        started = _process_started()
+        stale = started is not None and any((_mtime(m) or 0) > started for m in loaded.values())
+    else:
+        stale = any(_mtime(loaded[n]) != t for n, t in recorded.items() if n in loaded)
+        recorded.update({n: _mtime(m) for n, m in loaded.items() if n not in recorded})  # imported later
+    if stale:
+        for name in loaded:
+            del sys.modules[name]
+    return stale
+
+
+def _process_started() -> float | None:
+    """When this process started (Linux), from /proc."""
+    try:
+        with open(f"/proc/{os.getpid()}/stat", encoding="ascii") as f:
+            ticks = int(f.read().rsplit(")", 1)[1].split()[19])  # field 22, starttime
+        with open("/proc/stat", encoding="ascii") as f:
+            boot = next(int(line.split()[1]) for line in f if line.startswith("btime "))
+        return boot + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration):
+        return None
+
+
+def remember_package(package: str = "oddscompare") -> None:
+    loaded = {n: m for n, m in list(sys.modules.items()) if n == package or n.startswith(f"{package}.")}
+    if getattr(sys.modules[package], "_imported_mtimes", None) is None:
+        sys.modules[package]._imported_mtimes = {n: _mtime(m) for n, m in loaded.items()}
+
+
+forget_changed_package()
 try:
     import oddscompare  # noqa: F401  (installed with pip install -e .)
 except ImportError:  # Streamlit Cloud installs requirements.txt only: use the package from src/
     sys.path.insert(0, str(Path(__file__).with_name("src")))
 
-from oddscompare import bets, calc, config, dashboard, db, fetch
-from oddscompare.matching import Aliases
-from oddscompare.sources import OUTCOMES
+from oddscompare import bets, calc, config, dashboard, db, fetch, remote  # noqa: E402
+from oddscompare.matching import Aliases  # noqa: E402
+from oddscompare.sources import OUTCOMES  # noqa: E402
+
+remember_package()
 
 PAGE_SIZE = 24
 COLOURS = {"H": "#2563eb", "U": "#7c3aed", "B": "#d97706"}
@@ -443,7 +492,49 @@ def market_tab(
     )
 
 
-def bets_tab(conn) -> None:
+@st.cache_resource
+def bet_log_sync() -> dict:
+    """Shared by every session of this app process: whether the stored bet log has been read back, and
+    the digest of what was last written."""
+    return {"restored": None, "digest": None, "error": None}
+
+
+def sync_bet_log(conn) -> dict | None:
+    """With DATABASE_URL: read the stored bet log back once per app process (after a restart the local one
+    is empty), then write it whenever it changed. None without a database."""
+    store = remote.store_from_env()
+    if store is None:
+        return None
+    state = bet_log_sync()
+    try:
+        if state["restored"] is None:
+            state["restored"] = remote.restore_bets(conn, store)
+        state["digest"] = remote.backup_bets(conn, store, state["digest"])
+        state["error"] = None
+    except Exception as e:  # noqa: BLE001  (the bet log here still works; it is written next time)
+        state["error"] = f"{type(e).__name__}: {e}"
+    return state
+
+
+def bet_log_status(state: dict | None) -> None:
+    if state is None:
+        st.caption(
+            "Spilloggen ligger bare i appen og forsvinner når den starter på nytt. Last den ned jevnlig, "
+            "eller legg `DATABASE_URL` til en gratis database under «Secrets» (se README, «Varig spillogg»)."
+        )
+    elif state["error"]:
+        restored = state["restored"] is not None
+        st.warning(
+            "Fikk ikke kontakt med databasen for spilloggen"
+            + ("" if restored else ", så den lagrede spilloggen er ikke lest inn ennå")
+            + f". Den prøves igjen ved neste klikk. ({state['error']})"
+        )
+    else:
+        st.caption("Spilloggen lagres i databasen, og kommer tilbake når appen starter på nytt.")
+
+
+def bets_tab(conn, sync: dict | None = None) -> None:
+    bet_log_status(sync)
     rows = bets.all_bets(conn)
     if not rows:
         st.info(
@@ -578,6 +669,37 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
     reference_result("sidebar")
 
 
+def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str) -> None:
+    """Both fetches on the page, where a phone shows them (it hides the sidebar), with when each was last."""
+    nt_last = dashboard.last_success(conn, dashboard.NT)
+    ref_last = dashboard.last_success(conn, reference)
+    n = len(cfg.reference.the_odds_api.leagues) if reference == "the_odds_api" else None
+    credits = dashboard.credits_left(cfg.cache_dir, reference)
+    left, right = st.columns(2)
+    if left.button(
+        "Oppdater Norsk Tipping",
+        width="stretch",
+        help=f"Gratis. Skjer også av seg selv når oddsen er eldre enn {cfg.interval_minutes:g} minutter.",
+    ):
+        refresh_norsk_tipping(cfg, conn, force=True)
+        st.rerun()
+    if right.button(
+        f"Oppdater referanseodds (opptil {n} kreditter)" if n else "Oppdater referanseodds",
+        type="primary",
+        width="stretch",
+        help=f"{reference_name} og konkurrentene, for alle ligaer. Færre ligaer kan velges i menyen (››). "
+        "En ny henting innen 5 minutter bruker forrige svar og koster ingenting.",
+    ):
+        fetch_reference(cfg, "page")
+    parts = [
+        f"Norsk Tipping: {local(nt_last) if nt_last else 'aldri hentet'}",
+        f"{reference_name}: {local(ref_last) if ref_last else 'aldri hentet'}",
+    ]
+    if credits is not None:
+        parts.append(f"{credits} kreditter igjen denne måneden")
+    st.caption(" · ".join(parts))
+
+
 def fetch_reference(request_cfg: config.Config, where: str) -> None:
     """Buy reference odds now; the result is shown where the button was (the sidebar or the page)."""
     with st.spinner("Henter referanseodds …"):
@@ -622,10 +744,11 @@ def fetch_lock() -> threading.Lock:
     return threading.Lock()
 
 
-def refresh_norsk_tipping(cfg: config.Config, conn) -> None:
-    """Fetch Norsk Tipping when its odds are older than interval_minutes (no fetcher running beside the page)."""
+def refresh_norsk_tipping(cfg: config.Config, conn, force: bool = False) -> None:
+    """Fetch Norsk Tipping when its odds are older than interval_minutes (no fetcher running beside the page),
+    or now with force (the source still asks Norsk Tipping at most once per min_interval_minutes)."""
     last = dashboard.last_success(conn, dashboard.NT)
-    if last and datetime.now(UTC) - last < timedelta(minutes=cfg.interval_minutes):
+    if not force and last and datetime.now(UTC) - last < timedelta(minutes=cfg.interval_minutes):
         return
     lock = fetch_lock()
     if not lock.acquire(blocking=False):
@@ -685,6 +808,7 @@ def main() -> None:
         else []
     )
     conn = db.connect(cfg.database)
+    sync = sync_bet_log(conn)  # first: after a restart the bet log comes back before anything shows it
     refresh_norsk_tipping(cfg, conn)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
@@ -732,20 +856,15 @@ def main() -> None:
     )
     with matches_tab:
         # Before any reference odds are fetched here, nothing has EV, and the EV filter would hide every match:
-        # Norsk Tipping's odds are shown instead, with the fetch on the page (the sidebar is hidden on phones).
+        # Norsk Tipping's odds are shown instead (the buttons are on the page; phones hide the sidebar).
         no_ev_yet = bool(all_cards) and all(c.ev is None for c in all_cards)
         if no_ev_yet:
-            n = len(cfg.reference.the_odds_api.leagues) if reference == "the_odds_api" else None
             st.info(
                 "Ingen referanseodds er hentet her ennå, så EV kan ikke regnes ut. Under ser du Norsk Tippings "
-                "odds for alle kamper. Hent referanseoddsen med knappen, eller velg færre ligaer under "
+                "odds for alle kamper. Trykk «Oppdater referanseodds», eller velg færre ligaer under "
                 "«Referanseodds» i menyen (›› øverst til venstre på mobil)."
             )
-            label = (
-                f"Hent referanseodds for alle ligaer (opptil {n} kreditter)" if n else "Hent referanseodds nå"
-            )
-            if st.button(label, type="primary"):
-                fetch_reference(cfg, "page")
+        update_buttons(cfg, conn, reference, reference_name)
         reference_result("page")
         query = st.text_input("Søk etter lag", placeholder="For eksempel Brann, Bodø/Glimt eller Arsenal")
         cards = dashboard.sort_cards(
@@ -804,7 +923,7 @@ def main() -> None:
         )
 
     with my_bets_tab:
-        bets_tab(conn)
+        bets_tab(conn, sync)
 
     with unmatched_tab:
         rows = dashboard.unmatched(conn, now)
@@ -833,6 +952,7 @@ def main() -> None:
                 hide_index=True,
                 width="stretch",
             )
+    sync_bet_log(conn)  # a change made in this run (one followed by st.rerun() is written on the next)
     conn.close()
 
 

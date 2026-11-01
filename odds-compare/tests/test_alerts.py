@@ -258,6 +258,19 @@ def test_a_test_alert_that_fails_makes_the_run_red(setup):
     assert not report.ok and "Testvarselet feilet: ntfy.sh avviste" in report.summary()
 
 
+def test_alerts_link_to_the_odds_page(setup):
+    cfg, conn, sent = setup
+    url = "https://claude.ai/artifact/example"
+    cfg = cfg.model_copy(update={"alerts": cfg.alerts.model_copy(update={"app_url": url})})
+    run(cfg, conn, sent, FakeNT(), FakeReference(), test=True)
+    assert len(sent) == 2  # the real alert and the test alert
+    for message in [*sent, alerts.test_message(cfg)]:
+        assert message["click"] == url
+        assert message["actions"] == [{"action": "view", "label": "Åpne odds-siden", "url": url}]
+    cfg = cfg.model_copy(update={"alerts": cfg.alerts.model_copy(update={"app_url": ""})})
+    assert "click" not in alerts.test_message(cfg) and "actions" not in alerts.test_message(cfg)
+
+
 def test_secrets_pasted_with_spaces_or_a_line_break_still_work(monkeypatch):
     monkeypatch.setenv("THE_ODDS_API_KEY", " fake-key-123 \n")
     assert config.api_key("THE_ODDS_API_KEY") == "fake-key-123"

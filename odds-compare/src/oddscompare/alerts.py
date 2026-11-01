@@ -303,8 +303,14 @@ def notification(o: Opportunity, cfg: config.Config) -> dict:
         "tags": ["soccer", "chart_with_upwards_trend"],
         "priority": 4,
     }
+    return _with_link(message, cfg)
+
+
+def _with_link(message: dict, cfg: config.Config) -> dict:
+    """Tapping the notification, or its button, opens the odds page (alerts.app_url), when there is one."""
     if cfg.alerts.app_url:
         message["click"] = cfg.alerts.app_url
+        message["actions"] = [{"action": "view", "label": "Åpne odds-siden", "url": cfg.alerts.app_url}]
     return message
 
 
@@ -360,6 +366,4 @@ def test_message(cfg: config.Config) -> dict:
         "tags": ["white_check_mark"],
         "priority": 3,
     }
-    if cfg.alerts.app_url:
-        message["click"] = cfg.alerts.app_url
-    return message
+    return _with_link(message, cfg)

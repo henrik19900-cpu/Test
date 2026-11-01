@@ -124,7 +124,7 @@ Overvåkeren bruker høyst 20 kreditter per dag, og aldri de siste 30 i måneden
 
 ntfy.sh tar imot 250 varsler i døgnet per IP-adresse på gratisplanen, også med konto, og grensen deles med alle som bruker samme adresse. Blir et varsel avvist, prøver overvåkeren igjen ved neste kjøring. GitHub gir hver kjøring en ny maskin, ofte med en annen adresse.
 
-Legg gjerne adressen til Streamlit-appen i `alerts.app_url`, så åpnes den når du trykker på varselet. GitHub setter planlagte arbeidsflyter på pause etter 60 dager uten aktivitet i repoet. Da starter du den igjen under «Actions». Feiler hentingen fra Norsk Tipping eller The Odds API, for eksempel fordi nøkkelen er feil, blir kjøringen rød på GitHub, og du får e-post om det.
+Varselet har lenke til odds-siden i `alerts.app_url`: trykk på varselet eller knappen «Åpne odds-siden», så åpnes Streamlit-appen, som henter ferske odds. GitHub setter planlagte arbeidsflyter på pause etter 60 dager uten aktivitet i repoet. Da starter du den igjen under «Actions». Feiler hentingen fra Norsk Tipping eller The Odds API, for eksempel fordi nøkkelen er feil, blir kjøringen rød på GitHub, og du får e-post om det.
 
 ## Matching av kamper
 

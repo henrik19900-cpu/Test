@@ -71,6 +71,7 @@ alerts:
   max_credits_per_day: 20
   reserve_credits: 30         # de siste kredittene i måneden brukes aldri av overvåkeren
   ntfy_server: https://ntfy.sh
-  app_url: ""                 # åpnes når du trykker på varselet, f.eks. Streamlit-appens adresse
+  # Åpnes når du trykker på varselet eller knappen «Åpne odds-siden»: Streamlit-appen, som henter ferske odds.
+  app_url: "https://henrik-odds.streamlit.app/"
   keep_days: 7                # så lenge overvåkeren tar vare på ferdigspilte kamper
   days_ahead: 2               # så langt frem overvåkeren leser Norsk Tipping

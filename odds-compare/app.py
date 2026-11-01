@@ -597,16 +597,23 @@ def reference_result(where: str) -> None:
             (st.success if ok else st.error)(text.replace("\n", "  \n"))
 
 
-def secrets_to_environment() -> None:
-    """API keys from Streamlit's secrets (Streamlit Cloud), for the code that reads them from the environment."""
+SECRETS_HELP = (
+    "Gå til «Manage app» nederst til høyre → ⋮ → «Settings» → «Secrets», og skriv nøkkelen på én linje, "
+    'med anførselstegn: `THE_ODDS_API_KEY = "nøkkelen"`. Trykk «Save», så starter appen på nytt.'
+)
+
+
+def secrets_to_environment() -> str | None:
+    """API keys from Streamlit's secrets (Streamlit Cloud), for the code that reads them from the environment.
+
+    A key under a heading such as [secrets] counts too. Returns what to tell the user when the secrets
+    could not be read (a value without quotes is not valid TOML), else None."""
     try:
-        for name in ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY"):
-            if not os.environ.get(name) and st.secrets.get(name):
-                os.environ[name] = str(st.secrets[name])
-    except FileNotFoundError:  # no secrets.toml: .env is used instead
-        pass
-    except Exception:  # noqa: BLE001  (older Streamlit versions raise their own error for missing secrets)
-        pass
+        config.apply_secrets(st.secrets)
+    except Exception as e:  # noqa: BLE001  (no secrets at all: .env is used instead)
+        if "pars" in str(e).lower():
+            return f"Streamlits «Secrets» kunne ikke leses. {SECRETS_HELP}"
+    return None
 
 
 @st.cache_resource
@@ -668,7 +675,7 @@ def main() -> None:
     )
     home_screen_tags()
     st.markdown(CSS, unsafe_allow_html=True)
-    secrets_to_environment()
+    secrets_problem = secrets_to_environment()
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))
     reference = cfg.reference.source
     reference_name = dashboard.BOOKMAKERS.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
@@ -686,6 +693,8 @@ def main() -> None:
     st.caption(
         f"Norsk Tipping mot margin-fri referanse ({SOURCE_NAMES.get(reference, reference)}: {reference_name})"
     )
+    if secrets_problem:
+        st.error(secrets_problem)
 
     with st.sidebar:
         st.header("Filtre")
@@ -696,8 +705,11 @@ def main() -> None:
             conn, reference, method, now, dashboard.window_end(window, now), competitors
         )
         leagues = st.multiselect("Liga", sorted({c.league for c in all_cards}), placeholder="Alle ligaer")
-        min_ev = st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%") / 100
-        show_all = st.toggle("Vis alle kamper", help="Også kamper under minimum EV og uten referanseodds")
+        value_only = st.toggle("Bare verdispill", help="Bare kamper med EV over minimum EV. Av: alle kamper.")
+        min_ev = (
+            st.slider("Minimum EV", -20.0, 20.0, 0.0, 0.5, format="%.1f %%", disabled=not value_only) / 100
+        )
+        show_all = not value_only
         nt_best_only = st.toggle(
             "Bare der NT har best odds",
             help="Kamper der Norsk Tipping har beste odds på minst ett utfall blant konkurrentene, uansett EV",
@@ -735,8 +747,12 @@ def main() -> None:
             if st.button(label, type="primary"):
                 fetch_reference(cfg, "page")
         reference_result("page")
+        query = st.text_input("Søk etter lag", placeholder="For eksempel Brann, Bodø/Glimt eller Arsenal")
         cards = dashboard.sort_cards(
-            dashboard.filter_cards(all_cards, leagues, min_ev, show_all or no_ev_yet, nt_best_only), order
+            dashboard.search_cards(
+                dashboard.filter_cards(all_cards, leagues, min_ev, show_all or no_ev_yet, nt_best_only), query
+            ),
+            order,
         )
         stats = dashboard.summary([c for c in all_cards if not leagues or c.league in leagues])
         top = st.columns(3)
@@ -748,7 +764,11 @@ def main() -> None:
         if not all_cards:
             st.info("Ingen kamper i databasen for dette tidsvinduet. Kjør `oddscompare fetch` først.")
         elif not cards:
-            st.info("Ingen kamper med EV over minimum. Senk minimum EV eller slå på «Vis alle kamper».")
+            st.info(
+                f"Ingen kamper med «{query.strip()}» i tidsvinduet."
+                if query.strip()
+                else "Ingen kamper med EV over minimum. Senk minimum EV eller slå av «Bare verdispill»."
+            )
         shown = st.session_state.get("shown", PAGE_SIZE)
         for start in range(0, min(len(cards), shown), 2):
             columns = st.columns(2)

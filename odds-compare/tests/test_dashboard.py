@@ -196,30 +196,64 @@ def filled_app(tmp_path, monkeypatch):
     return AppTest.from_file(str(ROOT / "app.py"), default_timeout=30)
 
 
-def test_the_page_shows_cards_sorted_by_ev(filled_app):
+def test_the_page_shows_every_match_best_ev_first(filled_app):
     app = filled_app.run()
     assert not app.exception
     assert [m.label for m in app.metric] == ["Kamper", "Med EV > 0", "Snittmargin NT / referanse"]
-    cards = [m.value for m in app.markdown if 'class="oc-teams"' in m.value]
-    assert cards, "no cards with the default filters"
-    best_per_card = [max(map(_number, card.split("EV ")[1:])) for card in cards]
-    assert best_per_card == sorted(best_per_card, reverse=True)
-    assert all(b >= 0 for b in best_per_card)  # minimum EV 0 % by default
+    best = [_best_ev(card) for card in _cards(app)]
+    assert len(best) == 24  # a full page: all matches by default, not only value bets
+    priced = [b for b in best if b is not None]
+    assert priced == sorted(priced, reverse=True) and best[: len(priced)] == priced  # no EV comes last
+    assert min(priced) < 0  # matches under the minimum EV are shown too
 
 
-def _number(text: str) -> float:
-    """«+2,8 %…» as shown on a card, to 2.8."""
-    return float(text.split(" %")[0].replace(",", ".").replace("−", "-"))
+def _cards(app) -> list[str]:
+    return [m.value for m in app.markdown if 'class="oc-teams"' in m.value]
 
 
-def test_show_all_and_the_unmatched_tab(filled_app):
+def _best_ev(card: str) -> float | None:
+    """The best «EV +2,8 %» on a card, as 2.8; None when the card has no EV."""
+    values = []
+    for text in card.split("EV ")[1:]:
+        try:
+            values.append(float(text.split(" %")[0].replace(",", ".").replace("−", "-")))
+        except ValueError:
+            pass
+    return max(values, default=None)
+
+
+def test_value_bets_only_and_the_unmatched_tab(filled_app):
     app = filled_app.run()
-    default = len([m for m in app.markdown if 'class="oc-teams"' in m.value])
-    app.toggle[0].set_value(True).run()
+    everything = len(_cards(app))
+    [value_only] = [t for t in app.toggle if t.label == "Bare verdispill"]
+    value_only.set_value(True).run()
     assert not app.exception
-    shown = len([m for m in app.markdown if 'class="oc-teams"' in m.value])
-    assert shown >= default and shown == min(84, 24)  # one page of cards
+    best = [_best_ev(card) for card in _cards(app)]
+    assert 0 < len(best) < everything and all(b is not None and b >= 0 for b in best)  # minimum EV 0 %
     assert any("Alle kommende" in i.value for i in app.info) or app.dataframe
+
+
+def test_searching_for_a_team(filled_app):
+    app = filled_app.run()
+    [search] = [t for t in app.text_input if t.label == "Søk etter lag"]
+    search.set_value("bodo").run()  # without ø
+    assert not app.exception
+    cards = _cards(app)
+    assert cards and all("Bodø/Glimt" in card for card in cards)
+    [search] = [t for t in app.text_input if t.label == "Søk etter lag"]  # from the new run
+    search.set_value("Ingen slikt lag").run()
+    assert not _cards(app) and any("Ingen kamper med «Ingen slikt lag»" in i.value for i in app.info)
+
+
+def test_search_cards_ignores_case_special_letters_and_club_words(conn):
+    store(conn, (2.05, 3.60, 3.30), (2.10, 3.40, 3.70), sid="1")
+    cards = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
+    [card] = cards
+    home = card.home
+    assert dashboard.search_cards(cards, "") == cards and dashboard.search_cards(cards, "  ") == cards
+    assert dashboard.search_cards(cards, home.upper()[:4]) == cards
+    assert dashboard.search_cards(cards, f"FK {home}") == cards  # club words are left out
+    assert dashboard.search_cards(cards, "zzz") == []
 
 
 def test_the_button_fetches_reference_odds_only_when_pressed(filled_app, monkeypatch):
@@ -510,8 +544,7 @@ def test_the_market_tab_and_the_positions_on_the_cards(tmp_path, monkeypatch):
     from streamlit.testing.v1 import AppTest
 
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
-    assert not app.exception
-    app.toggle[0].set_value(True).run()
+    assert not app.exception  # every match is shown by default
     [card] = [m.value for m in app.markdown if 'class="oc-teams"' in m.value]
     assert "Dårligst av 4" in card and "Best av 4" in card and "Nr. 2 av 4" in card
     assert "(høyest av 4)" in card
@@ -575,3 +608,25 @@ def test_without_reference_odds_the_page_shows_norsk_tippings_odds_and_offers_th
     app = button.click().run()
     assert not app.exception and asked == [21]
     assert any("Ferdig på" in s.value for s in app.success)  # the result shows on the page, too
+
+
+def test_secrets_that_cannot_be_read_are_reported_with_how_to_fix_them(tmp_path, monkeypatch):
+    """A value without quotes is not valid TOML; Streamlit then raises on every use of st.secrets."""
+    import streamlit
+    from streamlit.errors import StreamlitSecretNotFoundError
+
+    class Unreadable:
+        def __getattr__(self, name):
+            raise StreamlitSecretNotFoundError("Error parsing secrets file at /app/.streamlit/secrets.toml")
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    db.log_fetch(db.connect(tmp_path / "data" / "odds.db"), "norsk_tipping", datetime.now(UTC), "ok", 0)
+    monkeypatch.setattr(streamlit, "secrets", Unreadable())
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    [error] = [e.value for e in app.error if "Secrets" in e.value]
+    assert "kunne ikke leses" in error and 'THE_ODDS_API_KEY = "nøkkelen"' in error

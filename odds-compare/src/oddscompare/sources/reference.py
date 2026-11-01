@@ -66,7 +66,9 @@ class TheOddsApi:
     def fetch(self, days_ahead: int, want: EventFilter | None = None) -> list[RawEvent]:
         if not self.api_key:
             raise SourceError(
-                "THE_ODDS_API_KEY mangler i .env (gratis nøkkel: the-odds-api.com)", retryable=False
+                "THE_ODDS_API_KEY mangler: legg den i .env, eller under «Secrets» på Streamlit Cloud "
+                '(THE_ODDS_API_KEY = "nøkkelen"). Gratis nøkkel: the-odds-api.com',
+                retryable=False,
             )
         now = self.clock()
         self.spent = 0

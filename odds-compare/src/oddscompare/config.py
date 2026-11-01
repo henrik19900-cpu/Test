@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
 
@@ -156,6 +157,25 @@ def load(path: str | Path | None = None) -> Config:
     load_dotenv(path.parent / ".env")
     data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else None
     return Config.model_validate(data or {}).resolve(path.parent)
+
+
+SECRET_NAMES = ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY", "NTFY_TOPIC", "NTFY_TOKEN")
+
+
+def apply_secrets(secrets: Mapping) -> None:
+    """Keys from Streamlit's secrets into the environment, where the rest of the code reads them.
+
+    A key under a heading such as [secrets] counts too; one at the top level, or already in the
+    environment (.env), wins."""
+    found = {}
+    for value in secrets.values():
+        if isinstance(value, Mapping):
+            found.update(value)
+    found.update({k: v for k, v in secrets.items() if not isinstance(v, Mapping)})
+    for name in SECRET_NAMES:
+        value = str(found.get(name) or "").strip()
+        if value and not os.environ.get(name):
+            os.environ[name] = value
 
 
 def api_key(name: str) -> str | None:

@@ -7,7 +7,9 @@ name: odds-alerts
 # them after 60 days without activity in the repository.
 on:
   schedule:
-    - cron: "4,19,34,49 * * * *"
+    # Changed from 4,19,34,49 on 1 November 2026: GitHub ran no scheduled run in the first three hours, and a
+    # changed cron line makes it register the schedule again.
+    - cron: "2,17,32,47 * * * *"
   workflow_dispatch:
     inputs:
       test_alert:

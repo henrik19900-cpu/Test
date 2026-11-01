@@ -105,8 +105,12 @@ def run_once(
     sleep: Callable[[float], None] = time.sleep,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     include_reference: bool = False,
+    reference_for: Callable[[RawEvent], bool] | None = None,
 ) -> FetchReport:
-    """Fetch Norsk Tipping, and the reference too when include_reference (it costs credits)."""
+    """Fetch Norsk Tipping, and the reference too when include_reference (it costs credits).
+
+    reference_for narrows which of Norsk Tipping's matches the reference's odds are bought for
+    (each league with one costs a credit); all of them by default."""
     t0 = time.monotonic()
     own_conn = conn is None
     conn = conn or db.connect(cfg.database)
@@ -134,7 +138,12 @@ def run_once(
         ref_events = _attempt(
             conn,
             reference.name,
-            lambda: reference.fetch(cfg.days_ahead, want=matcher.worth_fetching([a for a, _ in anchors])),
+            lambda: reference.fetch(
+                cfg.days_ahead,
+                want=matcher.worth_fetching(
+                    [a for a, _ in anchors if reference_for is None or reference_for(a)]
+                ),
+            ),
             report,
             sleep,
             clock,

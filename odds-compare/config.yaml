@@ -60,3 +60,17 @@ reference:
     base_url: https://api.odds-api.io/v3
     bookmaker: Betfair Exchange
     leagues: []             # ligaslugs, f.eks. norway-eliteserien; tom = alle med odds hos bookmakeren
+
+# `oddscompare watch` (GitHub Actions hvert 15. minutt): når referanseodds kjøpes, og hva som gir varsel.
+alerts:
+  min_ev: 0.02                # varsel når EV mot Pinnacle er minst 2 %
+  max_reference_margin: 0.06  # og Pinnacles egen margin er høyst 6 %
+  lead_minutes: 75            # referanseodds kjøpes for kamper som starter innen så mange minutter
+  nt_jump: 0.05               # eller når Norsk Tipping hever oddsen 5 % siden forrige sjekk
+  fresh_minutes: 30           # varsler bare på referanseodds som er høyst så gamle
+  max_credits_per_day: 20
+  reserve_credits: 30         # de siste kredittene i måneden brukes aldri av overvåkeren
+  ntfy_server: https://ntfy.sh
+  app_url: ""                 # åpnes når du trykker på varselet, f.eks. Streamlit-appens adresse
+  keep_days: 7                # så lenge overvåkeren tar vare på ferdigspilte kamper
+  days_ahead: 2               # så langt frem overvåkeren leser Norsk Tipping

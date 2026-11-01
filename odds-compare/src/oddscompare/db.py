@@ -115,6 +115,23 @@ MIGRATIONS = [
     );
     CREATE INDEX bets_event ON bets(nt_event_id);
     """,
+    # What the watcher (oddscompare watch) has sent and spent, so it neither repeats an alert nor
+    # spends more credits in a day than it may.
+    """
+    CREATE TABLE alerts_sent (
+        nt_event_id TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        sent_at_utc TEXT NOT NULL,
+        odds REAL NOT NULL,
+        ev REAL NOT NULL,
+        PRIMARY KEY (nt_event_id, outcome)
+    );
+    CREATE TABLE credits_spent (
+        at_utc TEXT NOT NULL,
+        credits INTEGER NOT NULL,
+        remaining INTEGER
+    );
+    """,
 ]
 
 

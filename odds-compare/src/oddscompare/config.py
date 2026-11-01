@@ -105,6 +105,26 @@ class ReferenceConfig(BaseModel):
         return getattr(self, self.source).bookmaker
 
 
+class AlertsConfig(BaseModel):
+    """oddscompare watch: when to buy reference odds, and what is worth a notification."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    min_ev: float = 0.02  # an outcome needs at least this EV against the reference
+    max_reference_margin: float = 0.06  # and the reference's own margin at most this
+    lead_minutes: float = Field(75, gt=0)  # reference odds are bought for matches starting within this
+    nt_jump: float = Field(0.05, gt=0)  # or when Norsk Tipping raises an outcome by this since the last check
+    fresh_minutes: float = Field(30, gt=0)  # alerts only on reference odds at most this old
+    max_credits_per_day: int = Field(20, ge=0)
+    reserve_credits: int = Field(30, ge=0)  # never spend the month's last credits
+    ntfy_server: str = "https://ntfy.sh"
+    app_url: str = ""  # opened when the notification is tapped, e.g. the Streamlit app
+    keep_days: int = Field(7, ge=1)  # how long the watcher keeps finished matches
+    days_ahead: int = Field(
+        2, ge=1, le=14
+    )  # how far ahead the watcher reads Norsk Tipping (keeps its database small)
+
+
 class Config(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -121,6 +141,7 @@ class Config(BaseModel):
     cache_dir: Path = Path("data/cache")
     norsk_tipping: NorskTippingConfig = NorskTippingConfig()
     reference: ReferenceConfig = ReferenceConfig()
+    alerts: AlertsConfig = AlertsConfig()
 
     def resolve(self, root: Path) -> Config:
         """The same settings with relative paths taken from root (the folder of config.yaml)."""

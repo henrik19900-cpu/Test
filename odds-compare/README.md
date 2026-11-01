@@ -102,6 +102,30 @@ Sluttoddsen oppdateres hver gang du henter referanseodds før avspark. Hent derf
 
 Spilloggen kan lastes ned og opp som CSV. På Streamlit Cloud starter databasen på nytt når appen startes på nytt, så last den ned jevnlig.
 
+## Varsler
+
+`oddscompare watch` gjør én varslingsrunde, og GitHub Actions kjører den hvert 15. minutt (`.github/workflows/odds-alerts.yml`). Det er gratis, siden repoet er offentlig. Hver runde gjør dette:
+
+1. Henter Norsk Tippings odds. Det er gratis.
+2. Kjøper referanseodds (Pinnacle og konkurrentene) for kamper som starter innen 75 minutter og ikke er sjekket ennå. Det koster 1 kreditt per liga. Det samme skjer igjen hvis Norsk Tipping har hevet et utfall med 5 % siden forrige sjekk.
+3. Sender varsel til telefonen når et utfall har EV på minst 2 % mot Pinnacle, Pinnacles margin er høyst 6 %, referanseoddsen er fersk og Norsk Tipping ikke har flyttet seg siden. Hvert utfall varsles én gang, og igjen bare hvis EV har økt med minst ett prosentpoeng.
+
+Overvåkeren bruker høyst 20 kreditter per dag, og aldri de siste 30 i måneden. Grensene står under `alerts` i `config.yaml`. Den deler kredittene med knappen i appen.
+
+**Slik setter du det opp:**
+
+1. Installer appen **ntfy** (iPhone eller Android). Abonner på et emne med et hemmelig navn som ingen kan gjette, for eksempel `odds-` fulgt av 20 tilfeldige tegn. Server: `ntfy.sh`.
+2. Legg to hemmeligheter i repoet på GitHub under «Settings» → «Secrets and variables» → «Actions» → «New repository secret»:
+   - `THE_ODDS_API_KEY`: nøkkelen fra The Odds API
+   - `NTFY_TOPIC`: emnenavnet fra steg 1
+   - `NTFY_TOKEN` er valgfri: en tilgangsnøkkel fra en ntfy-konto. På gratisplanen gir den ingen høyere grense, så den trengs bare med betalt plan eller egen ntfy-server.
+3. Flett PR-en til `main`. GitHub kjører planlagte arbeidsflyter bare fra hovedbranchen.
+4. Test under «Actions» → «odds-alerts» → «Run workflow». Lokalt kan du sende et testvarsel med `NTFY_TOPIC=… oddscompare notify-test`.
+
+ntfy.sh tar imot 250 varsler i døgnet per IP-adresse på gratisplanen, også med konto, og grensen deles med alle som bruker samme adresse. Blir et varsel avvist, prøver overvåkeren igjen ved neste kjøring. GitHub gir hver kjøring en ny maskin, ofte med en annen adresse.
+
+Legg gjerne adressen til Streamlit-appen i `alerts.app_url`, så åpnes den når du trykker på varselet. GitHub setter planlagte arbeidsflyter på pause etter 60 dager uten aktivitet i repoet. Da starter du den igjen under «Actions». Feiler hentingen fra Norsk Tipping, blir kjøringen rød på GitHub, og du får e-post om det.
+
 ## Matching av kamper
 
 En Norsk Tipping-kamp er samme kamp som en referansekamp når begge lagnavn matcher og avsparkstiden er innenfor ±30 minutter. Hjemme og borte må stemme, så byttet rekkefølge regnes ikke som match.

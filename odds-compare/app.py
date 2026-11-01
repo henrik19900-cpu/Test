@@ -53,8 +53,11 @@ CSS = """
 .oc-ev.neg { background: #b42318; }
 .oc-ev.none { background: transparent; color: inherit; opacity: 0.6; }
 .oc-foot { font-size: 0.8rem; opacity: 0.8; margin-top: 0.5rem; }
-.oc-stale { color: #b42318; font-weight: 600; }
+.oc-stale { color: #b42318; font-weight: 600; font-size: 0.85rem; }
 .oc-best { font-size: 0.85rem; margin-top: 0.4rem; }
+.oc-pos { font-size: 0.78rem; opacity: 0.85; margin-top: 0.25rem; line-height: 1.25; }
+.oc-pos.top { color: #1e7b34; font-weight: 600; opacity: 1; }
+.oc-pos.bottom { color: #b42318; font-weight: 600; opacity: 1; }
 .oc-best b { font-variant-numeric: tabular-nums; }
 .oc-nt-best { color: #1e7b34; font-weight: 600; }
 table.oc-books { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
@@ -113,7 +116,8 @@ def card_html(
             f'<div class="oc-cell"><div class="oc-label">{label}</div>'
             f'<div class="oc-odds">{odds_text(card.nt_odds[i])}</div>'
             f'<div class="oc-fair">fair {odds_text(fair)}</div>'
-            f'<div class="oc-ev {dashboard.ev_class(ev)}">EV {percent(ev, signed=True)}</div></div>'
+            f'<div class="oc-ev {dashboard.ev_class(ev)}">EV {percent(ev, signed=True)}</div>'
+            f"{position_html(card, i)}</div>"
         )
     times = f"NT {local(card.nt_fetched, '%H:%M')}"
     if card.ref_fetched:
@@ -148,9 +152,35 @@ def card_html(
         f'<div class="oc-meta">{e(card.league)} · {local(card.kickoff_utc)}</div>'
         f'<div class="oc-row">{"".join(cells)}</div>'
         f"{best_line(card)}"
-        f'<div class="oc-foot">NT-margin {percent(card.nt_margin)} · referansemargin {percent(card.ref_margin)}'
+        f'<div class="oc-foot">NT-margin {percent(card.nt_margin)}{margin_place_text(card)} · referansemargin {percent(card.ref_margin)}'
         f"<br>Sist hentet: {times}</div>{warning}{missing}"
     )
+
+
+def position_html(card: dashboard.Card, i: int) -> str:
+    """Where Norsk Tipping's price stands among the bookmakers: «Best av 8», «Nr. 4 av 8 · −5 %», «Dårligst av 8»."""
+    position = card.position(i)
+    if position is None:
+        return ""
+    place, books, gap = position
+    if place == 1:
+        return f'<div class="oc-pos top">Best av {books}</div>'
+    behind = f"<br>{percent(gap, signed=True)} mot beste"
+    if card.nt_worst(i):
+        return f'<div class="oc-pos bottom">Dårligst av {books}{behind}</div>'
+    return f'<div class="oc-pos">Nr. {place} av {books}{behind}</div>'
+
+
+def margin_place_text(card: dashboard.Card) -> str:
+    place = card.margin_place()
+    if place is None:
+        return ""
+    rank, books = place
+    if rank == 1:
+        return f" (lavest av {books})"
+    if rank == books:
+        return f" (høyest av {books})"
+    return f" ({rank}. lavest av {books})"
 
 
 def best_line(card: dashboard.Card) -> str:
@@ -281,6 +311,106 @@ def verdict(estimate: bets.Estimate, what: str) -> str:
     if estimate.bets_needed:
         text += f" Holder snittet seg, trengs rundt {estimate.bets_needed} spill i alt."
     return text
+
+
+NT_COLOUR = "#2a78d6"  # the one bookmaker the chart is about
+OTHERS_COLOUR = "#a9a7a0"  # the rest, as context
+
+
+def market_tab(
+    cards: list[dashboard.Card], reference_name: str, competitors_at: datetime | None = None
+) -> None:
+    """How Norsk Tipping's odds compare with its competitors', over the matches in the filters."""
+    m = dashboard.market(cards, reference_name)
+    if not m.matches:
+        st.info("Ingen kamper med konkurrentenes odds ennå. De kommer med når du henter referanseodds.")
+        return
+    margins = dict((name, value) for name, value, _ in m.margins)
+    competitor_margins = [h.margin for h in m.head_to_head]
+    competitors_mean = sum(competitor_margins) / len(competitor_margins) if competitor_margins else None
+    st.markdown(
+        f"Norsk Tipping har **beste odds på {percent(m.best_share)}** av utfallene og dårligste på "
+        f"{percent(m.worst_share)}. I snitt er Norsk Tippings odds **{percent(-m.mean_gap)} lavere enn beste odds** "
+        f"i markedet. Marginen er {percent(margins.get('Norsk Tipping'))}, mot {percent(competitors_mean)} i snitt "
+        f"hos konkurrentene og {percent(margins.get(reference_name))} hos {reference_name}. "
+        f"Grunnlaget er {m.matches} kamper med konkurrentenes odds."
+    )
+    if competitors_at:
+        st.caption(
+            f"Konkurrentenes odds er fra sist referanseodds ble hentet ({local(competitors_at)}), mens Norsk Tippings "
+            "odds hentes oftere. Har oddsen flyttet seg siden, blir sammenligningen mindre presis: hent referanseodds "
+            "for et ferskt bilde."
+        )
+    top = st.columns(4)
+    top[0].metric(
+        "NT har beste odds", percent(m.best_share), help="Andel av utfallene, også når prisen er delt beste"
+    )
+    top[1].metric(
+        "NT har dårligste odds",
+        percent(m.worst_share),
+        help="Andel av utfallene, også når prisen er delt dårligste",
+    )
+    top[2].metric(
+        "NT mot beste odds",
+        percent(m.mean_gap, signed=True),
+        help="Norsk Tippings odds mot beste odds, i snitt per utfall",
+    )
+    top[3].metric(
+        "NT-margin / konkurrenter", f"{percent(margins.get('Norsk Tipping'))} / {percent(competitors_mean)}"
+    )
+
+    names = [name for name, _, _ in m.margins]
+    values = [value * 100 for _, value, _ in m.margins]
+    labelled = {"Norsk Tipping", names[0], names[-1]}  # the one the chart is about, and the two ends
+    figure = go.Figure(
+        go.Bar(
+            x=values,
+            y=names,
+            orientation="h",
+            marker={
+                "color": [NT_COLOUR if n == "Norsk Tipping" else OTHERS_COLOUR for n in names],
+                "cornerradius": 4,
+            },
+            text=[f"{v:.1f} %" if n in labelled else "" for n, v in zip(names, values, strict=True)],
+            textposition="outside",
+            customdata=[count for _, _, count in m.margins],
+            hovertemplate="%{y}: %{x:.1f} % snittmargin over %{customdata} kamper<extra></extra>",
+        )
+    )
+    figure.update_layout(
+        title={"text": "Snittmargin per bookmaker (lavere er bedre for deg)", "font": {"size": 15}},
+        height=60 + 34 * len(names),
+        margin={"l": 10, "r": 40, "t": 50, "b": 30},
+        xaxis={"title": "Margin (%)", "rangemode": "tozero", "gridcolor": "rgba(128,128,128,0.2)"},
+        yaxis={"autorange": "reversed"},
+        separators=", ",
+        bargap=0.35,
+        showlegend=False,
+    )
+    st.plotly_chart(figure, width="stretch", key="market-margins")
+
+    st.markdown("**Norsk Tipping mot hver konkurrent**, på utfallene begge har odds på")
+    st.dataframe(
+        [
+            {
+                "Konkurrent": h.name,
+                "Utfall": h.outcomes,
+                "NT høyere odds": percent(h.nt_higher / h.outcomes),
+                "Like": percent(h.equal / h.outcomes),
+                "NT lavere odds": percent(h.nt_lower / h.outcomes),
+                "NT-odds i snitt": percent(h.mean_gap, signed=True),
+                "Deres margin": percent(h.margin),
+                "NT-margin": percent(h.nt_margin),
+            }
+            for h in m.head_to_head
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+    st.caption(
+        "«NT-odds i snitt» er Norsk Tippings odds mot konkurrentens på samme utfall: −4 % betyr at du i snitt får 4 % "
+        "lavere odds hos Norsk Tipping. Marginene er regnet på de samme kampene, så de kan sammenlignes rad for rad."
+    )
 
 
 def bets_tab(conn) -> None:
@@ -540,7 +670,9 @@ def main() -> None:
             if now - last > stale_after:
                 st.warning(f"{name}: siste vellykkede henting var {local(last)}. Kjører `oddscompare run`?")
 
-    matches_tab, my_bets_tab, unmatched_tab = st.tabs(["Kamper", "Mine spill", "Umatchede kamper"])
+    matches_tab, market_tab_, my_bets_tab, unmatched_tab = st.tabs(
+        ["Kamper", "NT mot markedet", "Mine spill", "Umatchede kamper"]
+    )
     with matches_tab:
         cards = dashboard.sort_cards(dashboard.filter_cards(all_cards, leagues, min_ev, show_all), order)
         stats = dashboard.summary([c for c in all_cards if not leagues or c.league in leagues])
@@ -580,6 +712,13 @@ def main() -> None:
             if st.button(f"Vis flere ({len(cards) - shown} til)"):
                 st.session_state["shown"] = shown + PAGE_SIZE
                 st.rerun()
+
+    with market_tab_:
+        market_tab(
+            [c for c in all_cards if not leagues or c.league in leagues],
+            reference_name,
+            dashboard.last_success(conn, reference),
+        )
 
     with my_bets_tab:
         bets_tab(conn)

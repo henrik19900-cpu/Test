@@ -431,3 +431,91 @@ def test_a_card_warns_when_norsk_tipping_moved_after_the_reference(conn):
     store(conn, (4.10, 3.85, 1.77), None, when=NOW + timedelta(hours=16))  # moved, as Wrexham did 31.10
     [card] = dashboard.load_cards(conn, "odds_api_io", "proportional", NOW, NOW + timedelta(days=7))
     assert card.nt_moved
+
+
+def card_with_competitors(nt, books, ref=None):
+    return dashboard.Card(
+        event_id=1, league="L", home="A", away="B", kickoff_utc=KICKOFF, nt_odds=list(nt), nt_fetched=NOW,
+        ref_odds=list(ref) if ref else None, competitors={f"the_odds_api:{k}": list(v) for k, v in books.items()},
+    )  # fmt: skip
+
+
+def test_where_norsk_tipping_stands_on_each_outcome():
+    card = card_with_competitors(
+        (4.10, 3.85, 1.77), {"betsson": (4.20, 3.80, 1.80), "unibet_se": (4.10, 3.70, 1.85)}
+    )
+    assert card.position(0) == (2, 3, pytest.approx(4.10 / 4.20 - 1))  # Betsson higher; Unibet equal
+    assert card.position(1) == (1, 3, 0.0)  # best
+    assert card.position(2)[0] == 3 and card.nt_worst(2)
+    assert card.nt_worst(0)  # shares the lowest price with Unibet, as a shared best price counts as best
+    assert not card.nt_worst(1)
+    assert card.margin_place() == (3, 3)  # the highest margin of the three
+    assert card_with_competitors((2, 3, 4), {}).position(0) is None
+
+
+def test_the_market_summary():
+    cards = [
+        card_with_competitors(
+            (2.00, 3.40, 3.80),
+            {"betsson": (2.10, 3.40, 3.70), "unibet_se": (2.05, 3.30, 3.90)},
+            ref=(2.08, 3.55, 4.00),
+        ),
+        card_with_competitors((1.50, 4.00, 6.00), {"betsson": (1.55, 4.10, 6.50)}),
+        card_with_competitors((2.50, 3.00, 3.00), {}),  # no competitors: left out
+    ]
+    m = dashboard.market(cards)
+    assert (m.matches, m.outcomes) == (2, 6)
+    assert m.best_share == pytest.approx(1 / 6)  # only the draw in the first match, shared with Betsson
+    assert m.worst_share == pytest.approx(4 / 6)
+    names = [name for name, _, _ in m.margins]
+    assert names[0] == "Pinnacle" and set(names) == {"Norsk Tipping", "Pinnacle", "Betsson", "Unibet"}
+    betsson = next(h for h in m.head_to_head if h.name == "Betsson")
+    assert (betsson.outcomes, betsson.nt_higher, betsson.equal, betsson.nt_lower) == (6, 1, 1, 4)
+    assert betsson.mean_gap < 0 and betsson.nt_margin > betsson.margin
+    empty = dashboard.market([])
+    assert empty.best_share is None and empty.margins == [] and empty.head_to_head == []
+
+
+def test_the_market_tab_and_the_positions_on_the_cards(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    conn = db.connect(tmp_path / "data" / "odds.db")
+    now = datetime.now(UTC)
+    db.log_fetch(conn, "norsk_tipping", now, "ok", 1)
+    nt = raw_event(
+        source_event_id="m1",
+        kickoff_utc=now + timedelta(days=1),
+        odds={"home": 2.00, "draw": 3.40, "away": 3.80},
+    )
+    event_id = db.create_event(conn, nt)
+    db.link(conn, nt, event_id)
+    db.add_snapshot(conn, event_id, nt, now)
+    for key, (h, d, a) in {
+        "betsson": (2.10, 3.40, 3.70),
+        "unibet_se": (2.05, 3.30, 3.90),
+        "coolbet": (2.08, 3.35, 3.75),
+    }.items():
+        db.add_snapshot(
+            conn,
+            event_id,
+            nt.model_copy(
+                update={"source": f"the_odds_api:{key}", "odds": {"home": h, "draw": d, "away": a}}
+            ),
+            now,
+        )
+    ref = nt.model_copy(update={"source": "the_odds_api", "odds": {"home": 2.08, "draw": 3.55, "away": 4.00}})
+    db.add_snapshot(conn, event_id, ref, now)
+    conn.commit()
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    app.toggle[0].set_value(True).run()
+    [card] = [m.value for m in app.markdown if 'class="oc-teams"' in m.value]
+    assert "Dårligst av 4" in card and "Best av 4" in card and "Nr. 2 av 4" in card
+    assert "(høyest av 4)" in card
+    [tab] = [t for t in app.tabs if t.label == "NT mot markedet"]
+    assert [m.label for m in tab.metric][:2] == ["NT har beste odds", "NT har dårligste odds"]
+    assert any("beste odds på" in m.value for m in tab.markdown)
+    assert tab.get("plotly_chart") and tab.dataframe

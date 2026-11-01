@@ -102,6 +102,29 @@ class Card:
         """Norsk Tipping's price as a share of the best price on the market, at its closest outcome (1 = best)."""
         return max(nt / best for nt, (best, _) in zip(self.nt_odds, self.best_prices(), strict=True))
 
+    def position(self, i: int) -> tuple[int, int, float] | None:
+        """Where Norsk Tipping's price on outcome i stands among it and its competitors.
+
+        Returns (place, bookmakers, gap): place 1 is the best price (ties share a place), and gap is
+        Norsk Tipping's price against the best one (-0.05 is 5 % lower). None without competitors."""
+        if not self.competitors:
+            return None
+        nt = self.nt_odds[i]
+        others = [odds[i] for odds in self.competitors.values()]
+        return 1 + sum(o > nt for o in others), 1 + len(others), nt / max([nt, *others]) - 1
+
+    def nt_worst(self, i: int) -> bool:
+        """Every competitor offers at least as much on outcome i, and one offers more."""
+        others = [odds[i] for odds in self.competitors.values()]
+        return bool(others) and min(others) >= self.nt_odds[i] < max(others)
+
+    def margin_place(self) -> tuple[int, int] | None:
+        """How many of Norsk Tipping and its competitors have a lower margin, as (place, bookmakers)."""
+        if not self.competitors:
+            return None
+        margins = [calc.margin(o) for o in self.competitors.values()]
+        return 1 + sum(m < self.nt_margin for m in margins), 1 + len(margins)
+
     def best_prices(self) -> list[tuple[float, list[str]]]:
         """Per outcome: the highest price among Norsk Tipping and its competitors, and who offers it."""
         books = {NT: self.nt_odds, **self.competitors}
@@ -264,6 +287,72 @@ def summary(cards: list[Card]) -> dict[str, float | int | None]:
         "nt_margin": sum(c.nt_margin for c in priced) / len(priced) if priced else None,
         "ref_margin": sum(c.ref_margin for c in priced) / len(priced) if priced else None,
     }
+
+
+@dataclass
+class HeadToHead:
+    """Norsk Tipping against one competitor, over the outcomes both price."""
+
+    name: str
+    outcomes: int
+    nt_higher: int
+    equal: int
+    nt_lower: int
+    mean_gap: float  # Norsk Tipping's odds against the competitor's (-0.03 is 3 % lower)
+    margin: float  # the competitor's average margin on these matches
+    nt_margin: float  # Norsk Tipping's average margin on the same matches
+
+
+@dataclass
+class Market:
+    """How Norsk Tipping's prices compare with its competitors' and the reference's."""
+
+    matches: int  # with competitors' odds
+    outcomes: int
+    best_share: float | None  # outcomes where Norsk Tipping has the best price (alone or shared)
+    worst_share: float | None  # outcomes where it has the lowest price
+    mean_gap: float | None  # its price against the best price, on average
+    margins: list[tuple[str, float, int]]  # (bookmaker, average margin, matches), lowest margin first
+    head_to_head: list[HeadToHead]
+
+
+def market(cards: list[Card], reference_name: str = "Pinnacle") -> Market:
+    compared = [c for c in cards if c.competitors]
+    places = [(c, i) for c in compared for i in range(len(OUTCOMES))]
+    margins: dict[str, list[float]] = {"Norsk Tipping": [c.nt_margin for c in compared]}
+    if any(c.ref_odds for c in compared):
+        margins[reference_name] = [c.ref_margin for c in compared if c.ref_odds]
+    pairs: dict[str, list[tuple[list[float], list[float]]]] = {}
+    for c in compared:
+        for source, odds in c.competitors.items():
+            name = bookmaker_name(source)
+            margins.setdefault(name, []).append(calc.margin(odds))
+            pairs.setdefault(name, []).append((c.nt_odds, odds))
+    head_to_head = []
+    for name, matches in pairs.items():
+        diffs = [nt[i] / theirs[i] - 1 for nt, theirs in matches for i in range(len(OUTCOMES))]
+        head_to_head.append(
+            HeadToHead(
+                name=name,
+                outcomes=len(diffs),
+                nt_higher=sum(d > 0 for d in diffs),
+                equal=sum(d == 0 for d in diffs),
+                nt_lower=sum(d < 0 for d in diffs),
+                mean_gap=sum(diffs) / len(diffs),
+                margin=sum(calc.margin(theirs) for _, theirs in matches) / len(matches),
+                nt_margin=sum(calc.margin(nt) for nt, _ in matches) / len(matches),
+            )
+        )
+    head_to_head.sort(key=lambda h: h.mean_gap)
+    return Market(
+        matches=len(compared),
+        outcomes=len(places),
+        best_share=sum(c.position(i)[0] == 1 for c, i in places) / len(places) if places else None,
+        worst_share=sum(c.nt_worst(i) for c, i in places) / len(places) if places else None,
+        mean_gap=sum(c.position(i)[2] for c, i in places) / len(places) if places else None,
+        margins=sorted(((n, sum(v) / len(v), len(v)) for n, v in margins.items() if v), key=lambda m: m[1]),
+        head_to_head=head_to_head,
+    )
 
 
 def ev_class(ev: float | None) -> str:

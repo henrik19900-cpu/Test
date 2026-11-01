@@ -73,6 +73,7 @@ def test_reference_odds_are_bought_only_for_matches_starting_soon_and_good_ones_
     report = run(cfg, conn, sent, FakeNT(), ref)
     assert ref.calls == [["Wrexham AFC"]]  # not Brann – Molde, five hours away
     assert report.due == 1
+    assert (report.fetch.matched, report.fetch.unmatched) == (1, 0)  # Brann – Molde was not asked for
     [message] = sent
     assert message["title"] == "Verdispill: Wrexham – Middlesbrough"
     assert "Hjemmeseier hos Norsk Tipping: 2,30" in message["message"] and "EV +" in message["message"]
@@ -194,6 +195,22 @@ def test_the_summary_says_when_the_reference_failed(setup):
     assert "feilet (se over)" in report.summary() and sent == []
     assert not report.ok  # a rejected key makes the run red on GitHub
     assert run(cfg, conn, sent, FakeNT(), FakeReference()).ok
+
+
+def test_credits_spent_come_from_what_the_api_said_each_call_cost(setup):
+    cfg, conn, sent = setup
+
+    class Counting(FakeReference):
+        def fetch(self, days_ahead, want=None):
+            bought = super().fetch(days_ahead, want)
+            self.spent = 7 if bought else 0
+            return bought
+
+    report = run(cfg, conn, sent, FakeNT(), Counting())  # no credits left on record yet: the first run
+    assert report.credits_spent == 7 and "7 kreditter" in report.summary()
+    assert (
+        conn.execute("SELECT SUM(credits) FROM credits_spent").fetchone()[0] == 7
+    )  # counts for the daily cap
 
 
 def test_secrets_pasted_with_spaces_or_a_line_break_still_work(monkeypatch):

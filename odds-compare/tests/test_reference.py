@@ -226,7 +226,9 @@ class FakeTheOddsApi:
         events = self.LEAGUES[league]
         if kind == "events":  # free: no credits
             listed = [{k: v for k, v in e.items() if k != "bookmakers"} for e in events]
-            return httpx.Response(200, json=listed, headers={"x-requests-remaining": str(self.credits)})
+            return httpx.Response(
+                200, json=listed, headers={"x-requests-remaining": str(self.credits), "x-requests-last": "0"}
+            )
         bookmakers = params["bookmakers"].split(",")
         assert (
             bookmakers[0] == "pinnacle" and len(bookmakers) <= 10
@@ -237,7 +239,7 @@ class FakeTheOddsApi:
         return httpx.Response(
             200,
             json=[e for e in events if e["id"] in ids],
-            headers={"x-requests-remaining": str(self.credits)},
+            headers={"x-requests-remaining": str(self.credits), "x-requests-last": "1"},
         )
 
 
@@ -265,7 +267,7 @@ def test_the_odds_api_spends_credits_only_on_leagues_with_wanted_matches(tmp_pat
     assert [p for p, _ in odds_calls] == ["/sports/soccer_epl/odds", "/sports/soccer_norway_eliteserien/odds"]
     assert odds_calls[0][1]["eventIds"] == "e1"  # only the wanted match
     assert api.requests[0][1]["commenceTimeFrom"] == "2026-10-31T05:00:00Z"
-    assert source.remaining == 498 and source.fetched_at == NOW
+    assert source.remaining == 498 and source.spent == 2 and source.fetched_at == NOW
 
 
 def test_a_second_request_within_five_minutes_reuses_the_answer(tmp_path):
@@ -275,7 +277,7 @@ def test_a_second_request_within_five_minutes_reuses_the_answer(tmp_path):
     first = source.fetch(7)
     calls = len(api.requests)
     now[0] = NOW + timedelta(minutes=4)  # a double click
-    assert source.fetch(7) == first and len(api.requests) == calls  # no credits spent
+    assert source.fetch(7) == first and len(api.requests) == calls and source.spent == 0  # no credits spent
     assert source.fetched_at == NOW  # and the odds keep the time they were fetched
     now[0] = NOW + timedelta(minutes=6)
     source.fetch(7)

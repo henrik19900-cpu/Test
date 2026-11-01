@@ -135,15 +135,12 @@ def run_once(
 
         if not include_reference:
             return report
+        if reference_for is not None:  # the other matches were not asked for, so they are not unmatched
+            anchors = [(a, event_id) for a, event_id in anchors if reference_for(a)]
         ref_events = _attempt(
             conn,
             reference.name,
-            lambda: reference.fetch(
-                cfg.days_ahead,
-                want=matcher.worth_fetching(
-                    [a for a, _ in anchors if reference_for is None or reference_for(a)]
-                ),
-            ),
+            lambda: reference.fetch(cfg.days_ahead, want=matcher.worth_fetching([a for a, _ in anchors])),
             report,
             sleep,
             clock,

@@ -69,7 +69,8 @@ class WatchReport:
             lines.append(f"Referanseodds for {self.due} kamper som starter snart feilet (se over).")
         elif self.due:
             lines.append(
-                f"Referanseodds for {self.due} kamper som starter snart: {self.credits_spent} kreditter."
+                f"Referanseodds for {self.due} kamper som starter snart: {self.credits_spent} "
+                f"{'kreditt' if self.credits_spent == 1 else 'kreditter'}."
             )
         else:
             lines.append("Ingen kamper trengte referanseodds nå.")
@@ -119,7 +120,10 @@ def watch(
             report.fetch.credits_left = ref_report.credits_left
             report.fetch.competitors = ref_report.competitors
             after = getattr(reference, "remaining", None)
-            if before is not None and after is not None and before >= after:
+            spent = getattr(reference, "spent", None)
+            if spent is not None:  # what the API said each call cost; right on the first run, too
+                report.credits_spent = spent
+            elif before is not None and after is not None and before >= after:
                 report.credits_spent = before - after
             with db.transaction(conn):
                 conn.execute(

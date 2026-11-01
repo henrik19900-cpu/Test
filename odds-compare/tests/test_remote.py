@@ -124,3 +124,19 @@ def test_kickoff_is_kept_as_utc(conn, fresh):
     remote.backup_bets(conn, store, None)
     remote.restore_bets(fresh, store)
     assert db.parse_iso(bets.all_bets(fresh)[0]["kickoff_utc"]) == KICKOFF
+
+
+def test_errors_never_show_the_address_or_password():
+    url = "postgressql://neondb_owner:npg_secret123@ep-x-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+    error = Exception(f'invalid connection option "{url[:-8]}"')  # as psycopg said it, cut at «=»
+    text = remote.safe_error(error, url)
+    assert "npg_secret123" not in text and "neondb_owner" not in text and "postgressql://" not in text
+    assert text.startswith("Exception: invalid connection option")
+    assert "secret" not in remote.safe_error(Exception("host=x password=secret user=u"))
+
+
+def test_an_address_that_is_not_postgres_is_refused_without_being_shown():
+    store = remote.PostgresStore("postgressql://user:npg_secret123@host/db")  # a typo: two s
+    with pytest.raises(ValueError, match="postgresql://") as raised:
+        store.get(remote.BETS)
+    assert "npg_secret123" not in str(raised.value)

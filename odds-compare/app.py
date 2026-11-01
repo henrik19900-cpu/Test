@@ -512,7 +512,7 @@ def sync_bet_log(conn) -> dict | None:
         state["digest"] = remote.backup_bets(conn, store, state["digest"])
         state["error"] = None
     except Exception as e:  # noqa: BLE001  (the bet log here still works; it is written next time)
-        state["error"] = f"{type(e).__name__}: {e}"
+        state["error"] = remote.safe_error(e, store.url)  # never the address or password
     return state
 
 

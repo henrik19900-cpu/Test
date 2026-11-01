@@ -120,7 +120,7 @@ Overvåkeren bruker høyst 20 kreditter per dag, og aldri de siste 30 i måneden
    - `NTFY_TOPIC`: emnenavnet fra steg 1
    - `NTFY_TOKEN` er valgfri: en tilgangsnøkkel fra en ntfy-konto. På gratisplanen gir den ingen høyere grense, så den trengs bare med betalt plan eller egen ntfy-server.
 3. Flett PR-en til `main`. GitHub kjører planlagte arbeidsflyter bare fra hovedbranchen.
-4. Test under «Actions» → «odds-alerts» → «Run workflow». Lokalt kan du sende et testvarsel med `NTFY_TOPIC=… oddscompare notify-test`.
+4. Test under «Actions» → «odds-alerts» → «Run workflow». Kryss av for «Send ett testvarsel nå», så får du ett varsel merket «TEST» for det beste utfallet akkurat nå, uansett terskel (eller et vanlig testvarsel når ingen kamp har referanseodds ennå). Lokalt: `oddscompare watch --test`, eller `oddscompare notify-test` for bare et testvarsel.
 
 ntfy.sh tar imot 250 varsler i døgnet per IP-adresse på gratisplanen, også med konto, og grensen deles med alle som bruker samme adresse. Blir et varsel avvist, prøver overvåkeren igjen ved neste kjøring. GitHub gir hver kjøring en ny maskin, ofte med en annen adresse.
 

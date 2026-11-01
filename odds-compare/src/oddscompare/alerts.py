@@ -54,11 +54,14 @@ class WatchReport:
     reference_skipped: str | None = None  # why reference odds were not bought, when they were due
     credits_spent: int = 0
     sent: list[Opportunity] = field(default_factory=list)
+    test_sent: str | None = None  # the title of the test alert, when one was asked for and sent
+    test_error: str | None = None  # why the test alert did not reach ntfy
 
     @property
     def ok(self) -> bool:
-        """Every source answered (a changed site or a rejected key makes the run red on GitHub)."""
-        return self.fetch is None or all(s.status == "ok" for s in self.fetch.sources)
+        """Every source answered, and a test alert got through (else the run is red on GitHub)."""
+        sources_ok = self.fetch is None or all(s.status == "ok" for s in self.fetch.sources)
+        return sources_ok and self.test_error is None
 
     def summary(self) -> str:
         lines = [fetch.summary(self.fetch)] if self.fetch else []
@@ -76,6 +79,10 @@ class WatchReport:
             lines.append("Ingen kamper trengte referanseodds nå.")
         lines.append(f"Varsler sendt: {len(self.sent)}.")
         lines += [f"  {opportunity_title(o)}: {opportunity_line(o)}" for o in self.sent]
+        if self.test_sent:
+            lines.append(f"Testvarsel sendt: {self.test_sent}")
+        if self.test_error:
+            lines.append(f"Testvarselet feilet: {self.test_error}")
         return "\n".join(lines)
 
 
@@ -87,7 +94,9 @@ def watch(
     reference=None,
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     sleep=None,
+    test: bool = False,
 ) -> WatchReport:
+    """One round. With test, also one alert for the best outcome right now, whatever the thresholds."""
     a = cfg.alerts
     cfg = cfg.model_copy(update={"days_ahead": a.days_ahead})  # alerts look only a little ahead
     now = clock()
@@ -141,6 +150,13 @@ def watch(
             continue
         report.sent.append(opportunity)
         _mark_sent(conn, opportunity, now)
+    if test:  # not recorded as sent: a real alert for the same outcome still comes
+        message = test_notification(best_outcome(conn, cfg, now), cfg)
+        try:
+            notify(message)
+            report.test_sent = message["title"]
+        except Exception as e:  # noqa: BLE001
+            report.test_error = describe_failure(e)
     db.prune(conn, a.keep_days, now=now)
     return report
 
@@ -184,20 +200,22 @@ def _budget_problem(conn: sqlite3.Connection, cfg: config.Config, now: datetime)
     return None
 
 
-def opportunities(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -> list[Opportunity]:
-    """Outcomes worth a notification now, best EV first."""
-    a = cfg.alerts
-    reference = cfg.reference.source
-    cards = dashboard.load_cards(
+def _cards(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -> list[dashboard.Card]:
+    return dashboard.load_cards(
         conn,
-        reference,
+        cfg.reference.source,
         cfg.margin_method,
         now,
         now + timedelta(days=cfg.days_ahead),
         fetch.competitor_sources(cfg),
     )
+
+
+def opportunities(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -> list[Opportunity]:
+    """Outcomes worth a notification now, best EV first."""
+    a = cfg.alerts
     found = []
-    for card in cards:
+    for card in _cards(conn, cfg, now):
         if (
             not card.ref_odds
             or card.ev is None
@@ -208,6 +226,17 @@ def opportunities(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -
             continue
         found += [Opportunity(card, i) for i in range(len(OUTCOMES)) if card.ev[i] >= a.min_ev]
     return sorted(found, key=lambda o: -o.ev)
+
+
+def best_outcome(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -> Opportunity | None:
+    """The upcoming outcome with the best EV against the reference's latest odds, however low or old."""
+    found = [
+        Opportunity(card, i)
+        for card in _cards(conn, cfg, now)
+        if card.ref_odds and card.ev is not None
+        for i in range(len(OUTCOMES))
+    ]
+    return max(found, key=lambda o: o.ev, default=None)
 
 
 def _already_sent(conn: sqlite3.Connection, o: Opportunity) -> bool:
@@ -307,6 +336,21 @@ def describe_failure(error: Exception) -> str:
             return f"ntfy.sh avviste tilgangsnøkkelen eller emnet ({status}). Sjekk NTFY_TOKEN og NTFY_TOPIC."
         return f"ntfy.sh svarte {status}."
     return f"ntfy.sh svarte ikke ({type(error).__name__})."
+
+
+def test_notification(o: Opportunity | None, cfg: config.Config) -> dict:
+    """A real alert for the best outcome now, marked as a test; the plain test message without one."""
+    if o is None:
+        return test_message(cfg)
+    message = notification(o, cfg)
+    fetched = o.card.ref_fetched.astimezone(dashboard.OSLO).strftime("%d.%m kl. %H:%M")
+    message["title"] = f"TEST – {message['title']}"
+    message["message"] += (
+        f"\nTestvarsel: beste utfall nå, uansett terskel (referanseodds fra {fetched}). "
+        f"Ekte varsler kommer ved EV på minst {_pct(cfg.alerts.min_ev)}."
+    )
+    message["priority"] = 3
+    return message
 
 
 def test_message(cfg: config.Config) -> dict:

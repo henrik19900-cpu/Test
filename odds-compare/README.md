@@ -104,7 +104,7 @@ Spilloggen kan lastes ned og opp som CSV. På Streamlit Cloud starter databasen 
 
 ## Varsler
 
-`oddscompare watch` gjør én varslingsrunde, og GitHub Actions kjører den hvert 15. minutt (`.github/workflows/odds-alerts.yml`). Det er gratis, siden repoet er offentlig. Hver runde gjør dette:
+`oddscompare watch` gjør én varslingsrunde. GitHub Actions kjører den hvert 15. minutt mellom 10 og 22 norsk vintertid (11 og 23 sommertid), altså 09–21 UTC, når ligaene spiller (`.github/workflows/odds-alerts.yml`). Det er gratis: et privat repo får 2 000 Actions-minutter i måneden, og hver kjøring teller som ett minutt. Det blir rundt 1 450 minutter i måneden. Hele døgnet ville blitt rundt 2 900. Er repoet offentlig, er minuttene gratis uten grense, og du kan endre `cron` til `"4,19,34,49 * * * *"`. Hver runde gjør dette:
 
 1. Henter Norsk Tippings odds. Det er gratis.
 2. Kjøper referanseodds (Pinnacle og konkurrentene) for kamper som starter innen 75 minutter og ikke er sjekket ennå. Det koster 1 kreditt per liga. Det samme skjer igjen hvis Norsk Tipping har hevet et utfall med 5 % siden forrige sjekk.

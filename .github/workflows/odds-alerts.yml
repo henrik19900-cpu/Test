@@ -1,13 +1,16 @@
 name: odds-alerts
 
-# Every 15 minutes: Norsk Tipping's odds (free), reference odds for the matches starting soon (one credit
-# per league), and a phone notification through ntfy when a bet is worth it. See odds-compare/README.md,
-# «Varsler». Until the secrets THE_ODDS_API_KEY and NTFY_TOPIC are set (Settings → Secrets and variables →
-# Actions), this does nothing. GitHub runs scheduled workflows from the default branch only, and pauses
-# them after 60 days without activity in the repository.
+# Every 15 minutes in the daytime: Norsk Tipping's odds (free), reference odds for the matches starting soon
+# (one credit per league), and a phone notification through ntfy when a bet is worth it. See
+# odds-compare/README.md, «Varsler». Until the secrets THE_ODDS_API_KEY and NTFY_TOPIC are set (Settings →
+# Secrets and variables → Actions), this does nothing. GitHub runs scheduled workflows from the default
+# branch only, and pauses them after 60 days without activity in the repository.
 on:
   schedule:
-    - cron: "4,19,34,49 * * * *"
+    # 09:04–20:49 UTC, 48 runs a day: 10–22 in Norway in winter, 11–23 in summer, which covers the leagues'
+    # kick-offs (reference odds are bought 75 minutes before). A private repository gets 2,000 free minutes a
+    # month and each run counts as one, so this is about 1,450; round the clock would be about 2,900.
+    - cron: "4,19,34,49 9-20 * * *"
   workflow_dispatch:
     inputs:
       test_alert:

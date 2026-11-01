@@ -114,6 +114,10 @@ class AlertsConfig(BaseModel):
     min_ev: float = 0.02  # an outcome needs at least this EV against the reference
     max_reference_margin: float = 0.06  # and the reference's own margin at most this
     lead_minutes: float = Field(75, gt=0)  # reference odds are bought for matches starting within this
+    # and once before that, this long before kick-off (0: no early check), while the day has spent less than
+    # early_credit_share of max_credits_per_day, so the late check, the more precise one, always has credits
+    early_lead_minutes: float = Field(180, ge=0)
+    early_credit_share: float = Field(0.5, ge=0, le=1)
     nt_jump: float = Field(0.05, gt=0)  # or when Norsk Tipping raises an outcome by this since the last check
     fresh_minutes: float = Field(30, gt=0)  # alerts only on reference odds at most this old
     max_credits_per_day: int = Field(20, ge=0)

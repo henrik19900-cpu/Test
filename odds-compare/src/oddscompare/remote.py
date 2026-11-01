@@ -11,8 +11,10 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import re
 import sqlite3
 from typing import Protocol
+from urllib.parse import urlsplit
 
 from . import bets, config
 
@@ -40,6 +42,10 @@ class PostgresStore:
         self.timeout_seconds = timeout_seconds
 
     def _connect(self):
+        if not self.url.startswith(SCHEMES):  # psycopg would read it as key=value options and print it all
+            raise ValueError(
+                "DATABASE_URL skal begynne med postgresql:// – sjekk at adressen er kopiert riktig fra Neon"
+            )
         import psycopg  # only needed with DATABASE_URL
 
         conn = psycopg.connect(self.url, connect_timeout=int(self.timeout_seconds), autocommit=True)
@@ -58,6 +64,26 @@ class PostgresStore:
                    ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = now()""",
                 (key, value),
             )
+
+
+SCHEMES = ("postgresql://", "postgres://")
+
+
+def safe_error(error: Exception, url: str | None = None) -> str:
+    """The error as text for the page, without the database's address or password: psycopg puts the
+    connection string in some of its messages."""
+    text = f"{type(error).__name__}: {error}"
+    hidden = [url] if url else []
+    try:
+        password = urlsplit(url).password if url else None
+    except ValueError:
+        password = None
+    if password:
+        hidden.append(password)
+    for secret in sorted(hidden, key=len, reverse=True):
+        text = text.replace(secret, "***")
+    text = re.sub(r"[A-Za-z][A-Za-z0-9+.-]*://\S+", "***", text)  # any other address
+    return re.sub(r"(password|passwd)\s*=\s*\S+", r"\1=***", text, flags=re.I)
 
 
 def store_from_env() -> PostgresStore | None:

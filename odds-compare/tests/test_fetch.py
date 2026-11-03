@@ -288,3 +288,23 @@ def test_oddslink_is_built_with_the_odds_api_as_its_fallback_when_that_key_is_se
     assert isinstance(reference, OddsLink)
     sources = fetch.competitor_sources(cfg)
     assert "oddslink:unibet" in sources and "oddslink:betsson" in sources  # what the fallback brings, too
+    assert len(sources) == len(set(sources)) and "oddslink:unibet_se" not in sources  # one Unibet
+    assert "oddslink:sport888" not in sources and "oddslink:888sport" in sources
+
+
+def test_the_fallback_can_be_asked_in_oddslinks_place_only_with_its_key(tmp_path, monkeypatch):
+    from oddscompare.sources.reference import FallbackReference
+
+    (tmp_path / "config.yaml").write_text("reference:\n  source: oddslink\n", encoding="utf-8")
+    cfg = config.load(tmp_path / "config.yaml")
+    monkeypatch.delenv("THE_ODDS_API_KEY", raising=False)
+    assert not fetch.fallback_available(cfg) and fetch.fallback_reference(cfg) is None
+    monkeypatch.setenv("THE_ODDS_API_KEY", "fake-key")
+    reference = fetch.fallback_reference(cfg)
+    assert (
+        isinstance(reference, FallbackReference) and reference.fallback_only and reference.name == "oddslink"
+    )
+    (tmp_path / "config.yaml").write_text("reference:\n  source: the_odds_api\n", encoding="utf-8")
+    assert (
+        fetch.fallback_reference(config.load(tmp_path / "config.yaml")) is None
+    )  # it is the reference already

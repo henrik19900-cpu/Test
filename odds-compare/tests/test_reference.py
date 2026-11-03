@@ -463,6 +463,31 @@ def test_the_fallback_answers_when_oddslink_fails_and_its_odds_are_stored_as_odd
     assert reference.spent == 2 and reference.remaining == 12  # the reserve is about OddsLink's allowance
 
 
+def test_the_fallback_can_be_asked_in_oddslinks_place(tmp_path):
+    """The button for when OddsLink lacks a bookmaker's odds: OddsLink is not asked, and is not spent."""
+    oddslink = FakeOddsLink()
+    backup = Backup()
+    backup.remaining = 480
+    reference = FallbackReference(make_oddslink(oddslink, tmp_path), backup, fallback_only=True)
+    [event] = reference.fetch(2)
+    assert oddslink.requests == [] and backup.calls == 1 and reference.used == "the_odds_api"
+    assert event.source == "oddslink" and reference.remaining == 480  # The Odds API's credits, now spent
+
+
+def test_the_fallbacks_unibet_is_stored_as_oddslinks_so_a_match_has_one_unibet():
+    backup = Backup()
+    unibet = backup.competitor_odds[0].model_copy(update={"source": "the_odds_api:unibet_se"})
+    sport888 = backup.competitor_odds[0].model_copy(update={"source": "the_odds_api:sport888"})
+    backup.competitor_odds += [unibet, sport888]
+    reference = FallbackReference(Failing(), backup)
+    reference.fetch(2)
+    assert [c.source for c in reference.competitor_odds] == [
+        "oddslink:betsson",
+        "oddslink:unibet",
+        "oddslink:888sport",
+    ]
+
+
 def test_the_fallback_is_not_asked_when_oddslink_answers(tmp_path):
     backup = Backup()
     reference = FallbackReference(make_oddslink(FakeOddsLink(), tmp_path), backup)

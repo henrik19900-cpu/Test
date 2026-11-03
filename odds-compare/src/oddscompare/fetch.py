@@ -22,7 +22,7 @@ from . import bets, config, db
 from .matching import Aliases, Matcher
 from .sources import RawEvent, ReferenceSource, SourceError
 from .sources.nt import NorskTipping
-from .sources.reference import FallbackReference, OddsApiIo, OddsLink, TheOddsApi
+from .sources.reference import FallbackReference, OddsApiIo, OddsLink, TheOddsApi, same_bookmaker
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +78,8 @@ def competitor_sources(cfg: config.Config) -> list[str]:
         if (
             cfg.reference.oddslink.fallback == "the_odds_api"
         ):  # what the fallback brings, stored as OddsLink's
-            keys = list(dict.fromkeys([*keys, *cfg.reference.the_odds_api.competitors]))
-        return [f"oddslink:{key}" for key in keys]
+            keys = [*keys, *(same_bookmaker(key) for key in cfg.reference.the_odds_api.competitors)]
+        return [f"oddslink:{key}" for key in dict.fromkeys(keys)]
     if cfg.reference.source != "the_odds_api":
         return []
     return [f"the_odds_api:{key}" for key in cfg.reference.the_odds_api.competitors]
@@ -113,6 +113,27 @@ def build_sources(cfg: config.Config) -> tuple[NorskTipping, ReferenceSource]:
     else:
         reference = the_odds_api
     return nt, reference
+
+
+def fallback_available(cfg: config.Config) -> bool:
+    """Whether OddsLink is the reference with The Odds API as its fallback, and that key is set."""
+    return (
+        cfg.reference.source == "oddslink"
+        and cfg.reference.oddslink.fallback == "the_odds_api"
+        and config.api_key("THE_ODDS_API_KEY") is not None
+    )
+
+
+def fallback_reference(cfg: config.Config) -> FallbackReference | None:
+    """OddsLink's fallback (The Odds API) asked in its place, its odds stored as OddsLink's: for when OddsLink
+    lacks a bookmaker's odds. None unless fallback_available."""
+    if not fallback_available(cfg):
+        return None
+    _, reference = build_sources(cfg)
+    if not isinstance(reference, FallbackReference):
+        return None
+    reference.fallback_only = True
+    return reference
 
 
 def run_once(

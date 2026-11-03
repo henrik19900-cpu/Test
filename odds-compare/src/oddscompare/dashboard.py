@@ -36,6 +36,13 @@ BOOKMAKERS = {
     "williamhill": "William Hill",
     "marathonbet": "Marathonbet",
     "onexbet": "1xBet",
+    # OddsLink's keys
+    "betfair": "Betfair Exchange",
+    "unibet": "Unibet",
+    "888sport": "888sport",
+    "bet365": "bet365",
+    "bwin": "bwin",
+    "betano": "Betano",
 }
 
 

@@ -272,3 +272,19 @@ def test_matches_only_competitors_have_priced_are_paired_too(cfg, conn):
         for r in conn.execute("SELECT DISTINCT source FROM odds_snapshots WHERE event_id = ?", (brann_event,))
     }
     assert "odds_api_io" in sources
+
+
+def test_oddslink_is_built_with_the_odds_api_as_its_fallback_when_that_key_is_set(tmp_path, monkeypatch):
+    from oddscompare.sources.reference import FallbackReference, OddsLink
+
+    (tmp_path / "config.yaml").write_text("reference:\n  source: oddslink\n", encoding="utf-8")
+    cfg = config.load(tmp_path / "config.yaml")
+    monkeypatch.setenv("ODDSLINK_API_KEY", "ok_live_test")
+    monkeypatch.setenv("THE_ODDS_API_KEY", "fake-key")
+    _, reference = fetch.build_sources(cfg)
+    assert isinstance(reference, FallbackReference) and reference.name == "oddslink"
+    monkeypatch.delenv("THE_ODDS_API_KEY")
+    _, reference = fetch.build_sources(cfg)
+    assert isinstance(reference, OddsLink)
+    sources = fetch.competitor_sources(cfg)
+    assert "oddslink:unibet" in sources and "oddslink:betsson" in sources  # what the fallback brings, too

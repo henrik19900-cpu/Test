@@ -85,6 +85,36 @@ class TheOddsApiConfig(BaseModel):
         return list(dict.fromkeys([self.bookmaker, *self.competitors]))
 
 
+class OddsLinkConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_url: str = "https://oddslink.app/v1"
+    bookmaker: str = "pinnacle"
+    # Norsk Tipping's competitors that OddsLink has (it has no Betsson, NordicBet, Coolbet or LeoVegas).
+    # Every bookmaker comes in the same request, which counts once. Keys from
+    # https://oddslink.app/docs/reference/bookmaker-keys/
+    competitors: list[str] = [
+        "unibet",
+        "888sport",
+        "betway",
+        "bet365",
+        "bwin",
+        "betano",
+        "williamhill",
+        "betfair",
+    ]
+    sport: str = "soccer"  # every soccer league in one request
+    fallback: Literal["the_odds_api"] | None = "the_odds_api"  # asked instead when OddsLink fails
+    # A second request within this many minutes reuses the first answer (a double click costs nothing).
+    min_interval_minutes: float = Field(5, ge=0)
+    timeout_seconds: float = Field(90, gt=0)  # the first call for every league can take tens of seconds
+
+    @property
+    def bookmakers(self) -> list[str]:
+        """The reference first, then the competitors, each once."""
+        return list(dict.fromkeys([self.bookmaker, *self.competitors]))
+
+
 class OddsApiIoConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -97,7 +127,8 @@ class OddsApiIoConfig(BaseModel):
 class ReferenceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    source: Literal["the_odds_api", "odds_api_io"] = "the_odds_api"
+    source: Literal["oddslink", "the_odds_api", "odds_api_io"] = "the_odds_api"
+    oddslink: OddsLinkConfig = OddsLinkConfig()
     the_odds_api: TheOddsApiConfig = TheOddsApiConfig()
     odds_api_io: OddsApiIoConfig = OddsApiIoConfig()
 
@@ -163,7 +194,14 @@ def load(path: str | Path | None = None) -> Config:
     return Config.model_validate(data or {}).resolve(path.parent)
 
 
-SECRET_NAMES = ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY", "NTFY_TOPIC", "NTFY_TOKEN", "DATABASE_URL")
+SECRET_NAMES = (
+    "ODDSLINK_API_KEY",
+    "THE_ODDS_API_KEY",
+    "ODDS_API_IO_KEY",
+    "NTFY_TOPIC",
+    "NTFY_TOKEN",
+    "DATABASE_URL",
+)
 
 
 def apply_secrets(secrets: Mapping) -> None:

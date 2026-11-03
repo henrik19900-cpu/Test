@@ -1,4 +1,11 @@
-"""Reference odds: The Odds API (free plan, the default) or Odds-API.io (paid).
+"""Reference odds: OddsLink (free plan, the default), The Odds API (free plan, its fallback) or
+Odds-API.io (paid).
+
+OddsLink (https://oddslink.app) has Pinnacle, Betfair Exchange and the big European bookmakers on its
+free plan: 1,000 requests a month, no card. One request to the soccer key returns every league with
+every bookmaker asked for, and counts once however many matches come back, so one request covers
+what costs a credit per league at The Odds API. When OddsLink fails, FallbackReference asks The
+Odds API instead and stores its odds as OddsLink's, so the dashboard and the alerts carry on.
 
 Pinnacle closed its public API in July 2025. The Odds API (https://the-odds-api.com) carries
 Pinnacle's prices, taken from Pinnacle's public website, on its free plan: 500 credits a month, no
@@ -28,7 +35,7 @@ from typing import Any
 
 import httpx
 
-from ..config import OddsApiIoConfig, TheOddsApiConfig
+from ..config import OddsApiIoConfig, OddsLinkConfig, TheOddsApiConfig
 from . import OUTCOMES, EventFilter, RawEvent, SourceError
 
 logger = logging.getLogger(__name__)
@@ -168,10 +175,13 @@ class TheOddsApi:
             self.cache_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
-def parse_h2h(events: list[dict[str, Any]], bookmaker: str, source: str = TheOddsApi.name) -> list[RawEvent]:
-    """The 1X2 odds from The Odds API's /odds answers. Events without the bookmaker's h2h market are skipped."""
+def parse_h2h(
+    events: list[dict[str, Any]], bookmaker: str, source: str = TheOddsApi.name, label: str = "The Odds API"
+) -> list[RawEvent]:
+    """The 1X2 odds from an /odds answer of The Odds API or OddsLink (the same format). Events without the
+    bookmaker's h2h market are skipped."""
     if not isinstance(events, list):
-        raise SourceError("The Odds API: uventet format på oddssvaret (forventet en liste)", retryable=False)
+        raise SourceError(f"{label}: uventet format på oddssvaret (forventet en liste)", retryable=False)
     parsed = []
     for event in events:
         try:
@@ -189,20 +199,183 @@ def parse_h2h(events: list[dict[str, Any]], bookmaker: str, source: str = TheOdd
                     source_event_id=str(event["id"]),
                     home=event["home_team"],
                     away=event["away_team"],
-                    league=event.get("sport_title") or event.get("sport_key", ""),
+                    league=_league(event),
                     kickoff_utc=_commence(event),
                     odds={outcome: prices[name] for outcome, name in names.items()},
                 )
             )
         except (KeyError, TypeError, ValueError) as e:
             raise SourceError(
-                f"The Odds API: uventet format på kamp {event.get('id')!r}: {e}", retryable=False
+                f"{label}: uventet format på kamp {event.get('id')!r}: {e}", retryable=False
             ) from e
     return parsed
 
 
+def _league(event: dict[str, Any]) -> str:
+    """OddsLink names the league in league.title; The Odds API in sport_title."""
+    league = event.get("league")
+    if isinstance(league, dict) and league.get("title"):
+        return str(league["title"])
+    return event.get("sport_title") or event.get("sport_key", "")
+
+
 def _commence(event: dict[str, Any]) -> datetime:
     return datetime.fromisoformat(str(event["commence_time"]).replace("Z", "+00:00")).astimezone(UTC)
+
+
+class OddsLink:
+    """OddsLink's /sports/soccer/odds: every soccer league, the reference and the competitors in one
+    request (it counts once). A second request within min_interval_minutes reuses the first answer."""
+
+    name = "oddslink"
+
+    def __init__(
+        self,
+        cfg: OddsLinkConfig,
+        api_key: str | None,
+        user_agent: str,
+        cache_dir: Path | None = None,
+        client: httpx.Client | None = None,
+        clock=lambda: datetime.now(UTC),
+    ):
+        self.cfg = cfg
+        self.api_key = api_key
+        self.cache_file = cache_dir / f"{self.name}.json" if cache_dir else None
+        self.client = client or httpx.Client(timeout=cfg.timeout_seconds)
+        self.headers = {"user-agent": user_agent, "accept": "application/json"}
+        self.clock = clock
+        self.fetched_at: datetime | None = None
+        self.remaining: int | None = None  # requests left this month, as OddsLink last reported
+        self.spent = 0  # requests the last fetch() counted (0 for a cached answer)
+        self.competitor_odds: list[RawEvent] = []
+
+    def fetch(self, days_ahead: int, want: EventFilter | None = None) -> list[RawEvent]:
+        if not self.api_key:
+            raise SourceError(
+                "ODDSLINK_API_KEY mangler: legg den i .env, eller under «Secrets» på Streamlit Cloud "
+                "(gratis nøkkel: oddslink.app)",
+                retryable=False,
+            )
+        now = self.clock()
+        self.spent = 0
+        cached = self._cached(now)
+        if cached is None:
+            events = self._get(
+                f"/sports/{self.cfg.sport}/odds",
+                markets="h2h",
+                bookmakers=",".join(self.cfg.bookmakers),
+                oddsFormat="decimal",
+                dateFormat="iso",
+                commenceTimeFrom=_rfc3339(now),
+                commenceTimeTo=_rfc3339(now + timedelta(days=days_ahead)),
+            )
+            cached = {
+                "fetched_at_utc": now.isoformat(),
+                "remaining": self.remaining,
+                "bookmakers": self.cfg.bookmakers,
+                "events": events if events is not None else [],
+            }
+            self._save(cached)
+            logger.info("OddsLink: %s requests left this month", self.remaining)
+        self.fetched_at = datetime.fromisoformat(cached["fetched_at_utc"])
+        events = cached["events"]
+        if want is not None and isinstance(events, list):
+            events = [e for e in events if _wanted(e, want)]
+        self.competitor_odds = [
+            raw
+            for key in self.cfg.competitors
+            for raw in parse_h2h(events, key, f"{self.name}:{key}", "OddsLink")
+        ]
+        return parse_h2h(events, self.cfg.bookmaker, self.name, "OddsLink")
+
+    def _get(self, path: str, **params: Any) -> Any:
+        try:
+            response = self.client.get(
+                self.cfg.base_url + path, params=params, headers={**self.headers, "X-API-Key": self.api_key}
+            )
+        except httpx.HTTPError as e:
+            raise SourceError(f"OddsLink svarte ikke ({type(e).__name__})") from e
+        try:
+            if "x-requests-remaining" in response.headers:
+                self.remaining = int(float(response.headers["x-requests-remaining"]))
+            if "x-requests-last" in response.headers:
+                self.spent += int(float(response.headers["x-requests-last"]))
+        except ValueError:
+            pass
+        if response.status_code in (401, 403):
+            raise SourceError(
+                f"OddsLink avviste nøkkelen ({response.status_code}, sjekk ODDSLINK_API_KEY)", retryable=False
+            )
+        if response.status_code == 429:
+            raise SourceError(
+                "OddsLink: månedens forespørsler er brukt opp, eller for mange på en gang", retryable=False
+            )
+        if response.status_code >= 400:
+            raise SourceError(f"OddsLink svarte {response.status_code} på {path}: {response.text[:200]}")
+        try:
+            return response.json()
+        except ValueError as e:
+            raise SourceError(f"OddsLink sendte ikke JSON på {path}") from e
+
+    def _cached(self, now: datetime) -> dict[str, Any] | None:
+        if not self.cache_file or not self.cache_file.exists():
+            return None
+        try:
+            payload = json.loads(self.cache_file.read_text(encoding="utf-8"))
+            age = now - datetime.fromisoformat(payload["fetched_at_utc"])
+        except (OSError, ValueError, KeyError):
+            return None
+        fresh = timedelta(0) <= age < timedelta(minutes=self.cfg.min_interval_minutes)
+        return payload if payload.get("bookmakers") == self.cfg.bookmakers and fresh else None
+
+    def _save(self, payload: dict[str, Any]) -> None:
+        if self.cache_file:
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+            self.cache_file.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def _wanted(event: dict[str, Any], want: EventFilter) -> bool:
+    try:
+        return bool(want(event["home_team"], event["away_team"], _commence(event)))
+    except (KeyError, TypeError, ValueError):
+        return True  # parse_h2h reports a malformed event
+
+
+class FallbackReference:
+    """A reference source with a second one for when it fails. The second one's odds are stored under the
+    first one's name (both are the same bookmaker's prices), so the dashboard and the alerts carry on."""
+
+    def __init__(self, primary, fallback):
+        self.primary = primary
+        self.fallback = fallback
+        self.name = primary.name
+        self.used = primary.name  # which one answered the last fetch()
+        self.fetched_at: datetime | None = None
+        self.spent = 0
+        self.competitor_odds: list[RawEvent] = []
+
+    @property
+    def remaining(self) -> int | None:
+        """The primary's allowance left, which the watcher's reserve is about."""
+        return self.primary.remaining
+
+    def fetch(self, days_ahead: int, want: EventFilter | None = None) -> list[RawEvent]:
+        try:
+            events = self.primary.fetch(days_ahead, want)
+            source = self.primary
+        except Exception as e:  # noqa: BLE001  (any failure: the fallback has the same prices)
+            logger.warning("%s failed (%s); asking %s instead", self.primary.name, e, self.fallback.name)
+            events = self.fallback.fetch(days_ahead, want)
+            source = self.fallback
+        self.used = source.name
+        self.fetched_at = getattr(source, "fetched_at", None)
+        self.spent = getattr(source, "spent", 0) or 0
+        prefix = f"{source.name}:"
+        self.competitor_odds = [
+            raw.model_copy(update={"source": f"{self.name}:{raw.source.removeprefix(prefix)}"})
+            for raw in getattr(source, "competitor_odds", None) or []
+        ]
+        return [raw.model_copy(update={"source": self.name}) for raw in events]
 
 
 class OddsApiIo:

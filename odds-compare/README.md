@@ -71,7 +71,10 @@ Endepunktene er uoffisielle og kan endres uten varsel. Når svarene ikke ser ut 
 
 En runde med de 10 landene i standardkonfigen tar rundt 7 sekunder og gir rundt 300 kamper. `robots.txt` stenger ikke `/sport/oddsen` (bare `/sport/liveoddsen`). **Les likevel Norsk Tippings vilkår før bruk.** Det er ikke gjort i dette prosjektet.
 
-**Referanseodds** kommer fra [The Odds API](https://the-odds-api.com). Pinnacle stengte sitt offentlige API i juli 2025, men The Odds API har Pinnacles odds, hentet fra Pinnacles nettsted, også på gratisplanen. Gratisplanen gir 500 kreditter i måneden, uten betalingskort. Registrer deg med e-post på nettstedet og legg nøkkelen i `.env` som `THE_ODDS_API_KEY`.
+**Referanseodds** kommer fra [OddsLink](https://oddslink.app), med [The Odds API](https://the-odds-api.com) som reserve. Pinnacle stengte sitt offentlige API i juli 2025, men begge har Pinnacles odds på gratisplanen.
+
+- **OddsLink** (`reference.source: oddslink`, standard) gir 1 000 forespørsler i måneden, uten betalingskort. Én forespørsel henter alle fotballigaene med Pinnacle og konkurrentene, uansett hvor mange kamper svaret har. Den dekker alle Norsk Tipping-ligaene The Odds API har unntatt 3. Liga, og i tillegg blant annet OBOS-ligaen, dansk 1. division, Eerste Divisie og skotsk Championship. Konkurrentene er Unibet, 888sport, Betway, bet365, bwin, Betano, William Hill og Betfair Exchange; Betsson, NordicBet, Coolbet og LeoVegas finnes ikke der. Lag en gratis nøkkel på nettstedet og legg den i `.env` som `ODDSLINK_API_KEY`. OddsLink er en ny tjeneste (vilkårene er fra oktober 2026), og den sier ikke hvor Pinnacle-oddsen kommer fra.
+- **The Odds API** brukes av seg selv når OddsLink feiler (`fallback: the_odds_api`), hvis `THE_ODDS_API_KEY` er satt. Oddsen lagres da som OddsLinks, så dashboardet og varslene fortsetter som før. Den kan også være eneste kilde (`reference.source: the_odds_api`). Gratisplanen gir 500 kreditter i måneden, og hver liga koster 1 kreditt per henting. Resten av avsnittet beskriver den.
 
 **Referanseodds hentes bare når du ber om det**, med `oddscompare reference` eller knappen «Hent referanseodds» i dashboardet. Den vanlige hentingen (`fetch` og `run`) bruker ingen kreditter. Kredittene brukes slik:
 

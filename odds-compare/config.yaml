@@ -23,8 +23,17 @@ norsk_tipping:
   timeout_seconds: 25
 
 reference:
-  source: the_odds_api      # the_odds_api (gratis) | odds_api_io (betalt)
-  the_odds_api:
+  source: oddslink          # oddslink (gratis) | the_odds_api (gratis) | odds_api_io (betalt)
+  oddslink:
+    # Én forespørsel henter alle fotballigaene med Pinnacle og konkurrentene. Gratisplanen har 1 000
+    # forespørsler i måneden (oddslink.app). Nøkkelen ligger i .env som ODDSLINK_API_KEY.
+    base_url: https://oddslink.app/v1
+    bookmaker: pinnacle
+    # Norsk Tippings konkurrenter som OddsLink har (ikke Betsson, NordicBet, Coolbet eller LeoVegas).
+    competitors: [unibet, 888sport, betway, bet365, bwin, betano, williamhill, betfair]
+    fallback: the_odds_api    # spørres i stedet når OddsLink feiler (med THE_ODDS_API_KEY)
+    min_interval_minutes: 5
+  the_odds_api:              # reserve for OddsLink, eller referansekilde med source: the_odds_api
     base_url: https://api.the-odds-api.com/v4
     bookmaker: pinnacle     # eller betfair_ex_eu
     # Norsk Tippings konkurrenter, hentet i samme forespørsel uten ekstra kostnad (høyst 9).

@@ -733,3 +733,17 @@ def test_the_update_buttons_fetch_norsk_tipping_now_and_reference_odds(tmp_path,
     [ref_button] = [b for b in app.button if b.label.startswith("Oppdater referanseodds")]
     app = ref_button.click().run()
     assert not app.exception and asked == [21]
+
+
+def test_with_oddslink_the_button_costs_one_request(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("reference:\n  source: oddslink\n", encoding="utf-8")
+    db.log_fetch(db.connect(tmp_path / "data" / "odds.db"), "norsk_tipping", datetime.now(UTC), "ok", 0)
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    assert any(b.label == "Oppdater referanseodds (1 forespørsel)" for b in app.button)
+    assert any("Én forespørsel henter alle ligaene" in c.value for c in app.caption)
+    assert "OddsLink" in app.caption[0].value  # «Norsk Tipping mot margin-fri referanse (OddsLink: Pinnacle)»

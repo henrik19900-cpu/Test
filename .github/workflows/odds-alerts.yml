@@ -2,7 +2,7 @@ name: odds-alerts
 
 # Every 15 minutes: Norsk Tipping's odds (free), reference odds for the matches starting soon (one credit
 # per league), and a phone notification through ntfy when a bet is worth it. See odds-compare/README.md,
-# «Varsler». Until the secrets THE_ODDS_API_KEY and NTFY_TOPIC are set (Settings → Secrets and variables →
+# «Varsler». Until the secrets ODDSLINK_API_KEY (or THE_ODDS_API_KEY) and NTFY_TOPIC are set (Settings → Secrets and variables →
 # Actions), this does nothing. GitHub runs scheduled workflows from the default branch only, and pauses
 # them after 60 days without activity in the repository.
 on:
@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
+      ODDSLINK_API_KEY: ${{ secrets.ODDSLINK_API_KEY }}
       THE_ODDS_API_KEY: ${{ secrets.THE_ODDS_API_KEY }}
       NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
       NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
@@ -36,8 +37,8 @@ jobs:
       - name: Check the secrets
         id: secrets
         run: |
-          if [ -z "$NTFY_TOPIC" ] || [ -z "$THE_ODDS_API_KEY" ]; then
-            echo "::notice::Set the secrets THE_ODDS_API_KEY and NTFY_TOPIC to get alerts (odds-compare/README.md, «Varsler»)."
+          if [ -z "$NTFY_TOPIC" ] || { [ -z "$ODDSLINK_API_KEY" ] && [ -z "$THE_ODDS_API_KEY" ]; }; then
+            echo "::notice::Set the secrets ODDSLINK_API_KEY (or THE_ODDS_API_KEY) and NTFY_TOPIC to get alerts (odds-compare/README.md, «Varsler»)."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"

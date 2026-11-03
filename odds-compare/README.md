@@ -126,9 +126,10 @@ Spilloggen ligger som CSV i tabellen `oddscompare_store` (nøklene `bets.csv` og
 
 1. Henter Norsk Tippings odds. Det er gratis.
 2. Kjøper referanseodds (Pinnacle og konkurrentene) to ganger per kamp: én tidlig sjekk rundt 3 timer før avspark, og én innen 75 minutter før. Det koster 1 kreditt per liga. En kamp sjekkes igjen hvis Norsk Tipping har hevet et utfall med 5 % siden forrige sjekk. De tidlige sjekkene gjøres bare til dagen har brukt halvparten av kredittaket, så det alltid er kreditter igjen til sjekkene like før avspark, som er de mest presise.
+   Med OddsLink (standard) koster alle kampene én forespørsel. Da gjelder hver henting alle kampene de neste 2 døgnene (`alerts.days_ahead`), ikke bare dem som starter snart, og alle kampene sjekkes minst hver andre time (`scan_minutes`). Som de tidlige sjekkene gjøres de jevnlige sjekkene bare til dagen har brukt halvparten av taket. Feiler OddsLink, spørres The Odds API bare for kampene som starter snart, siden den tar betalt per liga.
 3. Sender varsel til telefonen når et utfall har EV på minst 2 % mot Pinnacle, Pinnacles margin er høyst 6 %, referanseoddsen er fersk og Norsk Tipping ikke har flyttet seg siden. Hvert utfall varsles én gang, og igjen bare hvis EV har økt med minst ett prosentpoeng.
 
-Overvåkeren bruker høyst 20 kreditter per dag, og aldri de siste 30 i måneden. Grensene står under `alerts` i `config.yaml`. Den deler kredittene med knappen i appen.
+Overvåkeren bruker høyst 20 kreditter (med OddsLink: forespørsler) per dag, og aldri de siste 30 i måneden. Grensene står under `alerts` i `config.yaml`. Den deler kredittene med knappen i appen.
 
 **Slik setter du det opp:**
 

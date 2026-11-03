@@ -78,6 +78,10 @@ alerts:
   lead_minutes: 75            # referanseodds kjøpes for kamper som starter innen så mange minutter
   early_lead_minutes: 180     # og én tidlig sjekk så lenge før avspark (0 = ingen tidlig sjekk)
   early_credit_share: 0.5     # tidlige sjekker bare til dagen har brukt halvparten av kredittaket
+  # Med OddsLink koster alle kampene én forespørsel: hver henting gjelder alle kampene de neste days_ahead
+  # døgnene, og de sjekkes minst så ofte (0 = bare når en kamp starter snart). Som de tidlige sjekkene
+  # bare til dagen har brukt early_credit_share av max_credits_per_day.
+  scan_minutes: 120
   nt_jump: 0.05               # eller når Norsk Tipping hever oddsen 5 % siden forrige sjekk
   fresh_minutes: 30           # varsler bare på referanseodds som er høyst så gamle
   max_credits_per_day: 20

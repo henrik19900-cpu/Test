@@ -149,6 +149,9 @@ class AlertsConfig(BaseModel):
     # early_credit_share of max_credits_per_day, so the late check, the more precise one, always has credits
     early_lead_minutes: float = Field(180, ge=0)
     early_credit_share: float = Field(0.5, ge=0, le=1)
+    # With OddsLink, one request covers every match: each purchase is for all of them, and they are checked at
+    # least this often (0: only when a match is due), within early_credit_share of the day's credits
+    scan_minutes: float = Field(120, ge=0)
     nt_jump: float = Field(0.05, gt=0)  # or when Norsk Tipping raises an outcome by this since the last check
     fresh_minutes: float = Field(30, gt=0)  # alerts only on reference odds at most this old
     max_credits_per_day: int = Field(20, ge=0)

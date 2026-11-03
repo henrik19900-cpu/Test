@@ -1,11 +1,13 @@
 """oddscompare watch: one round of watching for good bets, and a phone notification when one shows.
 
 Norsk Tipping's odds are free and fetched every round. Reference odds cost credits, so they are
-bought only when they matter, for the matches starting within lead_minutes (75): Pinnacle's price is
+bought when they matter, for the matches starting within lead_minutes (75): Pinnacle's price is
 most accurate close to kick-off, and that is when a bet is worth placing. A match gets one such check,
-plus another if Norsk Tipping raises an outcome by nt_jump (5 %) or more since. Each league with such
-a match costs one credit (the competitors come with it for free), within max_credits_per_day and
-never touching the month's last reserve_credits.
+plus another if Norsk Tipping raises an outcome by nt_jump (5 %) or more since. With The Odds API, each
+league with such a match costs one credit (the competitors come with it for free). With OddsLink one
+request covers every match, so every match within days_ahead is checked whenever reference odds are
+bought, and at least every scan_minutes (120). Either way within max_credits_per_day, and never
+touching the month's last reserve_credits.
 
 An outcome is worth a notification when its EV against Pinnacle's fair odds is at least min_ev,
 Pinnacle's own margin is at most max_reference_margin (a wide margin makes the fair odds unsure), the
@@ -27,6 +29,7 @@ import httpx
 from . import config, dashboard, db, fetch
 from .sources import OUTCOMES
 from .sources.nt import NorskTipping
+from .sources.reference import FallbackReference
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +61,12 @@ class WatchReport:
     sent: list[Opportunity] = field(default_factory=list)
     test_sent: str | None = None  # the title of the test alert, when one was asked for and sent
     test_error: str | None = None  # why the test alert did not reach ntfy
+    scan_wanted: bool = False  # the regular check of every match was due (OddsLink)
+    scan_skipped: bool = False  # and waited, for the day's credits
+    every_match: bool = False  # reference odds were bought for every match, not only the due ones
+    days_ahead: int = 0  # how far ahead the watcher looks
+    unit: tuple[str, str] = ("kreditt", "kreditter")  # what credits_spent counts
+    note: str | None = None  # e.g. that OddsLink failed and The Odds API answered for the due matches
 
     @property
     def ok(self) -> bool:
@@ -73,21 +82,29 @@ class WatchReport:
         if self.due_early:
             parts.append(f"{self.due_early} {'med' if self.due else 'kamper med'} tidlig sjekk")
         what = " og ".join(parts)
-        if total and self.reference_skipped:
-            lines.append(f"{total} kamper skulle hatt referanseodds, men: {self.reference_skipped}")
-        elif total and reference_failed:
-            lines.append(f"Referanseodds for {what} feilet (se over).")
+        cost = f"{self.credits_spent} {self.unit[0] if self.credits_spent == 1 else self.unit[1]}"
+        everything = f"alle kampene de neste {self.days_ahead} døgnene"
+        if (total or self.scan_wanted) and self.reference_skipped:
+            who = f"{total} kamper" if total else everything.capitalize()
+            lines.append(f"{who} skulle hatt referanseodds, men: {self.reference_skipped}")
+        elif (total or self.every_match) and reference_failed:
+            lines.append(f"Referanseodds for {everything if self.every_match else what} feilet (se over).")
+        elif self.every_match:
+            among = f" (blant dem {what})" if what else ""
+            lines.append(f"Referanseodds for {everything}{among}: {cost}.")
         elif total:
-            lines.append(
-                f"Referanseodds for {what}: {self.credits_spent} "
-                f"{'kreditt' if self.credits_spent == 1 else 'kreditter'}."
-            )
+            lines.append(f"Referanseodds for {what}: {cost}.")
         else:
             lines.append("Ingen kamper trengte referanseodds nå.")
-        if self.early_skipped:
+        if self.note:
+            lines.append(self.note)
+        waiting = [f"Tidlig sjekk av {self.early_skipped} kamper"] if self.early_skipped else []
+        if self.scan_skipped:
+            waiting.append("sjekken av alle kampene" if waiting else "Sjekken av alle kampene")
+        if waiting:
             lines.append(
-                f"Tidlig sjekk av {self.early_skipped} kamper venter: halvparten av dagens kreditter er brukt, "
-                "resten er til sjekkene like før avspark."
+                f"{' og '.join(waiting)} venter: halvparten av dagens kreditter er brukt, resten er til "
+                "sjekkene like før avspark."
             )
         lines.append(f"Varsler sendt: {len(self.sent)}.")
         lines += [f"  {opportunity_title(o)}: {opportunity_line(o)}" for o in self.sent]
@@ -120,35 +137,32 @@ def watch(
 
     # Norsk Tipping first (free), so the due list sees its latest odds.
     report.fetch = fetch.run_once(cfg, conn, nt, reference, clock=clock, **extra)
+    report.days_ahead = a.days_ahead
     soon, early = due_matches(conn, reference.name, now, a)
-    report.due = len(soon)
-    if soon or early:
+    every = every_match(cfg)
+    last = dashboard.last_success(conn, reference.name)
+    scan = every and a.scan_minutes > 0 and (last is None or now - last >= timedelta(minutes=a.scan_minutes))
+    report.due, report.scan_wanted = len(soon), scan
+    if soon or early or scan:
         report.reference_skipped = _budget_problem(conn, cfg, now)
-        if early and _spent_today(conn, now) >= a.max_credits_per_day * a.early_credit_share:
-            report.early_skipped, early = (
-                len(early),
-                set(),
-            )  # the rest of the day's credits wait for the late checks
+        if (early or scan) and _spent_today(conn, now) >= a.max_credits_per_day * a.early_credit_share:
+            # the rest of the day's credits wait for the late checks
+            report.early_skipped, early = len(early), set()
+            report.scan_skipped, scan = scan, False
         report.due_early = len(early)
         due = soon | early
-        if report.reference_skipped is None and due:
+        if report.reference_skipped is None and (due or scan):
             before = dashboard.credits_left(cfg.cache_dir, reference.name)
-            ref_report = fetch.run_once(
-                cfg,
-                conn,
-                nt,
-                reference,
-                clock=clock,
-                include_reference=True,
-                reference_for=lambda anchor: anchor.source_event_id in due,
-                **extra,
-            )
+            ref_report, used, report.note = _buy_reference(cfg, conn, nt, reference, due, every, clock, extra)
+            report.every_match = every and report.note is None
+            if used.name == "oddslink" and getattr(used, "used", "oddslink") == "oddslink":
+                report.unit = ("forespørsel", "forespørsler")
             report.fetch.sources += ref_report.sources[1:]
             report.fetch.matched, report.fetch.unmatched = ref_report.matched, ref_report.unmatched
             report.fetch.credits_left = ref_report.credits_left
             report.fetch.competitors = ref_report.competitors
-            after = getattr(reference, "remaining", None)
-            spent = getattr(reference, "spent", None)
+            after = getattr(used, "remaining", None)
+            spent = getattr(used, "spent", None)
             if spent is not None:  # what the API said each call cost; right on the first run, too
                 report.credits_spent = spent
             elif before is not None and after is not None and before >= after:
@@ -178,6 +192,43 @@ def watch(
             report.test_error = describe_failure(e)
     db.prune(conn, a.keep_days, now=now)
     return report
+
+
+def every_match(cfg: config.Config) -> bool:
+    """Whether the reference costs per request rather than per league (OddsLink), so that buying it for every
+    match costs no more than for one."""
+    return cfg.reference.source == "oddslink"
+
+
+def _buy_reference(cfg, conn, nt, reference, due: set[str], every: bool, clock, extra):
+    """Reference odds for the due matches, or with every for all of them. Returns the fetch's report, the
+    source that answered, and a note when OddsLink failed and its fallback answered instead.
+
+    With every, OddsLink is asked alone: its fallback costs a credit per league, so when OddsLink fails it
+    is asked only for the due matches (and not at all for the regular check of every match)."""
+
+    def asked(anchor) -> bool:
+        return anchor.source_event_id in due
+
+    if not every:
+        report = fetch.run_once(
+            cfg, conn, nt, reference, clock=clock, include_reference=True, reference_for=asked, **extra
+        )
+        return report, reference, None
+    primary = reference.primary if isinstance(reference, FallbackReference) else reference
+    report = fetch.run_once(cfg, conn, nt, primary, clock=clock, include_reference=True, **extra)
+    failed = [s for s in report.sources[1:] if s.status != "ok"]
+    if not (failed and due and isinstance(reference, FallbackReference)):
+        return report, primary, None
+    fallback = FallbackReference(reference.primary, reference.fallback, fallback_only=True)
+    backup = fetch.run_once(
+        cfg, conn, nt, fallback, clock=clock, include_reference=True, reference_for=asked, **extra
+    )
+    note = (
+        f"OddsLink feilet ({failed[0].error}), så {len(due)} kamper som skulle sjekkes fikk referanseodds fra "
+        f"{reference.fallback.name} i stedet."
+    )
+    return backup, fallback, note
 
 
 def due_matches(

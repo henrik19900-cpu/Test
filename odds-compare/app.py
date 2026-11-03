@@ -874,20 +874,24 @@ def fetch_lock() -> threading.Lock:
     return threading.Lock()
 
 
-def refresh_norsk_tipping(cfg: config.Config, conn, force: bool = False) -> None:
+def refresh_norsk_tipping(
+    cfg: config.Config, conn, force: bool = False, spinner: str = "Henter Norsk Tippings odds …"
+) -> bool:
     """Fetch Norsk Tipping when its odds are older than interval_minutes (no fetcher running beside the page),
-    or now with force (the source still asks Norsk Tipping at most once per min_interval_minutes)."""
+    or now with force (the source still asks Norsk Tipping at most once per min_interval_minutes). Returns
+    whether new odds came."""
     last = dashboard.last_success(conn, dashboard.NT)
     if not force and last and datetime.now(UTC) - last < timedelta(minutes=cfg.interval_minutes):
-        return
+        return False
     lock = fetch_lock()
     if not lock.acquire(blocking=False):
-        return
+        return False
     try:
-        with st.spinner("Henter Norsk Tippings odds …"):
-            fetch.run_once(cfg)
+        with st.spinner(spinner):
+            report = fetch.run_once(cfg)
     finally:
         lock.release()
+    return bool(report.sources) and report.sources[0].status == "ok"
 
 
 # Streamlit has no setting for the page head, so the tags «Add to Home Screen» reads are added from a
@@ -935,7 +939,11 @@ def main() -> None:
     competitors = fetch.competitor_sources(cfg)  # the same list the fetch stores, for OddsLink too
     conn = db.connect(cfg.database)
     sync = sync_bet_log(conn)  # first: after a restart the bet log comes back before anything shows it
-    refresh_norsk_tipping(cfg, conn)
+    # With odds to show, the page shows them at once and fetches newer ones at the end, then redraws;
+    # only an empty database (a new or restarted app) waits for Norsk Tipping first.
+    had_odds = dashboard.last_success(conn, dashboard.NT) is not None
+    if not had_odds:
+        refresh_norsk_tipping(cfg, conn)
     now = datetime.now(UTC)
     stale_after = timedelta(minutes=cfg.stale_after_minutes)
 
@@ -1028,7 +1036,8 @@ def main() -> None:
                             st.markdown(books_table(card), unsafe_allow_html=True)
                     with st.expander("Registrer spill"):
                         bet_form(conn, card, reference_name)
-                    with st.expander("Oddsutvikling"):
+                    # Drawn only when asked for: a chart for every card made each run about twice as slow.
+                    if st.toggle("Vis oddsutvikling", key=f"history-{card.event_id}"):
                         frame = dashboard.history(conn, card.event_id, reference, method)
                         if frame["tid"].nunique() < 2:
                             st.caption("Trenger minst to hentinger for å vise utviklingen.")
@@ -1084,7 +1093,10 @@ def main() -> None:
                 width="stretch",
             )
     sync_bet_log(conn)  # a change made in this run (one followed by st.rerun() is written on the next)
+    fresh = had_odds and refresh_norsk_tipping(cfg, conn, spinner="Oppdaterer Norsk Tippings odds …")
     conn.close()
+    if fresh:
+        st.rerun()  # draw the page again with the new odds
 
 
 main()

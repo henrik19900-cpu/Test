@@ -85,6 +85,36 @@ class TheOddsApiConfig(BaseModel):
         return list(dict.fromkeys([self.bookmaker, *self.competitors]))
 
 
+class OddsLinkConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_url: str = "https://oddslink.app/v1"
+    bookmaker: str = "pinnacle"
+    # Norsk Tipping's competitors that OddsLink has (it has no Betsson, NordicBet, Coolbet or LeoVegas).
+    # Every bookmaker comes in the same request, which counts once. Keys from
+    # https://oddslink.app/docs/reference/bookmaker-keys/
+    competitors: list[str] = [
+        "unibet",
+        "888sport",
+        "betway",
+        "bet365",
+        "bwin",
+        "betano",
+        "williamhill",
+        "betfair",
+    ]
+    sport: str = "soccer"  # every soccer league in one request
+    fallback: Literal["the_odds_api"] | None = "the_odds_api"  # asked instead when OddsLink fails
+    # A second request within this many minutes reuses the first answer (a double click costs nothing).
+    min_interval_minutes: float = Field(5, ge=0)
+    timeout_seconds: float = Field(90, gt=0)  # the first call for every league can take tens of seconds
+
+    @property
+    def bookmakers(self) -> list[str]:
+        """The reference first, then the competitors, each once."""
+        return list(dict.fromkeys([self.bookmaker, *self.competitors]))
+
+
 class OddsApiIoConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -97,7 +127,8 @@ class OddsApiIoConfig(BaseModel):
 class ReferenceConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    source: Literal["the_odds_api", "odds_api_io"] = "the_odds_api"
+    source: Literal["oddslink", "the_odds_api", "odds_api_io"] = "the_odds_api"
+    oddslink: OddsLinkConfig = OddsLinkConfig()
     the_odds_api: TheOddsApiConfig = TheOddsApiConfig()
     odds_api_io: OddsApiIoConfig = OddsApiIoConfig()
 
@@ -114,6 +145,10 @@ class AlertsConfig(BaseModel):
     min_ev: float = 0.02  # an outcome needs at least this EV against the reference
     max_reference_margin: float = 0.06  # and the reference's own margin at most this
     lead_minutes: float = Field(75, gt=0)  # reference odds are bought for matches starting within this
+    # and once before that, this long before kick-off (0: no early check), while the day has spent less than
+    # early_credit_share of max_credits_per_day, so the late check, the more precise one, always has credits
+    early_lead_minutes: float = Field(180, ge=0)
+    early_credit_share: float = Field(0.5, ge=0, le=1)
     nt_jump: float = Field(0.05, gt=0)  # or when Norsk Tipping raises an outcome by this since the last check
     fresh_minutes: float = Field(30, gt=0)  # alerts only on reference odds at most this old
     max_credits_per_day: int = Field(20, ge=0)
@@ -159,7 +194,14 @@ def load(path: str | Path | None = None) -> Config:
     return Config.model_validate(data or {}).resolve(path.parent)
 
 
-SECRET_NAMES = ("THE_ODDS_API_KEY", "ODDS_API_IO_KEY", "NTFY_TOPIC", "NTFY_TOKEN", "DATABASE_URL")
+SECRET_NAMES = (
+    "ODDSLINK_API_KEY",
+    "THE_ODDS_API_KEY",
+    "ODDS_API_IO_KEY",
+    "NTFY_TOPIC",
+    "NTFY_TOKEN",
+    "DATABASE_URL",
+)
 
 
 def apply_secrets(secrets: Mapping) -> None:

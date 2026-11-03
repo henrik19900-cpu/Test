@@ -5,9 +5,16 @@ import httpx
 import pytest
 from conftest import load_fixture
 
-from oddscompare.config import OddsApiIoConfig, TheOddsApiConfig
-from oddscompare.sources import SourceError
-from oddscompare.sources.reference import OddsApiIo, TheOddsApi, parse_h2h, parse_odds
+from oddscompare.config import OddsApiIoConfig, OddsLinkConfig, TheOddsApiConfig
+from oddscompare.sources import RawEvent, SourceError
+from oddscompare.sources.reference import (
+    FallbackReference,
+    OddsApiIo,
+    OddsLink,
+    TheOddsApi,
+    parse_h2h,
+    parse_odds,
+)
 
 SAMPLE = load_fixture("odds_api_io_sample.json")
 NOW = datetime(2026, 10, 31, 5, 0, tzinfo=UTC)
@@ -336,3 +343,129 @@ def test_another_choice_of_leagues_is_fetched_even_within_five_minutes(tmp_path)
     source.cfg = source.cfg.model_copy(update={"leagues": ["soccer_epl"]})
     source.fetch(7)
     assert len(api.requests) > calls
+
+
+ODDSLINK = load_fixture("oddslink_sample.json")
+ODDSLINK_NOW = datetime(2026, 11, 2, 12, 0, tzinfo=UTC)
+
+
+class FakeOddsLink:
+    def __init__(self, status=200):
+        self.status = status
+        self.requests = []
+        self.left = 1000
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        params = {k: v[0] for k, v in parse_qs(request.url.query.decode()).items()}
+        self.requests.append((request.url.path, params, request.headers.get("x-api-key")))
+        if self.status != 200:
+            return httpx.Response(self.status, json={"error": {"code": "NOPE"}})
+        self.left -= 1
+        headers = {"x-requests-remaining": str(self.left), "x-requests-last": "1"}
+        return httpx.Response(200, json=ODDSLINK, headers=headers)
+
+
+def make_oddslink(api, tmp_path, key="ok_live_test", clock=lambda: ODDSLINK_NOW):
+    return OddsLink(
+        OddsLinkConfig(competitors=["unibet", "betfair"]),
+        key,
+        "test-agent",
+        cache_dir=tmp_path,
+        client=httpx.Client(transport=httpx.MockTransport(api.handle)),
+        clock=clock,
+    )
+
+
+def test_oddslink_gets_every_league_in_one_request(tmp_path):
+    api = FakeOddsLink()
+    source = make_oddslink(api, tmp_path)
+    events = source.fetch(2)
+    [(path, params, key)] = api.requests  # one request, counted once
+    assert path == "/v1/sports/soccer/odds" and key == "ok_live_test"  # the key goes in X-API-Key
+    assert params["markets"] == "h2h" and params["oddsFormat"] == "decimal"
+    assert params["bookmakers"] == "pinnacle,unibet,betfair" and "apiKey" not in params
+    assert params["commenceTimeTo"] == "2026-11-04T12:00:00Z"
+    by_home = {e.home: e for e in events}
+    assert set(by_home) == {"Newcastle United", "Brann"}  # Aalesund – Kongsvinger has no Pinnacle
+    newcastle = by_home["Newcastle United"]
+    assert newcastle.source == "oddslink" and newcastle.league == "EPL"
+    assert newcastle.odds == {"home": 2.3, "draw": 3.6, "away": 3.1}
+    assert by_home["Brann"].league == "Eliteserien - Norway"
+    competitors = {(c.source, c.home) for c in source.competitor_odds}
+    assert ("oddslink:unibet", "Aalesund") in competitors and (
+        "oddslink:betfair",
+        "Newcastle United",
+    ) in competitors
+    assert source.remaining == 999 and source.spent == 1 and source.fetched_at == ODDSLINK_NOW
+
+
+def test_oddslink_reuses_an_answer_within_five_minutes_and_keeps_only_wanted_matches(tmp_path):
+    api = FakeOddsLink()
+    now = [ODDSLINK_NOW]
+    source = make_oddslink(api, tmp_path, clock=lambda: now[0])
+    source.fetch(2)
+    now[0] = ODDSLINK_NOW + timedelta(minutes=4)
+    events = source.fetch(2, want=lambda home, away, kickoff: home == "Brann")
+    assert len(api.requests) == 1 and source.spent == 0  # the cached answer costs nothing
+    assert [e.home for e in events] == ["Brann"] and {c.home for c in source.competitor_odds} == {"Brann"}
+    now[0] = ODDSLINK_NOW + timedelta(minutes=6)
+    source.fetch(2)
+    assert len(api.requests) == 2
+
+
+@pytest.mark.parametrize(
+    ("status", "message"), [(401, "avviste nøkkelen"), (403, "avviste nøkkelen"), (429, "brukt opp")]
+)
+def test_oddslink_errors(tmp_path, status, message):
+    with pytest.raises(SourceError, match=message) as raised:
+        make_oddslink(FakeOddsLink(status), tmp_path).fetch(2)
+    assert not raised.value.retryable
+
+
+def test_oddslink_missing_key(tmp_path):
+    with pytest.raises(SourceError, match="ODDSLINK_API_KEY mangler"):
+        make_oddslink(FakeOddsLink(), tmp_path, key=None).fetch(2)
+
+
+class Failing:
+    name = "oddslink"
+    remaining = 12
+
+    def fetch(self, days_ahead, want=None):
+        raise SourceError("OddsLink svarte ikke (ConnectError)")
+
+
+class Backup:
+    name = "the_odds_api"
+
+    def __init__(self):
+        self.calls = 0
+        self.fetched_at = ODDSLINK_NOW
+        self.spent = 2
+        self.competitor_odds = [RawEvent(source="the_odds_api:betsson", source_event_id="b1", home="Brann",
+                                         away="Molde", league="Eliteserien", kickoff_utc=ODDSLINK_NOW,
+                                         odds={"home": 2.0, "draw": 3.5, "away": 3.4})]  # fmt: skip
+
+    def fetch(self, days_ahead, want=None):
+        self.calls += 1
+        return [RawEvent(source="the_odds_api", source_event_id="b1", home="Brann", away="Molde",
+                         league="Eliteserien", kickoff_utc=ODDSLINK_NOW,
+                         odds={"home": 2.1, "draw": 3.7, "away": 3.4})]  # fmt: skip
+
+
+def test_the_fallback_answers_when_oddslink_fails_and_its_odds_are_stored_as_oddslinks():
+    backup = Backup()
+    reference = FallbackReference(Failing(), backup)
+    [event] = reference.fetch(2)
+    assert reference.name == "oddslink" and reference.used == "the_odds_api" and backup.calls == 1
+    assert event.source == "oddslink" and event.odds["home"] == 2.1
+    assert [c.source for c in reference.competitor_odds] == ["oddslink:betsson"]
+    assert reference.spent == 2 and reference.remaining == 12  # the reserve is about OddsLink's allowance
+
+
+def test_the_fallback_is_not_asked_when_oddslink_answers(tmp_path):
+    backup = Backup()
+    reference = FallbackReference(make_oddslink(FakeOddsLink(), tmp_path), backup)
+    events = reference.fetch(2)
+    assert backup.calls == 0 and reference.used == "oddslink" and len(events) == 2
+    assert reference.remaining == 999 and reference.spent == 1

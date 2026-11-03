@@ -71,7 +71,10 @@ Endepunktene er uoffisielle og kan endres uten varsel. Når svarene ikke ser ut 
 
 En runde med de 10 landene i standardkonfigen tar rundt 7 sekunder og gir rundt 300 kamper. `robots.txt` stenger ikke `/sport/oddsen` (bare `/sport/liveoddsen`). **Les likevel Norsk Tippings vilkår før bruk.** Det er ikke gjort i dette prosjektet.
 
-**Referanseodds** kommer fra [The Odds API](https://the-odds-api.com). Pinnacle stengte sitt offentlige API i juli 2025, men The Odds API har Pinnacles odds, hentet fra Pinnacles nettsted, også på gratisplanen. Gratisplanen gir 500 kreditter i måneden, uten betalingskort. Registrer deg med e-post på nettstedet og legg nøkkelen i `.env` som `THE_ODDS_API_KEY`.
+**Referanseodds** kommer fra [OddsLink](https://oddslink.app), med [The Odds API](https://the-odds-api.com) som reserve. Pinnacle stengte sitt offentlige API i juli 2025, men begge har Pinnacles odds på gratisplanen.
+
+- **OddsLink** (`reference.source: oddslink`, standard) gir 1 000 forespørsler i måneden, uten betalingskort. Én forespørsel henter alle fotballigaene med Pinnacle og konkurrentene, uansett hvor mange kamper svaret har. Den dekker alle Norsk Tipping-ligaene The Odds API har unntatt 3. Liga, og i tillegg blant annet OBOS-ligaen, dansk 1. division, Eerste Divisie og skotsk Championship. Konkurrentene er Unibet, 888sport, Betway, bet365, bwin, Betano, William Hill og Betfair Exchange; Betsson, NordicBet, Coolbet og LeoVegas finnes ikke der. Lag en gratis nøkkel på nettstedet og legg den i `.env` som `ODDSLINK_API_KEY`. OddsLink er en ny tjeneste (vilkårene er fra oktober 2026), og den sier ikke hvor Pinnacle-oddsen kommer fra.
+- **The Odds API** brukes av seg selv når OddsLink feiler (`fallback: the_odds_api`), hvis `THE_ODDS_API_KEY` er satt. Oddsen lagres da som OddsLinks, så dashboardet og varslene fortsetter som før. Den kan også være eneste kilde (`reference.source: the_odds_api`). Gratisplanen gir 500 kreditter i måneden, og hver liga koster 1 kreditt per henting. Resten av avsnittet beskriver den.
 
 **Referanseodds hentes bare når du ber om det**, med `oddscompare reference` eller knappen «Hent referanseodds» i dashboardet. Den vanlige hentingen (`fetch` og `run`) bruker ingen kreditter. Kredittene brukes slik:
 
@@ -122,7 +125,7 @@ Spilloggen ligger som CSV i tabellen `oddscompare_store` (nøklene `bets.csv` og
 `oddscompare watch` gjør én varslingsrunde, og GitHub Actions kjører den hvert 15. minutt (`.github/workflows/odds-alerts.yml`). Det er gratis, siden repoet er offentlig. Hver runde gjør dette:
 
 1. Henter Norsk Tippings odds. Det er gratis.
-2. Kjøper referanseodds (Pinnacle og konkurrentene) for kamper som starter innen 75 minutter og ikke er sjekket ennå. Det koster 1 kreditt per liga. Det samme skjer igjen hvis Norsk Tipping har hevet et utfall med 5 % siden forrige sjekk.
+2. Kjøper referanseodds (Pinnacle og konkurrentene) to ganger per kamp: én tidlig sjekk rundt 3 timer før avspark, og én innen 75 minutter før. Det koster 1 kreditt per liga. En kamp sjekkes igjen hvis Norsk Tipping har hevet et utfall med 5 % siden forrige sjekk. De tidlige sjekkene gjøres bare til dagen har brukt halvparten av kredittaket, så det alltid er kreditter igjen til sjekkene like før avspark, som er de mest presise.
 3. Sender varsel til telefonen når et utfall har EV på minst 2 % mot Pinnacle, Pinnacles margin er høyst 6 %, referanseoddsen er fersk og Norsk Tipping ikke har flyttet seg siden. Hvert utfall varsles én gang, og igjen bare hvis EV har økt med minst ett prosentpoeng.
 
 Overvåkeren bruker høyst 20 kreditter per dag, og aldri de siste 30 i måneden. Grensene står under `alerts` i `config.yaml`. Den deler kredittene med knappen i appen.

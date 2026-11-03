@@ -83,6 +83,7 @@ SOURCE_NAMES = {
     "norsk_tipping": "Norsk Tipping",
     "the_odds_api": "The Odds API",
     "odds_api_io": "Odds-API.io",
+    "oddslink": "OddsLink",
 }
 
 CSS = """
@@ -658,6 +659,11 @@ def reference_panel(cfg: config.Config, conn, reference: str) -> None:
         if credits is not None:
             lines.append(f"Kreditter igjen denne måneden: {credits}.")
         lines.append(f"Hentingen koster opptil {len(leagues)} kreditter, én per valgt liga med kamper.")
+    elif reference == "oddslink":
+        left = dashboard.credits_left(cfg.cache_dir, reference)
+        if left is not None:
+            lines.append(f"Forespørsler igjen denne måneden: {left}.")
+        lines.append("Én forespørsel henter alle ligaene.")
     st.caption(" ".join(lines))
     if st.button(
         "Hent referanseodds",
@@ -674,6 +680,8 @@ def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str
     nt_last = dashboard.last_success(conn, dashboard.NT)
     ref_last = dashboard.last_success(conn, reference)
     n = len(cfg.reference.the_odds_api.leagues) if reference == "the_odds_api" else None
+    cost = {"the_odds_api": f" (opptil {n} kreditter)", "oddslink": " (1 forespørsel)"}.get(reference, "")
+    unit = "forespørsler" if reference == "oddslink" else "kreditter"
     credits = dashboard.credits_left(cfg.cache_dir, reference)
     left, right = st.columns(2)
     if left.button(
@@ -684,11 +692,12 @@ def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str
         refresh_norsk_tipping(cfg, conn, force=True)
         st.rerun()
     if right.button(
-        f"Oppdater referanseodds (opptil {n} kreditter)" if n else "Oppdater referanseodds",
+        f"Oppdater referanseodds{cost}",
         type="primary",
         width="stretch",
-        help=f"{reference_name} og konkurrentene, for alle ligaer. Færre ligaer kan velges i menyen (››). "
-        "En ny henting innen 5 minutter bruker forrige svar og koster ingenting.",
+        help=f"{reference_name} og konkurrentene, for alle ligaer."
+        + (" Færre ligaer kan velges i menyen (››)." if reference == "the_odds_api" else "")
+        + " En ny henting innen 5 minutter bruker forrige svar og koster ingenting.",
     ):
         fetch_reference(cfg, "page")
     parts = [
@@ -696,7 +705,7 @@ def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str
         f"{reference_name}: {local(ref_last) if ref_last else 'aldri hentet'}",
     ]
     if credits is not None:
-        parts.append(f"{credits} kreditter igjen denne måneden")
+        parts.append(f"{credits} {unit} igjen denne måneden")
     st.caption(" · ".join(parts))
 
 

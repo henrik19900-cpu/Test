@@ -50,7 +50,9 @@ class Opportunity:
 @dataclass
 class WatchReport:
     fetch: fetch.FetchReport | None = None
-    due: int = 0  # matches whose reference odds were due
+    due: int = 0  # matches starting soon whose reference odds were due
+    due_early: int = 0  # matches due an early check, and bought
+    early_skipped: int = 0  # matches due an early check that the day's credits left out
     reference_skipped: str | None = None  # why reference odds were not bought, when they were due
     credits_spent: int = 0
     sent: list[Opportunity] = field(default_factory=list)
@@ -66,17 +68,27 @@ class WatchReport:
     def summary(self) -> str:
         lines = [fetch.summary(self.fetch)] if self.fetch else []
         reference_failed = self.fetch and any(s.status != "ok" for s in self.fetch.sources[1:])
-        if self.due and self.reference_skipped:
-            lines.append(f"{self.due} kamper skulle hatt referanseodds, men: {self.reference_skipped}")
-        elif self.due and reference_failed:
-            lines.append(f"Referanseodds for {self.due} kamper som starter snart feilet (se over).")
-        elif self.due:
+        total = self.due + self.due_early
+        parts = [f"{self.due} kamper som starter snart"] if self.due else []
+        if self.due_early:
+            parts.append(f"{self.due_early} {'med' if self.due else 'kamper med'} tidlig sjekk")
+        what = " og ".join(parts)
+        if total and self.reference_skipped:
+            lines.append(f"{total} kamper skulle hatt referanseodds, men: {self.reference_skipped}")
+        elif total and reference_failed:
+            lines.append(f"Referanseodds for {what} feilet (se over).")
+        elif total:
             lines.append(
-                f"Referanseodds for {self.due} kamper som starter snart: {self.credits_spent} "
+                f"Referanseodds for {what}: {self.credits_spent} "
                 f"{'kreditt' if self.credits_spent == 1 else 'kreditter'}."
             )
         else:
             lines.append("Ingen kamper trengte referanseodds nå.")
+        if self.early_skipped:
+            lines.append(
+                f"Tidlig sjekk av {self.early_skipped} kamper venter: halvparten av dagens kreditter er brukt, "
+                "resten er til sjekkene like før avspark."
+            )
         lines.append(f"Varsler sendt: {len(self.sent)}.")
         lines += [f"  {opportunity_title(o)}: {opportunity_line(o)}" for o in self.sent]
         if self.test_sent:
@@ -108,11 +120,18 @@ def watch(
 
     # Norsk Tipping first (free), so the due list sees its latest odds.
     report.fetch = fetch.run_once(cfg, conn, nt, reference, clock=clock, **extra)
-    due = due_matches(conn, reference.name, now, a)
-    report.due = len(due)
-    if due:
+    soon, early = due_matches(conn, reference.name, now, a)
+    report.due = len(soon)
+    if soon or early:
         report.reference_skipped = _budget_problem(conn, cfg, now)
-        if report.reference_skipped is None:
+        if early and _spent_today(conn, now) >= a.max_credits_per_day * a.early_credit_share:
+            report.early_skipped, early = (
+                len(early),
+                set(),
+            )  # the rest of the day's credits wait for the late checks
+        report.due_early = len(early)
+        due = soon | early
+        if report.reference_skipped is None and due:
             before = dashboard.credits_left(cfg.cache_dir, reference.name)
             ref_report = fetch.run_once(
                 cfg,
@@ -161,38 +180,50 @@ def watch(
     return report
 
 
-def due_matches(conn: sqlite3.Connection, reference: str, now: datetime, a: config.AlertsConfig) -> set[str]:
-    """Norsk Tipping's matches (by its id) that need reference odds now: starting within lead_minutes and
-    not checked since then, or Norsk Tipping has raised an outcome by nt_jump since the last check."""
+def due_matches(
+    conn: sqlite3.Connection, reference: str, now: datetime, a: config.AlertsConfig
+) -> tuple[set[str], set[str]]:
+    """Norsk Tipping's matches (by its id) that need reference odds now, as (soon, early).
+
+    Soon: starting within lead_minutes and not checked since then. Early: starting within
+    early_lead_minutes, but later than lead_minutes, and not checked since then. Either way, a match is
+    due again when Norsk Tipping has raised an outcome by nt_jump since the last check."""
+    early_lead = a.early_lead_minutes if a.early_lead_minutes > a.lead_minutes else 0
     rows = conn.execute(
         """SELECT se.source_event_id, e.id, e.kickoff_utc FROM source_events se JOIN events e ON e.id = se.event_id
            WHERE se.source = ? AND e.kickoff_utc > ? AND e.kickoff_utc <= ?""",
-        (NorskTipping.name, db.iso(now), db.iso(now + timedelta(minutes=a.lead_minutes))),
+        (NorskTipping.name, db.iso(now), db.iso(now + timedelta(minutes=max(a.lead_minutes, early_lead)))),
     ).fetchall()
-    due = set()
+    soon, early = set(), set()
     for nt_id, event_id, kickoff in rows:
+        starts = db.parse_iso(kickoff)
+        is_soon = starts <= now + timedelta(minutes=a.lead_minutes)
         last = conn.execute(
             "SELECT MAX(fetched_at_utc) FROM odds_snapshots WHERE event_id = ? AND source = ?",
             (event_id, reference),
         ).fetchone()[0]
-        window_start = db.parse_iso(kickoff) - timedelta(minutes=a.lead_minutes)
+        window_start = starts - timedelta(minutes=a.lead_minutes if is_soon else early_lead)
         if last is None or db.parse_iso(last) < window_start:
-            due.add(nt_id)
+            (soon if is_soon else early).add(nt_id)
             continue
         then = dashboard._nt_odds_at(conn, event_id, db.parse_iso(last))
         current = dashboard._nt_odds_at(conn, event_id, now)
         if then and current and any(c / t - 1 >= a.nt_jump for c, t in zip(current, then, strict=True)):
-            due.add(nt_id)
-    return due
+            (soon if is_soon else early).add(nt_id)
+    return soon, early
+
+
+def _spent_today(conn: sqlite3.Connection, now: datetime) -> int:
+    """Credits the watcher spent since midnight in Norway."""
+    day_start = datetime.combine(now.astimezone(dashboard.OSLO).date(), datetime.min.time(), dashboard.OSLO)
+    return conn.execute(
+        "SELECT COALESCE(SUM(credits), 0) FROM credits_spent WHERE at_utc >= ?", (db.iso(day_start),)
+    ).fetchone()[0]
 
 
 def _budget_problem(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -> str | None:
     a = cfg.alerts
-    day_start = datetime.combine(now.astimezone(dashboard.OSLO).date(), datetime.min.time(), dashboard.OSLO)
-    spent = conn.execute(
-        "SELECT COALESCE(SUM(credits), 0) FROM credits_spent WHERE at_utc >= ?", (db.iso(day_start),)
-    ).fetchone()[0]
-    if spent >= a.max_credits_per_day:
+    if _spent_today(conn, now) >= a.max_credits_per_day:
         return f"dagens tak på {a.max_credits_per_day} kreditter er nådd"
     left = dashboard.credits_left(cfg.cache_dir, cfg.reference.source)
     if left is not None and left <= a.reserve_credits:

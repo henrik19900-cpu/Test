@@ -23,8 +23,17 @@ norsk_tipping:
   timeout_seconds: 25
 
 reference:
-  source: the_odds_api      # the_odds_api (gratis) | odds_api_io (betalt)
-  the_odds_api:
+  source: oddslink          # oddslink (gratis) | the_odds_api (gratis) | odds_api_io (betalt)
+  oddslink:
+    # Én forespørsel henter alle fotballigaene med Pinnacle og konkurrentene. Gratisplanen har 1 000
+    # forespørsler i måneden (oddslink.app). Nøkkelen ligger i .env som ODDSLINK_API_KEY.
+    base_url: https://oddslink.app/v1
+    bookmaker: pinnacle
+    # Norsk Tippings konkurrenter som OddsLink har (ikke Betsson, NordicBet, Coolbet eller LeoVegas).
+    competitors: [unibet, 888sport, betway, bet365, bwin, betano, williamhill, betfair]
+    fallback: the_odds_api    # spørres i stedet når OddsLink feiler (med THE_ODDS_API_KEY)
+    min_interval_minutes: 5
+  the_odds_api:              # reserve for OddsLink, eller referansekilde med source: the_odds_api
     base_url: https://api.the-odds-api.com/v4
     bookmaker: pinnacle     # eller betfair_ex_eu
     # Norsk Tippings konkurrenter, hentet i samme forespørsel uten ekstra kostnad (høyst 9).
@@ -66,6 +75,8 @@ alerts:
   min_ev: 0.02                # varsel når EV mot Pinnacle er minst 2 %
   max_reference_margin: 0.06  # og Pinnacles egen margin er høyst 6 %
   lead_minutes: 75            # referanseodds kjøpes for kamper som starter innen så mange minutter
+  early_lead_minutes: 180     # og én tidlig sjekk så lenge før avspark (0 = ingen tidlig sjekk)
+  early_credit_share: 0.5     # tidlige sjekker bare til dagen har brukt halvparten av kredittaket
   nt_jump: 0.05               # eller når Norsk Tipping hever oddsen 5 % siden forrige sjekk
   fresh_minutes: 30           # varsler bare på referanseodds som er høyst så gamle
   max_credits_per_day: 20

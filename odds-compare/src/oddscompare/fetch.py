@@ -22,7 +22,7 @@ from . import bets, config, db
 from .matching import Aliases, Matcher
 from .sources import RawEvent, ReferenceSource, SourceError
 from .sources.nt import NorskTipping
-from .sources.reference import OddsApiIo, TheOddsApi
+from .sources.reference import FallbackReference, OddsApiIo, OddsLink, TheOddsApi
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,14 @@ BOOKMAKER_NAMES = {
 
 
 def competitor_sources(cfg: config.Config) -> list[str]:
-    """The odds_snapshots sources of Norsk Tipping's competitors, e.g. «the_odds_api:betsson»."""
+    """The odds_snapshots sources of Norsk Tipping's competitors, e.g. «oddslink:unibet»."""
+    if cfg.reference.source == "oddslink":
+        keys = cfg.reference.oddslink.competitors
+        if (
+            cfg.reference.oddslink.fallback == "the_odds_api"
+        ):  # what the fallback brings, stored as OddsLink's
+            keys = list(dict.fromkeys([*keys, *cfg.reference.the_odds_api.competitors]))
+        return [f"oddslink:{key}" for key in keys]
     if cfg.reference.source != "the_odds_api":
         return []
     return [f"the_odds_api:{key}" for key in cfg.reference.the_odds_api.competitors]
@@ -80,6 +87,22 @@ def competitor_sources(cfg: config.Config) -> list[str]:
 
 def build_sources(cfg: config.Config) -> tuple[NorskTipping, ReferenceSource]:
     nt = NorskTipping(cfg.norsk_tipping, cfg.user_agent, cache_dir=cfg.cache_dir)
+    the_odds_api = TheOddsApi(
+        cfg.reference.the_odds_api,
+        config.api_key("THE_ODDS_API_KEY"),
+        cfg.user_agent,
+        cache_dir=cfg.cache_dir,
+    )
+    if cfg.reference.source == "oddslink":
+        oddslink = OddsLink(
+            cfg.reference.oddslink,
+            config.api_key("ODDSLINK_API_KEY"),
+            cfg.user_agent,
+            cache_dir=cfg.cache_dir,
+        )
+        if cfg.reference.oddslink.fallback == "the_odds_api" and the_odds_api.api_key:
+            return nt, FallbackReference(oddslink, the_odds_api)
+        return nt, oddslink
     if cfg.reference.source == "odds_api_io":
         reference = OddsApiIo(
             cfg.reference.odds_api_io,
@@ -88,12 +111,7 @@ def build_sources(cfg: config.Config) -> tuple[NorskTipping, ReferenceSource]:
             cache_dir=cfg.cache_dir,
         )
     else:
-        reference = TheOddsApi(
-            cfg.reference.the_odds_api,
-            config.api_key("THE_ODDS_API_KEY"),
-            cfg.user_agent,
-            cache_dir=cfg.cache_dir,
-        )
+        reference = the_odds_api
     return nt, reference
 
 

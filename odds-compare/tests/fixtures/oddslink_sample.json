@@ -1,0 +1,61 @@
+[
+  {
+    "id": "soccer:everton-newcastleunited:2026-11-02",
+    "sport_key": "soccer",
+    "sport_title": "Soccer",
+    "commence_time": "2026-11-02T20:00:00.000Z",
+    "is_live": false,
+    "status": "scheduled",
+    "home_team": "Newcastle United",
+    "away_team": "Everton",
+    "league": {"key": "epl", "title": "EPL"},
+    "bookmakers": [
+      {"key": "pinnacle", "title": "Pinnacle", "last_update": "2026-11-01T21:37:20+00:00",
+       "markets": [{"key": "h2h", "outcomes": [
+         {"name": "Everton", "price": 3.1}, {"name": "Newcastle United", "price": 2.3}, {"name": "Draw", "price": 3.6}]}]},
+      {"key": "betfair", "title": "Betfair", "last_update": "2026-11-01T21:36:59.705Z",
+       "markets": [{"key": "h2h", "outcomes": [
+         {"name": "Everton", "price": 3.2, "size": {"kind": "resting_depth", "amount": 7000.0}},
+         {"name": "Newcastle United", "price": 2.32, "size": {"kind": "resting_depth", "amount": 6000.0}},
+         {"name": "Draw", "price": 3.65, "size": {"kind": "resting_depth", "amount": 30000.0}}]}]},
+      {"key": "unibet", "title": "Unibet", "last_update": "2026-11-01T21:38:30+00:00",
+       "markets": [{"key": "h2h", "outcomes": [
+         {"name": "Everton", "price": 3.0}, {"name": "Newcastle United", "price": 2.25}, {"name": "Draw", "price": 3.5}]}]}
+    ]
+  },
+  {
+    "id": "soccer:brann-molde:2026-11-02",
+    "sport_key": "soccer",
+    "sport_title": "Soccer",
+    "commence_time": "2026-11-02T17:00:00.000Z",
+    "is_live": false,
+    "status": "scheduled",
+    "home_team": "Brann",
+    "away_team": "Molde",
+    "league": {"key": "norway_eliteserien", "title": "Eliteserien - Norway"},
+    "bookmakers": [
+      {"key": "pinnacle", "title": "Pinnacle",
+       "markets": [{"key": "h2h", "outcomes": [
+         {"name": "Brann", "price": 2.1}, {"name": "Molde", "price": 3.4}, {"name": "Draw", "price": 3.7}]}]},
+      {"key": "unibet", "title": "Unibet",
+       "markets": [{"key": "h2h", "outcomes": [
+         {"name": "Brann", "price": 2.05}, {"name": "Molde", "price": 3.3}, {"name": "Draw", "price": 3.6}]}]}
+    ]
+  },
+  {
+    "id": "soccer:aalesund-kongsvinger:2026-11-02",
+    "sport_key": "soccer",
+    "sport_title": "Soccer",
+    "commence_time": "2026-11-02T18:00:00.000Z",
+    "is_live": false,
+    "status": "scheduled",
+    "home_team": "Aalesund",
+    "away_team": "Kongsvinger",
+    "league": {"key": "norway_1st_div", "title": "Norway 1st Division"},
+    "bookmakers": [
+      {"key": "unibet", "title": "Unibet",
+       "markets": [{"key": "h2h", "outcomes": [
+         {"name": "Aalesund", "price": 1.9}, {"name": "Kongsvinger", "price": 3.8}, {"name": "Draw", "price": 3.7}]}]}
+    ]
+  }
+]

@@ -276,3 +276,42 @@ def test_secrets_pasted_with_spaces_or_a_line_break_still_work(monkeypatch):
     assert config.api_key("THE_ODDS_API_KEY") == "fake-key-123"
     monkeypatch.setenv("NTFY_TOPIC", "  ")
     assert config.api_key("NTFY_TOPIC") is None
+
+
+def test_an_early_check_hours_before_and_the_late_check_again_near_kick_off(setup):
+    cfg, conn, sent = setup
+    ref = FakeReference()
+    report = run(cfg, conn, sent, FakeNT(), ref, when=LATER - timedelta(hours=2))  # Brann – Molde in 2 hours
+    assert ref.calls == [["SK Brann"]] and (report.due, report.due_early) == (0, 1)
+    assert "Referanseodds for 1 kamper med tidlig sjekk:" in report.summary()
+    run(cfg, conn, sent, FakeNT(), ref, when=LATER - timedelta(minutes=105))
+    assert len(ref.calls) == 1  # checked early already: nothing bought
+    report = run(cfg, conn, sent, FakeNT(), ref, when=LATER - timedelta(minutes=70))
+    assert ref.calls[-1] == ["SK Brann"] and report.due == 1  # and again within 75 minutes
+
+
+def test_early_checks_stop_at_half_the_days_credits_but_the_late_ones_go_on(setup):
+    cfg, conn, sent = setup
+    with db.transaction(conn):  # 10 of the day's 20 credits spent
+        conn.execute(
+            "INSERT INTO credits_spent (at_utc, credits, remaining) VALUES (?, 10, 300)", (db.iso(NOW),)
+        )
+    early_cfg = cfg.model_copy(update={"alerts": cfg.alerts.model_copy(update={"early_lead_minutes": 330})})
+    ref = FakeReference()
+    report = run(early_cfg, conn, sent, FakeNT(), ref)  # Wrexham in 1 hour, Brann – Molde in 5
+    assert ref.calls == [["Wrexham AFC"]] and (report.due, report.due_early, report.early_skipped) == (
+        1,
+        0,
+        1,
+    )
+    assert "Tidlig sjekk av 1 kamper venter" in report.summary()
+
+
+def test_no_early_check_when_it_is_off(setup):
+    cfg, conn, sent = setup
+    cfg = cfg.model_copy(update={"alerts": cfg.alerts.model_copy(update={"early_lead_minutes": 0})})
+    ref = FakeReference()
+    report = run(cfg, conn, sent, FakeNT(), ref, when=LATER - timedelta(hours=2))
+    assert (
+        ref.calls == [] and report.due_early == 0 and "Ingen kamper trengte referanseodds" in report.summary()
+    )

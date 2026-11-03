@@ -75,19 +75,22 @@ reference:
 alerts:
   min_ev: 0.02                # varsel når EV mot Pinnacle er minst 2 %
   max_reference_margin: 0.06  # og Pinnacles egen margin er høyst 6 %
-  lead_minutes: 75            # referanseodds kjøpes for kamper som starter innen så mange minutter
-  early_lead_minutes: 180     # og én tidlig sjekk så lenge før avspark (0 = ingen tidlig sjekk)
-  early_credit_share: 0.5     # tidlige sjekker bare til dagen har brukt halvparten av kredittaket
-  # Med OddsLink koster alle kampene én forespørsel: hver henting gjelder alle kampene de neste days_ahead
-  # døgnene, og de sjekkes minst så ofte (0 = bare når en kamp starter snart). Som de tidlige sjekkene
-  # bare til dagen har brukt early_credit_share av max_credits_per_day.
-  scan_minutes: 120
+  # Med OddsLink koster alle kampene én forespørsel: alle kampene de neste days_ahead døgnene sjekkes én
+  # gang per scan_minutes. Feiler OddsLink, spørres The Odds API bare for kampene innen lead_minutes.
+  scan_minutes: 60
+  # Med The Odds API (1 kreditt per liga) kjøpes referanseodds bare for kamper som starter innen
+  # lead_minutes, og én tidlig sjekk early_lead_minutes før avspark (0 = ingen tidlig sjekk), bare til
+  # dagen har brukt early_credit_share av kredittaket.
+  lead_minutes: 75
+  early_lead_minutes: 180
+  early_credit_share: 0.5
   nt_jump: 0.05               # eller når Norsk Tipping hever oddsen 5 % siden forrige sjekk
   fresh_minutes: 30           # varsler bare på referanseodds som er høyst så gamle
-  max_credits_per_day: 20
+  max_credits_per_day: 24     # kreditter, eller forespørsler med OddsLink (én i timen gir 24)
   reserve_credits: 30         # de siste kredittene i måneden brukes aldri av overvåkeren
   ntfy_server: https://ntfy.sh
   # Åpnes når du trykker på varselet eller knappen «Åpne odds-siden»: Streamlit-appen, som henter ferske odds.
   app_url: "https://henrik-odds.streamlit.app/"
   keep_days: 7                # så lenge overvåkeren tar vare på ferdigspilte kamper
-  days_ahead: 2               # så langt frem overvåkeren leser Norsk Tipping
+  history_hours: 12           # og oddshistorikk; siste odds per kamp og kilde beholdes alltid
+  days_ahead: 7               # så langt frem overvåkeren leser Norsk Tipping og ser etter verdispill

@@ -149,9 +149,9 @@ class AlertsConfig(BaseModel):
     # early_credit_share of max_credits_per_day, so the late check, the more precise one, always has credits
     early_lead_minutes: float = Field(180, ge=0)
     early_credit_share: float = Field(0.5, ge=0, le=1)
-    # With OddsLink, one request covers every match: each purchase is for all of them, and they are checked at
-    # least this often (0: only when a match is due), within early_credit_share of the day's credits
-    scan_minutes: float = Field(120, ge=0)
+    # With OddsLink, one request covers every match: every match is checked once every scan_minutes, and the
+    # due checks above are what its fallback (a credit per league) is asked for when OddsLink fails
+    scan_minutes: float = Field(60, gt=0)
     nt_jump: float = Field(0.05, gt=0)  # or when Norsk Tipping raises an outcome by this since the last check
     fresh_minutes: float = Field(30, gt=0)  # alerts only on reference odds at most this old
     max_credits_per_day: int = Field(20, ge=0)
@@ -159,6 +159,8 @@ class AlertsConfig(BaseModel):
     ntfy_server: str = "https://ntfy.sh"
     app_url: str = ""  # opened when the notification is tapped, e.g. the Streamlit app
     keep_days: int = Field(7, ge=1)  # how long the watcher keeps finished matches
+    # and the odds history: older odds than this are deleted, but a match's latest odds from each source stay
+    history_hours: float = Field(12, gt=0)
     days_ahead: int = Field(
         2, ge=1, le=14
     )  # how far ahead the watcher reads Norsk Tipping (keeps its database small)

@@ -362,31 +362,41 @@ def test_with_oddslink_every_match_is_checked_and_notified_not_only_those_starti
     )
 
 
-def test_with_oddslink_every_match_is_checked_every_two_hours_when_none_starts_soon(oddslink):
+def test_with_oddslink_every_match_is_checked_once_an_hour(oddslink):
     cfg, conn, sent = oddslink
     ref = FakeOddsLink()
-    start = NOW - timedelta(hours=3)  # Wrexham in 4 hours, Brann – Molde in 8: neither is due
+    start = NOW - timedelta(hours=3)  # Wrexham in 4 hours, Brann – Molde in 8
     report = run(cfg, conn, sent, FakeNT(), ref, when=start)
     assert ref.calls == [["Wrexham AFC", "SK Brann"]] and report.due == 0 and len(sent) == 2
     assert "Referanseodds for alle kampene de neste 2 døgnene: 1 forespørsel." in report.summary()
     report = run(cfg, conn, sent, FakeNT(), ref, when=start + timedelta(minutes=30))
-    assert len(ref.calls) == 1 and "Ingen kamper trengte referanseodds" in report.summary()
-    run(cfg, conn, sent, FakeNT(), ref, when=start + timedelta(minutes=120))
+    assert (
+        len(ref.calls) == 1
+        and "Neste sjekk av alle kampene de neste 2 døgnene om 30 min." in report.summary()
+    )
+    run(cfg, conn, sent, FakeNT(), ref, when=start + timedelta(minutes=60))
     assert len(ref.calls) == 2 and len(sent) == 2  # checked again, but nothing new to notify
 
 
-def test_with_oddslink_the_regular_check_stops_at_half_the_days_credits(oddslink):
+def test_with_oddslink_a_match_starting_soon_waits_for_the_hourly_check(oddslink):
     cfg, conn, sent = oddslink
-    with db.transaction(conn):  # 10 of the day's 20 requests spent
+    ref = FakeOddsLink()
+    run(cfg, conn, sent, FakeNT(), ref, when=NOW - timedelta(minutes=30))  # Wrexham in 90 minutes
+    report = run(cfg, conn, sent, FakeNT(home_odds=2.50), ref)  # in 60, and Norsk Tipping raised its odds
+    assert len(ref.calls) == 1 and report.due == 1  # due, but once an hour is the limit
+    assert "om 30 min" in report.summary()
+
+
+def test_with_oddslink_the_daily_cap_stops_the_hourly_check(oddslink):
+    cfg, conn, sent = oddslink
+    with db.transaction(conn):
         conn.execute(
-            "INSERT INTO credits_spent (at_utc, credits, remaining) VALUES (?, 10, 900)", (db.iso(NOW),)
+            "INSERT INTO credits_spent (at_utc, credits, remaining) VALUES (?, 20, 900)", (db.iso(NOW),)
         )
     ref = FakeOddsLink()
-    report = run(cfg, conn, sent, FakeNT(), ref, when=NOW - timedelta(hours=3))
-    assert ref.calls == [] and report.scan_skipped
-    assert "Sjekken av alle kampene venter" in report.summary()
-    report = run(cfg, conn, sent, FakeNT(), ref)  # Wrexham soon: bought, and for every match still
-    assert ref.calls == [["Wrexham AFC", "SK Brann"]] and report.every_match
+    report = run(cfg, conn, sent, FakeNT(), ref)
+    assert ref.calls == [] and "dagens tak" in report.reference_skipped
+    assert "Alle kampene de neste 2 døgnene skulle hatt referanseodds, men: dagens tak" in report.summary()
 
 
 def test_when_oddslink_fails_its_fallback_is_asked_only_for_the_matches_starting_soon(oddslink):

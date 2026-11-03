@@ -279,6 +279,21 @@ def source_events_since(conn: sqlite3.Connection, source: str, kickoff_from: dat
     ).fetchall()
 
 
+def thin(conn: sqlite3.Connection, older_than: timedelta, now: datetime | None = None) -> int:
+    """Delete odds older than older_than, but each source's latest odds on each match: the watcher needs no
+    history, and with every match a week ahead checked hourly its database would grow by about 30 MB a day.
+    Returns how many odds were deleted."""
+    cutoff = iso((now or datetime.now(UTC)) - older_than)
+    with transaction(conn):
+        return conn.execute(
+            """DELETE FROM odds_snapshots WHERE fetched_at_utc < ? AND NOT EXISTS (
+                 SELECT 1 FROM latest_fetch f WHERE f.event_id = odds_snapshots.event_id
+                   AND f.source = odds_snapshots.source AND f.market = odds_snapshots.market
+                   AND f.fetched_at_utc = odds_snapshots.fetched_at_utc)""",
+            (cutoff,),
+        ).rowcount
+
+
 def prune(conn: sqlite3.Connection, older_than_days: int = 90, now: datetime | None = None) -> int:
     """Delete events (with their snapshots and links) that kicked off more than older_than_days ago."""
     cutoff = iso((now or datetime.now(UTC)) - timedelta(days=older_than_days))

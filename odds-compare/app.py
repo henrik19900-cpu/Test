@@ -37,7 +37,10 @@ def forget_changed_package(package: str = "oddscompare") -> bool:
     recorded = getattr(sys.modules.get(package), "_imported_mtimes", None)
     if recorded is None:  # imported by an app.py without this, or by tests: changed since the process began?
         started = _process_started()
-        stale = started is not None and any((_mtime(m) or 0) > started for m in loaded.values())
+        # The start is known to a second or so (the boot time is in whole seconds), and a file written just
+        # before the process began (a formatter, then tests) must not count; new code on Streamlit Cloud
+        # comes minutes or hours after the start.
+        stale = started is not None and any((_mtime(m) or 0) > started + 5 for m in loaded.values())
     else:
         stale = any(_mtime(loaded[n]) != t for n, t in recorded.items() if n in loaded)
         recorded.update({n: _mtime(m) for n, m in loaded.items() if n not in recorded})  # imported later
@@ -115,6 +118,9 @@ table.oc-books th, table.oc-books td { padding: 0.2rem 0.4rem; text-align: right
 table.oc-books th:first-child, table.oc-books td:first-child { text-align: left; }
 table.oc-books td.top { font-weight: 700; }
 table.oc-books tr.nt td { background: rgba(128,128,128,0.10); }
+.oc-arb-teams { font-weight: 700; font-size: 1.05rem; line-height: 1.3; }
+table.oc-arb th:nth-child(2), table.oc-arb td:nth-child(2) { text-align: left; }
+.oc-arb-result { margin-top: 0.5rem; }
 /* One card per row on narrow screens (the cards are laid out in Streamlit columns). */
 @media (max-width: 700px) {
   div[data-testid="stHorizontalBlock"] { flex-direction: column !important; }
@@ -493,6 +499,121 @@ def market_tab(
     )
 
 
+def either(names: list[str]) -> str:
+    """«Betsson», «Betsson eller Unibet», «Betsson, Coolbet eller Unibet»."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} eller {names[-1]}"
+
+
+def age_text(age: timedelta) -> str:
+    """«under 1 min», «25 min», «3 t 5 min» or, from two days, «3 d 4 t»."""
+    minutes = int(age.total_seconds() // 60)
+    if minutes < 1:
+        return "under 1 min"
+    if minutes < 60:
+        return f"{minutes} min"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 48:
+        return f"{hours} t {minutes} min"
+    days, hours = divmod(hours, 24)
+    return f"{days} d {hours} t"
+
+
+def prices_age(a: dashboard.Arbitrage, now: datetime, stale_after: timedelta) -> str:
+    """How old the prices of a sure bet are; in red when the oldest is older than stale_after."""
+    known = [moment for moment in a.fetched if moment]
+    if len(known) < len(a.fetched):
+        return '<div class="oc-foot">Alderen på prisene er ukjent: sjekk oddsen hos spillselskapene.</div>'
+    oldest, newest = now - min(known), now - max(known)
+    if oldest == newest:
+        text = f"Prisene ble hentet for {age_text(oldest)} siden."
+    else:
+        text = f"Eldste pris ble hentet for {age_text(oldest)} siden, nyeste for {age_text(newest)} siden."
+    return f'<div class="{"oc-stale" if oldest > stale_after else "oc-foot"}">{text}</div>'
+
+
+def arbitrage_html(a: dashboard.Arbitrage, stake: float, now: datetime, stale_after: timedelta) -> str:
+    """One sure bet: where to back each outcome and with how much, and what comes back whatever the result."""
+    e = html.escape
+    split = a.split(stake)
+    rows = "".join(
+        f"<tr><td>{label}</td><td>{e(either(names))}</td><td>{odds_text(odds)}</td>"
+        f"<td>{kroner(amount)}</td><td>{kroner(back)}</td></tr>"
+        for label, names, odds, amount, back in zip(
+            ("H", "U", "B"), a.books, a.odds, split.stakes, split.returns, strict=True
+        )
+    )
+    head = "<tr><th>Utfall</th><th>Spillselskap</th><th>Odds</th><th>Innsats</th><th>Utbetaling</th></tr>"
+    share = split.profit / split.staked if split.staked else None
+    return (
+        f'<div class="oc-arb-teams">{e(a.card.home)} – {e(a.card.away)}</div>'
+        f'<div class="oc-meta">{e(a.card.league)} · {local(a.card.kickoff_utc)}</div>'
+        f'<table class="oc-books oc-arb">{head}{rows}</table>'
+        f'<div class="oc-arb-result">Garantert utbetaling <b>{kroner(split.guaranteed)}</b> for '
+        f"{kroner(split.staked)} i innsats: gevinst <b>{kroner(split.profit, signed=True)} "
+        f"({percent(share, signed=True)})</b></div>{prices_age(a, now, stale_after)}"
+    )
+
+
+def arbitrage_tab(
+    cards: list[dashboard.Card], reference_name: str, now: datetime, stale_after: timedelta
+) -> None:
+    """Matches where backing all three outcomes at the best prices among your bookmakers wins whatever
+    the result (a sure bet), and how to split the stake."""
+    books = dashboard.arbitrage_books(cards)
+    if len(books) < 2:
+        st.info("Ingen kamper med konkurrentenes odds ennå. De kommer med når du henter referanseodds.")
+        return
+    picked = st.multiselect(
+        "Spillselskaper du har konto hos",
+        books,
+        default=dashboard.default_books(books),
+        format_func=lambda s: reference_name if s == dashboard.REFERENCE else dashboard.bookmaker_name(s),
+        help="Børser som Betfair er ikke med fra start: oddsen her er midt mellom kjøps- og salgsprisen, og de "
+        "tar provisjon av gevinsten, så den kan ikke spilles som vist.",
+    )
+    stake = st.number_input("Total innsats (kr)", min_value=10, value=1000, step=100)
+    sure, others = dashboard.arbitrages(cards, picked, reference_name)
+    if sure:
+        st.markdown(
+            f"**Sikker gevinst i {len(sure)} av {len(sure) + len(others)} kamper** med odds fra spillselskapene "
+            "du har valgt. Innsatsen er fordelt så hvert utfall betaler ut omtrent det samme."
+        )
+        for a in sure:
+            with st.container(border=True):
+                st.markdown(arbitrage_html(a, stake, now, stale_after), unsafe_allow_html=True)
+    elif len(picked) < 2:
+        st.info("Velg minst to spillselskaper: hos ett alene blir det aldri sikker gevinst.")
+    else:
+        st.info("Ingen sikker gevinst med spillselskapene du har valgt akkurat nå.")
+        if others:
+            st.markdown(
+                "**Nærmest sikker gevinst**, med margin: summen av 1/odds for beste odds på hvert utfall, "
+                "minus 1. Under 0 % er sikker gevinst."
+            )
+            st.dataframe(
+                [
+                    {
+                        "Avspark": local(a.card.kickoff_utc),
+                        "Kamp": f"{a.card.home} – {a.card.away}",
+                        "Liga": a.card.league,
+                        **{
+                            label: f"{odds_text(odds)} {either(names)}"
+                            for label, odds, names in zip(("H", "U", "B"), a.odds, a.books, strict=True)
+                        },
+                        "Margin": percent(a.total - 1),
+                    }
+                    for a in others[:5]
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+    st.caption(
+        "Prisene kan endre seg før du rekker å spille alle tre, og de kan være gamle: konkurrentenes odds er fra "
+        "sist referanseodds ble hentet. Sjekk oddsen hos hvert spillselskap før du spiller. Spillselskapene kan "
+        "også annullere slike spill eller begrense kontoen din."
+    )
+
+
 @st.cache_resource
 def bet_log_sync() -> dict:
     """Shared by every session of this app process: whether the stored bet log has been read back, and
@@ -811,11 +932,7 @@ def main() -> None:
     cfg = config.load(os.environ.get("ODDSCOMPARE_CONFIG") or Path(__file__).with_name("config.yaml"))
     reference = cfg.reference.source
     reference_name = dashboard.BOOKMAKERS.get(cfg.reference.bookmaker, cfg.reference.bookmaker)
-    competitors = (
-        [f"{reference}:{key}" for key in cfg.reference.the_odds_api.competitors]
-        if reference == "the_odds_api"
-        else []
-    )
+    competitors = fetch.competitor_sources(cfg)  # the same list the fetch stores, for OddsLink too
     conn = db.connect(cfg.database)
     sync = sync_bet_log(conn)  # first: after a restart the bet log comes back before anything shows it
     refresh_norsk_tipping(cfg, conn)
@@ -860,8 +977,8 @@ def main() -> None:
             if now - last > stale_after:
                 st.warning(f"{name}: siste vellykkede henting var {local(last)}. Kjører `oddscompare run`?")
 
-    matches_tab, market_tab_, my_bets_tab, unmatched_tab = st.tabs(
-        ["Kamper", "NT mot markedet", "Mine spill", "Umatchede kamper"]
+    matches_tab, market_tab_, arbitrage_tab_, my_bets_tab, unmatched_tab = st.tabs(
+        ["Kamper", "NT mot markedet", "Sikker gevinst", "Mine spill", "Umatchede kamper"]
     )
     with matches_tab:
         # Before any reference odds are fetched here, nothing has EV, and the EV filter would hide every match:
@@ -929,6 +1046,11 @@ def main() -> None:
             [c for c in all_cards if not leagues or c.league in leagues],
             reference_name,
             dashboard.last_success(conn, reference),
+        )
+
+    with arbitrage_tab_:
+        arbitrage_tab(
+            [c for c in all_cards if not leagues or c.league in leagues], reference_name, now, stale_after
         )
 
     with my_bets_tab:

@@ -747,3 +747,143 @@ def test_with_oddslink_the_button_costs_one_request(tmp_path, monkeypatch):
     assert any(b.label == "Oppdater referanseodds (1 forespørsel)" for b in app.button)
     assert any("Én forespørsel henter alle ligaene" in c.value for c in app.caption)
     assert "OddsLink" in app.caption[0].value  # «Norsk Tipping mot margin-fri referanse (OddsLink: Pinnacle)»
+
+
+def test_a_sure_bet_is_found_with_its_profit_and_stake_split():
+    sure = card_with_competitors(
+        (2.30, 3.20, 3.00), {"betsson": (2.00, 3.60, 3.50), "unibet_se": (2.10, 3.40, 4.20)}
+    )
+    sure.competitors_fetched = {"the_odds_api:betsson": NOW - timedelta(hours=2)}  # Unibet's time unknown
+    close = card_with_competitors(
+        (2.00, 3.40, 3.80), {"betsson": (2.10, 3.40, 3.70), "unibet_se": (2.05, 3.30, 3.90)}
+    )
+    far = card_with_competitors((1.50, 4.00, 6.00), {"betsson": (1.55, 4.10, 6.50)})
+    found, closest = dashboard.arbitrages([far, close, sure])
+    [a] = found
+    assert a.card is sure and a.odds == [2.30, 3.60, 4.20]
+    assert a.books == [["Norsk Tipping"], ["Betsson"], ["Unibet"]]
+    assert a.fetched == [NOW, NOW - timedelta(hours=2), None]
+    assert a.total == pytest.approx(1 / 2.30 + 1 / 3.60 + 1 / 4.20)  # 0.951
+    assert a.profit == pytest.approx(1 / a.total - 1) and round(a.profit * 100, 1) == 5.2
+    split = a.split(1000)  # 1000 × (1/odds) / total, in whole kroner
+    assert split.stakes == [457, 292, 250] and split.staked == 999
+    assert split.returns == pytest.approx([1051.1, 1051.2, 1050.0])
+    assert split.guaranteed == pytest.approx(1050.0) and split.profit == pytest.approx(51.0)
+    # Not sure bets, but the closest, by the sum of 1/odds: 1.027 and 1.043.
+    assert [b.card for b in closest] == [close, far]
+    assert closest[0].total - 1 == pytest.approx(1 / 2.10 + 1 / 3.40 + 1 / 3.90 - 1)
+    assert (
+        closest[0].books[1] == ["Norsk Tipping", "Betsson"] and closest[0].profit < 0
+    )  # a shared best price
+
+
+def test_sure_bets_use_only_the_bookmakers_picked_and_leave_exchanges_out_by_default():
+    card = card_with_competitors(
+        (2.30, 3.20, 3.00),
+        {"betsson": (2.00, 3.60, 3.30), "betfair_ex_eu": (2.10, 3.40, 4.40)},
+        ref=(2.05, 3.50, 4.50),
+    )
+    books = dashboard.arbitrage_books([card])
+    assert books == [dashboard.NT, dashboard.REFERENCE, "the_odds_api:betfair_ex_eu", "the_odds_api:betsson"]
+    assert dashboard.default_books(books) == [dashboard.NT, "the_odds_api:betsson"]
+    sure, [a] = dashboard.arbitrages([card])  # Norsk Tipping and Betsson: 1.016, no sure bet
+    assert not sure and a.odds == [2.30, 3.60, 3.30] and a.books[2] == ["Betsson"]
+    [a], _ = dashboard.arbitrages([card], [*books[:1], *books[2:]])  # with Betfair, when picked
+    assert a.odds == [2.30, 3.60, 4.40] and a.books[2] == ["Betfair Exchange"]
+    [a], _ = dashboard.arbitrages([card], [dashboard.NT, dashboard.REFERENCE], "Pinnacle")
+    assert a.odds == [2.30, 3.50, 4.50] and a.books == [["Norsk Tipping"], ["Pinnacle"], ["Pinnacle"]]
+    _, [a] = dashboard.arbitrages([card], [dashboard.NT])
+    assert a.odds == card.nt_odds and a.total - 1 == pytest.approx(card.nt_margin)
+    assert dashboard.arbitrages([card], []) == ([], [])
+    assert dashboard.is_exchange("the_odds_api:betfair_ex_uk")
+    assert not dashboard.is_exchange("the_odds_api:betsson")
+
+
+def test_the_sure_bet_tab(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text(
+        "reference:\n  the_odds_api:\n    competitors: [unibet_se, betsson, betfair_ex_eu]\n",
+        encoding="utf-8",
+    )
+    conn = db.connect(tmp_path / "data" / "odds.db")
+    now = datetime.now(UTC)
+    db.log_fetch(conn, "norsk_tipping", now, "ok", 2)
+    matches = {  # Norsk Tipping, Betsson, Unibet, Betfair
+        ("Brann", "Molde"): [(2.30, 3.20, 3.00), (2.00, 3.60, 3.30), (2.10, 3.40, 4.20), (2.20, 3.70, 4.50)],
+        ("Viking", "Odd"): [(2.00, 3.40, 3.80), (2.10, 3.40, 3.70), (2.05, 3.30, 3.90), (2.30, 3.80, 4.20)],
+    }
+    for (home, away), (nt_odds, *books) in matches.items():
+        nt = raw_event(
+            source_event_id=home,
+            home=home,
+            away=away,
+            kickoff_utc=now + timedelta(days=1),
+            odds=dict(zip(("home", "draw", "away"), nt_odds, strict=True)),
+        )
+        event_id = db.create_event(conn, nt)
+        db.link(conn, nt, event_id)
+        db.add_snapshot(conn, event_id, nt, now)
+        for key, odds in zip(("betsson", "unibet_se", "betfair_ex_eu"), books, strict=True):
+            competitor = nt.model_copy(
+                update={
+                    "source": f"the_odds_api:{key}",
+                    "odds": dict(zip(("home", "draw", "away"), odds, strict=True)),
+                }
+            )
+            db.add_snapshot(conn, event_id, competitor, now)
+    conn.commit()
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    [tab] = [t for t in app.tabs if t.label == "Sikker gevinst"]
+    [picker] = [m for m in tab.multiselect if m.label == "Spillselskaper du har konto hos"]
+    assert picker.value == ["norsk_tipping", "the_odds_api:betsson", "the_odds_api:unibet_se"]  # no exchange
+    assert [n.value for n in tab.number_input if n.label == "Total innsats (kr)"] == [1000]
+    [bet] = [
+        m.value for m in tab.markdown if 'class="oc-arb-teams"' in m.value
+    ]  # Viking – Odd only with Betfair
+    assert "Brann – Molde" in bet and "457 kr" in bet and "+51 kr" in bet and "+5,1 %" in bet
+    assert "Prisene ble hentet for under 1 min siden" in bet
+    app = picker.unselect("the_odds_api:unibet_se").run()
+    assert not app.exception
+    [tab] = [t for t in app.tabs if t.label == "Sikker gevinst"]
+    assert any("Ingen sikker gevinst" in i.value for i in tab.info)
+    [closest] = tab.dataframe
+    assert list(closest.value["Kamp"]) == ["Brann – Molde", "Viking – Odd"]
+    assert any("annullere" in c.value for c in tab.caption)
+
+
+def test_with_oddslink_the_cards_show_the_competitors_odds(tmp_path, monkeypatch):
+    """The app took its competitor list from The Odds API's settings only, so with OddsLink none showed."""
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("reference:\n  source: oddslink\n", encoding="utf-8")
+    conn = db.connect(tmp_path / "data" / "odds.db")
+    now = datetime.now(UTC)
+    kickoff = now + timedelta(hours=5)
+    nt = raw_event(
+        source_event_id="nt1", kickoff_utc=kickoff, odds={"home": 2.30, "draw": 3.40, "away": 3.10}
+    )
+    event_id = db.create_event(conn, nt)
+    db.link(conn, nt, event_id)
+    db.add_snapshot(conn, event_id, nt, now)
+    for source, odds in {
+        "oddslink": (2.20, 3.50, 3.40),
+        "oddslink:unibet": (2.25, 3.45, 3.30),
+        "oddslink:bet365": (2.40, 3.40, 3.20),
+    }.items():
+        raw = raw_event(source=source, source_event_id="o1", kickoff_utc=kickoff,
+                        odds=dict(zip(("home", "draw", "away"), odds, strict=True)))  # fmt: skip
+        db.link(conn, raw, event_id)
+        db.add_snapshot(conn, event_id, raw, now)
+    db.log_fetch(conn, "norsk_tipping", now, "ok", 1)
+    conn.commit()
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    assert any(e.label.startswith("Konkurrentenes odds (2)") for e in app.expander)
+    [picker] = [m for m in app.multiselect if m.label == "Spillselskaper du har konto hos"]
+    assert set(picker.value) == {"norsk_tipping", "oddslink:unibet", "oddslink:bet365"}

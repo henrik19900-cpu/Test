@@ -97,6 +97,7 @@ class Card:
     fair_odds: list[float] | None = None
     ev: list[float] | None = None
     competitors: dict[str, list[float]] = field(default_factory=dict)  # source -> odds, in config order
+    competitors_fetched: dict[str, datetime] = field(default_factory=dict)  # source -> when fetched
     # Where the fair odds come from: None (the reference) or "konkurrenter" (their average, when the
     # reference has not priced the match yet).
     fair_from: str | None = None
@@ -216,6 +217,7 @@ def load_cards(
         card.competitors = {
             s: [event[s][o] for o in OUTCOMES] for s in competitors if set(event[s]) == set(OUTCOMES)
         }
+        card.competitors_fetched = {s: event["fetched"][s] for s in card.competitors}
         fair_fetched = card.ref_fetched or max(
             (event["fetched"][s] for s in card.competitors if s in event["fetched"]), default=None
         )
@@ -418,6 +420,105 @@ def market(cards: list[Card], reference_name: str = "Pinnacle") -> Market:
         margins=sorted(((n, sum(v) / len(v), len(v)) for n, v in margins.items() if v), key=lambda m: m[1]),
         head_to_head=head_to_head,
     )
+
+
+# Betting exchanges: their price in this data is the midpoint of back and lay, and they take a commission on
+# winnings, so it cannot be had as shown. Left out of sure bets unless picked.
+EXCHANGES = frozenset({"betfair", "betfair_ex_eu", "betfair_ex_uk"})
+REFERENCE = "referanse"  # the reference's odds on a card, among the bookmakers to pick for sure bets
+
+
+def is_exchange(source: str) -> bool:
+    return (source.partition(":")[2] or source) in EXCHANGES
+
+
+def arbitrage_books(cards: list[Card]) -> list[str]:
+    """The bookmakers with odds in the cards, to pick from for sure bets: Norsk Tipping, the reference (as
+    REFERENCE) when it has priced a match, then the competitors by name."""
+    competitors = sorted({s for c in cards for s in c.competitors}, key=bookmaker_name)
+    return [NT, *([REFERENCE] if any(c.ref_odds for c in cards) else []), *competitors]
+
+
+def default_books(books: list[str]) -> list[str]:
+    """Norsk Tipping and the competitors, without the exchanges; the reference only when picked."""
+    return [b for b in books if b != REFERENCE and not is_exchange(b)]
+
+
+@dataclass
+class StakeSplit:
+    """A total stake split over the outcomes, in whole kroner, so each pays back about the same."""
+
+    stakes: list[int]
+    returns: list[float]  # what each outcome pays back, after the rounding
+
+    @property
+    def staked(self) -> int:
+        return sum(self.stakes)
+
+    @property
+    def guaranteed(self) -> float:
+        """What comes back whatever the result: the smallest of the returns."""
+        return min(self.returns)
+
+    @property
+    def profit(self) -> float:
+        return self.guaranteed - self.staked
+
+
+@dataclass
+class Arbitrage:
+    """The best price per outcome on one match among the bookmakers picked. When their 1/odds add up to
+    less than 1, backing every outcome there wins whatever the result: a sure bet."""
+
+    card: Card
+    odds: list[float]  # the best price per outcome
+    books: list[list[str]]  # who offers it, per outcome
+    fetched: list[datetime | None]  # when that price was fetched (the newest when shared), None if unknown
+    total: float  # the sum of 1/odds
+
+    @property
+    def sure(self) -> bool:
+        return self.total < 1
+
+    @property
+    def profit(self) -> float:
+        """The share of the stake won whatever the result (negative when it is not a sure bet)."""
+        return 1 / self.total - 1
+
+    def split(self, stake: float) -> StakeSplit:
+        """The stake over the outcomes in proportion to 1/odds, so each pays back stake / total."""
+        stakes = [round(stake / odds / self.total) for odds in self.odds]
+        return StakeSplit(stakes, [s * odds for s, odds in zip(stakes, self.odds, strict=True)])
+
+
+def arbitrages(
+    cards: list[Card], books: list[str] | None = None, reference_name: str = "Pinnacle"
+) -> tuple[list[Arbitrage], list[Arbitrage]]:
+    """The best price per outcome on each match among the bookmakers picked (sources, REFERENCE for the
+    reference's odds); without books, Norsk Tipping and every competitor but the exchanges.
+
+    Returns the sure bets, the biggest profit first, and the other matches, the closest to one first."""
+    found = []
+    for card in cards:
+        prices = {NT: (card.nt_odds, card.nt_fetched)}
+        if card.ref_odds:
+            prices[REFERENCE] = (card.ref_odds, card.ref_fetched)
+        for source, odds in card.competitors.items():
+            prices[source] = (odds, card.competitors_fetched.get(source))
+        wanted = default_books(list(prices)) if books is None else books
+        picked = {s: price for s, price in prices.items() if s in wanted}
+        if not picked:
+            continue
+        best, names, fetched = [], [], []
+        for i in range(len(OUTCOMES)):
+            top = max(odds[i] for odds, _ in picked.values())
+            sharing = [s for s, (odds, _) in picked.items() if odds[i] == top]
+            best.append(top)
+            names.append([reference_name if s == REFERENCE else bookmaker_name(s) for s in sharing])
+            fetched.append(max((picked[s][1] for s in sharing if picked[s][1]), default=None))
+        found.append(Arbitrage(card, best, names, fetched, sum(1 / odds for odds in best)))
+    found.sort(key=lambda a: (a.total, a.card.kickoff_utc))
+    return [a for a in found if a.sure], [a for a in found if not a.sure]
 
 
 def ev_class(ev: float | None) -> str:

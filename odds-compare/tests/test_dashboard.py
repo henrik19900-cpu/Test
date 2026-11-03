@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -368,6 +369,29 @@ def test_the_page_fetches_norsk_tipping_itself_when_its_odds_are_old(tmp_path, m
     assert app.metric[0].value == "84"  # the matches are on the page at once
     app.run()  # fresh now: no second fetch
     assert calls == ["nt"]
+
+
+def test_betfairs_odds_are_shown_after_its_commission(conn):
+    """An exchange takes its commission off the winnings: 3.00 at 5 % pays 2.90, and that is what is compared."""
+    event_id = store(conn, (2.00, 3.40, 3.60), None)
+    books = {"betsson": (2.10, 3.40, 3.50), "unibet": (2.05, 3.50, 3.55), "betfair": (2.15, 3.60, 3.80)}
+    for key, (h, d, a) in books.items():
+        raw = raw_event(
+            source=f"oddslink:{key}", source_event_id=f"x-{key}", odds={"home": h, "draw": d, "away": a}
+        )
+        db.add_snapshot(conn, event_id, raw, NOW)
+    sources = [f"oddslink:{k}" for k in books]
+    [card] = dashboard.load_cards(
+        conn, "oddslink", "proportional", NOW, NOW + timedelta(days=7), sources, 0.05
+    )
+    assert card.competitors["oddslink:betfair"] == pytest.approx([2.0925, 3.47, 3.66])
+    assert card.competitors["oddslink:betsson"] == [2.10, 3.40, 3.50]  # a bookmaker's odds are what it pays
+    assert card.best_prices()[0] == (2.10, ["Betsson"])  # Betfair's 2.15 pays 2.09
+    # The fair odds come from the prices as quoted: the commission is a cost of betting, not the market's view.
+    expected = dashboard.consensus([list(v) for v in books.values()], "proportional")
+    assert card.fair_odds == pytest.approx([1 / p for p in expected])
+    [card] = dashboard.load_cards(conn, "oddslink", "proportional", NOW, NOW + timedelta(days=7), sources, 0)
+    assert card.competitors["oddslink:betfair"] == [2.15, 3.60, 3.80]
 
 
 def test_fair_odds_from_the_competitors_when_the_reference_has_none(conn):
@@ -909,6 +933,7 @@ def test_with_oddslink_the_cards_show_the_competitors_odds(tmp_path, monkeypatch
         "oddslink": (2.20, 3.50, 3.40),
         "oddslink:unibet": (2.25, 3.45, 3.30),
         "oddslink:bet365": (2.40, 3.40, 3.20),
+        "oddslink:betfair": (2.50, 3.60, 3.40),
     }.items():
         raw = raw_event(source=source, source_event_id="o1", kickoff_utc=kickoff,
                         odds=dict(zip(("home", "draw", "away"), odds, strict=True)))  # fmt: skip
@@ -921,7 +946,10 @@ def test_with_oddslink_the_cards_show_the_competitors_odds(tmp_path, monkeypatch
 
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     assert not app.exception
-    assert any(e.label.startswith("Konkurrentenes odds (2)") for e in app.expander)
+    assert any(e.label.startswith("Konkurrentenes odds (3)") for e in app.expander)
+    table = next(m.value for m in app.markdown if 'class="oc-books"' in m.value)
+    assert re.search(r"Betfair Exchange</td><td[^>]*>2,42</td>", table)  # 2.50 after 5 % of the winnings
+    assert any("Betfair Exchange er vist etter 5,0 % provisjon" in c.value for c in app.caption)
     [picker] = [m for m in app.multiselect if m.label == "Spillselskaper du har konto hos"]
     assert set(picker.value) == {"norsk_tipping", "oddslink:unibet", "oddslink:bet365"}
 

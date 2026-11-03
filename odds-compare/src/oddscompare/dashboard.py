@@ -170,6 +170,11 @@ class Card:
         return [name for name, (moment, limit) in limits.items() if moment and limit and now - moment > limit]
 
 
+def after_commission(odds: float, commission: float) -> float:
+    """What an exchange's decimal odds pay after its commission on the winnings: 3.00 at 5 % pays 2.90."""
+    return 1 + (odds - 1) * (1 - commission)
+
+
 def load_cards(
     conn: sqlite3.Connection,
     reference: str,
@@ -177,10 +182,13 @@ def load_cards(
     now: datetime,
     until: datetime,
     competitors: list[str] = (),
+    commission: float = 0.05,
 ) -> list[Card]:
     """Every match kicking off between now and until that Norsk Tipping has odds for.
 
-    competitors: the sources of Norsk Tipping's competitors to show (e.g. «the_odds_api:betsson»)."""
+    competitors: the sources of Norsk Tipping's competitors to show (e.g. «the_odds_api:betsson»).
+    commission: the exchanges' commission on winnings (exchange_commission), taken off their odds, so they
+    read as what a bet there pays."""
     sources = [NT, reference, *competitors]
     rows = conn.execute(
         f"""SELECT e.id, e.league, e.home, e.away, e.kickoff_utc, l.source, l.outcome, l.odds, l.fetched_at_utc
@@ -214,8 +222,10 @@ def load_cards(
             probabilities = calc.fair_probabilities(card.ref_odds, method)
             card.fair_odds = [1 / p for p in probabilities]
             card.ev = calc.expected_value(card.nt_odds, probabilities)
+        quoted = {s: [event[s][o] for o in OUTCOMES] for s in competitors if set(event[s]) == set(OUTCOMES)}
         card.competitors = {
-            s: [event[s][o] for o in OUTCOMES] for s in competitors if set(event[s]) == set(OUTCOMES)
+            s: [after_commission(o, commission) for o in odds] if is_exchange(s) else odds
+            for s, odds in quoted.items()
         }
         card.competitors_fetched = {s: event["fetched"][s] for s in card.competitors}
         fair_fetched = card.ref_fetched or max(
@@ -224,7 +234,7 @@ def load_cards(
         if fair_fetched and card.nt_fetched > fair_fetched:
             card.nt_moved = _nt_odds_at(conn, event_id, fair_fetched) not in (None, card.nt_odds)
         if card.ev is None and len(card.competitors) >= MIN_CONSENSUS:
-            probabilities = consensus(list(card.competitors.values()), method)
+            probabilities = consensus(list(quoted.values()), method)  # as quoted: the market's view
             card.fair_odds = [1 / p for p in probabilities]
             card.ev = calc.expected_value(card.nt_odds, probabilities)
             card.fair_from = "konkurrenter"
@@ -422,8 +432,9 @@ def market(cards: list[Card], reference_name: str = "Pinnacle") -> Market:
     )
 
 
-# Betting exchanges: their price in this data is the midpoint of back and lay, and they take a commission on
-# winnings, so it cannot be had as shown. Left out of sure bets unless picked.
+# Betting exchanges: they take a commission on winnings, which load_cards takes off their odds, and their price
+# in this data may be the midpoint of back and lay, so it may not be had as shown. Left out of sure bets unless
+# picked.
 EXCHANGES = frozenset({"betfair", "betfair_ex_eu", "betfair_ex_uk"})
 REFERENCE = "referanse"  # the reference's odds on a card, among the bookmakers to pick for sure bets
 

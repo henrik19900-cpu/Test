@@ -98,3 +98,27 @@ def test_latest_odds_survives_out_of_order_inserts_and_pruning(conn):
     conn.commit()
     db.prune(conn, 0, now=datetime(2026, 12, 1, tzinfo=UTC))
     assert conn.execute("SELECT COUNT(*) FROM latest_fetch").fetchone()[0] == 0
+
+
+def test_thin_deletes_old_odds_but_keeps_each_sources_latest(conn):
+    """The watcher's database: a week of matches checked hourly would grow by about 30 MB a day."""
+    now = datetime(2026, 11, 4, 12, tzinfo=UTC)
+    raw = raw_event(kickoff_utc=now + timedelta(days=5))
+    event_id = db.create_event(conn, raw)
+    for hours in (30, 20, 6, 1):
+        odds = {"home": 2.0 + hours / 100, "draw": 3.4, "away": 3.7}
+        db.add_snapshot(conn, event_id, raw.model_copy(update={"odds": odds}), now - timedelta(hours=hours))
+    reference = raw.model_copy(update={"source": "oddslink"})
+    db.add_snapshot(conn, event_id, reference, now - timedelta(hours=30))  # its only odds, so its latest
+    conn.commit()
+    assert db.thin(conn, timedelta(hours=12), now=now) == 6  # Norsk Tipping's from 30 and 20 hours ago
+    kept = conn.execute(
+        "SELECT source, COUNT(DISTINCT fetched_at_utc) FROM odds_snapshots GROUP BY source ORDER BY source"
+    ).fetchall()
+    assert [tuple(r) for r in kept] == [("norsk_tipping", 2), ("oddslink", 1)]
+    assert (
+        conn.execute(
+            "SELECT odds FROM latest_odds WHERE source = 'norsk_tipping' AND outcome = 'home'"
+        ).fetchone()[0]
+        == 2.01
+    )

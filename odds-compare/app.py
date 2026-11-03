@@ -250,6 +250,13 @@ def best_line(card: dashboard.Card) -> str:
     return f'<div class="oc-best">Beste odds: {" · ".join(parts)}</div>'
 
 
+def commission_note(cfg: config.Config) -> str:
+    return (
+        f"Betfair Exchange er vist etter {percent(cfg.exchange_commission)} provisjon på gevinsten "
+        "(`exchange_commission` i config.yaml)."
+    )
+
+
 def books_table(card: dashboard.Card) -> str:
     """Norsk Tipping and every competitor side by side; the best price per outcome in bold."""
     best = [price for price, _ in card.best_prices()]
@@ -573,8 +580,8 @@ def arbitrage_tab(
         books,
         default=dashboard.default_books(books),
         format_func=lambda s: reference_name if s == dashboard.REFERENCE else dashboard.bookmaker_name(s),
-        help="Børser som Betfair er ikke med fra start: oddsen her er midt mellom kjøps- og salgsprisen, og de "
-        "tar provisjon av gevinsten, så den kan ikke spilles som vist.",
+        help="Børser som Betfair er ikke med fra start: oddsen deres er trukket for provisjonen, men kan være "
+        "midt mellom kjøps- og salgsprisen, så den kan ikke alltid spilles som vist.",
     )
     stake = st.number_input("Total innsats (kr)", min_value=10, value=1000, step=100)
     sure, others = dashboard.arbitrages(cards, picked, reference_name)
@@ -993,7 +1000,13 @@ def main() -> None:
         window = st.radio("Tidsvindu", dashboard.WINDOWS, index=2, horizontal=True)
         method = st.selectbox("Marginfjerning", calc.METHODS, index=calc.METHODS.index(cfg.margin_method))
         all_cards = dashboard.load_cards(
-            conn, reference, method, now, dashboard.window_end(window, now), competitors
+            conn,
+            reference,
+            method,
+            now,
+            dashboard.window_end(window, now),
+            competitors,
+            cfg.exchange_commission,
         )
         leagues = st.multiselect("Liga", sorted({c.league for c in all_cards}), placeholder="Alle ligaer")
         value_only = st.toggle("Bare verdispill", help="Bare kamper med EV over minimum EV. Av: alle kamper.")
@@ -1067,6 +1080,8 @@ def main() -> None:
                     if card.competitors:
                         with st.expander(f"Konkurrentenes odds ({len(card.competitors)})"):
                             st.markdown(books_table(card), unsafe_allow_html=True)
+                            if any(dashboard.is_exchange(s) for s in card.competitors):
+                                st.caption(commission_note(cfg))
                     with st.expander("Registrer spill"):
                         bet_form(conn, card, reference_name)
                     # Drawn only when asked for: a chart for every card made each run about twice as slow.

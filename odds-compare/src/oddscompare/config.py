@@ -171,6 +171,8 @@ class Config(BaseModel):
     fuzzy_accept: float = Field(90, ge=0, le=100)
     fuzzy_suggest: float = Field(80, ge=0, le=100)
     stale_after_minutes: float = Field(30, gt=0)
+    # Betfair's commission on net winnings: its odds are shown, compared and used for sure bets after it.
+    exchange_commission: float = Field(0.05, ge=0, lt=1)
     user_agent: str = "odds-compare/0.1 (personlig analyseverktoy)"
     database: Path = Path("data/odds.db")
     aliases: Path = Path("data/team_aliases.yaml")

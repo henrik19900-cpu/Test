@@ -239,6 +239,7 @@ def _cards(conn: sqlite3.Connection, cfg: config.Config, now: datetime) -> list[
         now,
         now + timedelta(days=cfg.days_ahead),
         fetch.competitor_sources(cfg),
+        cfg.exchange_commission,
     )
 
 

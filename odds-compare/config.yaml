@@ -7,6 +7,7 @@ match_window_minutes: 30    # avsparkstid må stemme innenfor ± dette
 fuzzy_accept: 90            # fuzzy-treff fra og med denne scoren brukes
 fuzzy_suggest: 80           # treff fra denne opp til fuzzy_accept logges bare som forslag
 stale_after_minutes: 30     # dashboardet varsler når Norsk Tipping-oddsen er eldre enn dette
+exchange_commission: 0.05   # Betfairs provisjon på gevinsten: Betfair-oddsen vises og sammenlignes etter den
 user_agent: "odds-compare/0.1 (personlig analyseverktoy)"
 
 database: data/odds.db

@@ -146,7 +146,7 @@ def watch(
     if every:  # every match once an hour, not when one is due: the due ones are what a fallback is asked for
         last = dashboard.last_success(conn, reference.name)
         wait = timedelta(minutes=a.scan_minutes) - (now - last) if last else timedelta(0)
-        report.scan_wanted = wait <= timedelta(0)
+        report.scan_wanted = wait <= SCAN_SLACK
         if not report.scan_wanted:
             report.next_scan = wait
         early = set()
@@ -199,6 +199,11 @@ def watch(
     db.prune(conn, a.keep_days, now=now)
     db.thin(conn, timedelta(hours=a.history_hours), now=now)
     return report
+
+
+# Runs started once an hour (cron-job.org) start a little early or late, and the last check started some
+# seconds into its run: without this, a run 59 min 55 s after the last check would wait another hour.
+SCAN_SLACK = timedelta(minutes=5)
 
 
 def every_match(cfg: config.Config) -> bool:

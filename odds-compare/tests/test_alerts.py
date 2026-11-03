@@ -378,6 +378,18 @@ def test_with_oddslink_every_match_is_checked_once_an_hour(oddslink):
     assert len(ref.calls) == 2 and len(sent) == 2  # checked again, but nothing new to notify
 
 
+def test_with_oddslink_a_run_started_a_little_early_still_makes_the_hourly_check(oddslink):
+    """cron-job.org starts the watcher once an hour, give or take some seconds."""
+    cfg, conn, sent = oddslink
+    ref = FakeOddsLink()
+    start = NOW - timedelta(hours=3)
+    run(cfg, conn, sent, FakeNT(), ref, when=start)
+    run(cfg, conn, sent, FakeNT(), ref, when=start + timedelta(minutes=59, seconds=50))
+    assert len(ref.calls) == 2
+    report = run(cfg, conn, sent, FakeNT(), ref, when=start + timedelta(minutes=110))
+    assert len(ref.calls) == 2 and "om 10 min" in report.summary()  # 50 minutes after: not yet
+
+
 def test_with_oddslink_a_match_starting_soon_waits_for_the_hourly_check(oddslink):
     cfg, conn, sent = oddslink
     ref = FakeOddsLink()

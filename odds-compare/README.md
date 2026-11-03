@@ -122,7 +122,7 @@ Spilloggen ligger som CSV i tabellen `oddscompare_store` (nøklene `bets.csv` og
 
 ## Varsler
 
-`oddscompare watch` gjør én varslingsrunde, og GitHub Actions kjører den hvert 15. minutt (`.github/workflows/odds-alerts.yml`). Det er gratis, siden repoet er offentlig. Hver runde gjør dette:
+`oddscompare watch` gjør én varslingsrunde, og GitHub Actions kjører den (`.github/workflows/odds-alerts.yml`). GitHubs egen tidsplan hopper over de fleste kjøringene, så cron-job.org starter den én gang i timen (se under). En kjøring som starter inntil 5 minutter før timen er gått, regnes som en ny time. Det er gratis, siden repoet er offentlig. Hver runde gjør dette:
 
 1. Henter Norsk Tippings odds. Det er gratis.
 2. Kjøper referanseodds (Pinnacle og konkurrentene) to ganger per kamp: én tidlig sjekk rundt 3 timer før avspark, og én innen 75 minutter før. Det koster 1 kreditt per liga. En kamp sjekkes igjen hvis Norsk Tipping har hevet et utfall med 5 % siden forrige sjekk. De tidlige sjekkene gjøres bare til dagen har brukt halvparten av kredittaket, så det alltid er kreditter igjen til sjekkene like før avspark, som er de mest presise.
@@ -135,11 +135,17 @@ Overvåkeren bruker høyst 24 kreditter (med OddsLink: forespørsler) per dag, o
 
 1. Installer appen **ntfy** (iPhone eller Android). Abonner på et emne med et hemmelig navn som ingen kan gjette, for eksempel `odds-` fulgt av 20 tilfeldige tegn. Server: `ntfy.sh`.
 2. Legg to hemmeligheter i repoet på GitHub under «Settings» → «Secrets and variables» → «Actions» → «New repository secret»:
-   - `THE_ODDS_API_KEY`: nøkkelen fra The Odds API
+   - `ODDSLINK_API_KEY`: nøkkelen fra OddsLink
+   - `THE_ODDS_API_KEY`: nøkkelen fra The Odds API (reserve når OddsLink feiler)
    - `NTFY_TOPIC`: emnenavnet fra steg 1
    - `NTFY_TOKEN` er valgfri: en tilgangsnøkkel fra en ntfy-konto. På gratisplanen gir den ingen høyere grense, så den trengs bare med betalt plan eller egen ntfy-server.
 3. Flett PR-en til `main`. GitHub kjører planlagte arbeidsflyter bare fra hovedbranchen.
 4. Test under «Actions» → «odds-alerts» → «Run workflow». Kryss av for «Send ett testvarsel nå», så får du ett varsel merket «TEST» for det beste utfallet akkurat nå, uansett terskel (eller et vanlig testvarsel når ingen kamp har referanseodds ennå). Lokalt: `oddscompare watch --test`, eller `oddscompare notify-test` for bare et testvarsel.
+5. Start kjøringene fra **cron-job.org** (gratis), siden GitHubs tidsplan hopper over de fleste:
+   - Lag en fine-grained token på github.com/settings/personal-access-tokens/new med bare dette repoet og «Actions: Read and write».
+   - Lag en cron-jobb som én gang i timen sender `POST` til `https://api.github.com/repos/<eier>/<repo>/actions/workflows/odds-alerts.yml/dispatches` med body `{"ref":"main"}`.
+   - Bruk headerne `Authorization: Bearer <tokenet>`, `Accept: application/vnd.github+json` og `Content-Type: application/json`.
+   - Svaret på «Test run» skal være 204.
 
 ntfy.sh tar imot 250 varsler i døgnet per IP-adresse på gratisplanen, også med konto, og grensen deles med alle som bruker samme adresse. Blir et varsel avvist, prøver overvåkeren igjen ved neste kjøring. GitHub gir hver kjøring en ny maskin, ofte med en annen adresse.
 

@@ -504,6 +504,11 @@ def either(names: list[str]) -> str:
     return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} eller {names[-1]}"
 
 
+def both(names: list[str]) -> str:
+    """«Betsson», «Betsson og Unibet», «Betsson, Coolbet og Unibet»."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} og {names[-1]}"
+
+
 def age_text(age: timedelta) -> str:
     """«under 1 min», «25 min», «3 t 5 min» or, from two days, «3 d 4 t»."""
     minutes = int(age.total_seconds() // 60)
@@ -804,6 +809,9 @@ def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str
     cost = {"the_odds_api": f" (opptil {n} kreditter)", "oddslink": " (1 forespørsel)"}.get(reference, "")
     unit = "forespørsler" if reference == "oddslink" else "kreditter"
     credits = dashboard.credits_left(cfg.cache_dir, reference)
+    fallback = reference == "oddslink" and fetch.fallback_available(
+        cfg
+    )  # The Odds API, when OddsLink lacks odds
     left, right = st.columns(2)
     if left.button(
         "Oppdater Norsk Tipping",
@@ -821,22 +829,47 @@ def update_buttons(cfg: config.Config, conn, reference: str, reference_name: str
         + " En ny henting innen 5 minutter bruker forrige svar og koster ingenting.",
     ):
         fetch_reference(cfg, "page")
+    if fallback:
+        fallback_button(cfg)
     parts = [
         f"Norsk Tipping: {local(nt_last) if nt_last else 'aldri hentet'}",
         f"{reference_name}: {local(ref_last) if ref_last else 'aldri hentet'}",
     ]
     if credits is not None:
         parts.append(f"{credits} {unit} igjen denne måneden")
+    fallback_credits = dashboard.credits_left(cfg.cache_dir, "the_odds_api") if fallback else None
+    if fallback_credits is not None:
+        parts.append(f"The Odds API: {fallback_credits} kreditter igjen")
     st.caption(" · ".join(parts))
 
 
-def fetch_reference(request_cfg: config.Config, where: str) -> None:
-    """Buy reference odds now; the result is shown where the button was (the sidebar or the page)."""
+FROM_FALLBACK = "Hentet fra The Odds API i stedet for OddsLink."
+
+
+def fallback_button(cfg: config.Config) -> None:
+    """Reference odds from The Odds API in OddsLink's place, for when OddsLink lacks a bookmaker's odds."""
+    n = len(cfg.reference.the_odds_api.leagues)
+    names = ["Pinnacle", *(dashboard.bookmaker_name(key) for key in cfg.reference.the_odds_api.competitors)]
+    if st.button(
+        f"Hent fra The Odds API i stedet (opptil {n} kreditter)",
+        width="stretch",
+        help=f"For når OddsLink mangler odds, for eksempel fra Unibet. Henter {both(names)} fra "
+        f"The Odds API, for de {n} ligaene den dekker. Koster 1 kreditt per liga med kamper (gratisplanen har "
+        "500 i måneden). Oddsen kommer i tillegg til OddsLinks, og de nyeste vises.",
+    ):
+        reference = fetch.fallback_reference(cfg)
+        if reference is not None:
+            fetch_reference(cfg, "page", reference, FROM_FALLBACK)
+
+
+def fetch_reference(request_cfg: config.Config, where: str, reference=None, note: str = "") -> None:
+    """Buy reference odds now; the result is shown where the button was (the sidebar or the page).
+    reference: the source to ask instead of the configured one, with a note on it for the result."""
     with st.spinner("Henter referanseodds …"):
-        report = fetch.run_once(request_cfg, include_reference=True)
+        report = fetch.run_once(request_cfg, include_reference=True, reference=reference)
     st.session_state["reference_result"] = (
         all(s.status == "ok" for s in report.sources),
-        fetch.summary(report),
+        "\n".join(filter(None, [note, fetch.summary(report)])),
         where,
     )
     st.rerun()

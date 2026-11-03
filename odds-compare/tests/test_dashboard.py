@@ -742,11 +742,48 @@ def test_with_oddslink_the_button_costs_one_request(tmp_path, monkeypatch):
     monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
     from streamlit.testing.v1 import AppTest
 
+    monkeypatch.delenv("THE_ODDS_API_KEY", raising=False)
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     assert not app.exception
     assert any(b.label == "Oppdater referanseodds (1 forespørsel)" for b in app.button)
     assert any("Én forespørsel henter alle ligaene" in c.value for c in app.caption)
     assert "OddsLink" in app.caption[0].value  # «Norsk Tipping mot margin-fri referanse (OddsLink: Pinnacle)»
+    assert not [b for b in app.button if "The Odds API" in b.label]  # no key for it, so no button
+
+
+def test_with_oddslink_a_button_asks_the_odds_api_instead(tmp_path, monkeypatch):
+    """For when OddsLink lacks a bookmaker's odds, such as Unibet's: The Odds API in its place."""
+    from oddscompare.sources.reference import FallbackReference
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("reference:\n  source: oddslink\n", encoding="utf-8")
+    db.log_fetch(db.connect(tmp_path / "data" / "odds.db"), "norsk_tipping", datetime.now(UTC), "ok", 0)
+    (tmp_path / "data" / "cache").mkdir()
+    (tmp_path / "data" / "cache" / "the_odds_api.json").write_text('{"remaining": 412}', encoding="utf-8")
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    monkeypatch.setenv("THE_ODDS_API_KEY", "fake-key")
+    asked = []
+
+    def run_once(cfg, include_reference=False, reference=None, **kwargs):
+        asked.append(reference)
+        report = fetch.FetchReport(started_at=datetime.now(UTC))
+        report.sources.append(fetch.SourceReport("oddslink", status="ok", n_events=120))
+        return report
+
+    monkeypatch.setattr(fetch, "run_once", run_once)
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception and asked == []
+    [button] = [b for b in app.button if "The Odds API" in b.label]
+    assert button.label == "Hent fra The Odds API i stedet (opptil 21 kreditter)"
+    assert "Unibet" in button.help and "Betsson" in button.help
+    assert any("The Odds API: 412 kreditter igjen" in c.value for c in app.caption)
+    app = button.click().run()
+    assert not app.exception
+    [reference] = asked
+    assert isinstance(reference, FallbackReference) and reference.fallback_only
+    assert any("Hentet fra The Odds API i stedet for OddsLink" in s.value for s in app.success)
 
 
 def test_a_sure_bet_is_found_with_its_profit_and_stake_split():

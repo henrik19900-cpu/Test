@@ -341,13 +341,25 @@ def _wanted(event: dict[str, Any], want: EventFilter) -> bool:
         return True  # parse_h2h reports a malformed event
 
 
+# The Odds API's keys for bookmakers OddsLink has under another key: stored under OddsLink's, so a match
+# has one Unibet (the newest odds, from either) rather than two rows both called Unibet.
+SAME_BOOKMAKER = {"unibet_se": "unibet", "sport888": "888sport"}
+
+
+def same_bookmaker(key: str) -> str:
+    return SAME_BOOKMAKER.get(key, key)
+
+
 class FallbackReference:
     """A reference source with a second one for when it fails. The second one's odds are stored under the
-    first one's name (both are the same bookmaker's prices), so the dashboard and the alerts carry on."""
+    first one's name (both are the same bookmaker's prices), so the dashboard and the alerts carry on.
 
-    def __init__(self, primary, fallback):
+    fallback_only asks the second one straight away, e.g. when the first one lacks a bookmaker's odds."""
+
+    def __init__(self, primary, fallback, fallback_only: bool = False):
         self.primary = primary
         self.fallback = fallback
+        self.fallback_only = fallback_only
         self.name = primary.name
         self.used = primary.name  # which one answered the last fetch()
         self.fetched_at: datetime | None = None
@@ -356,23 +368,30 @@ class FallbackReference:
 
     @property
     def remaining(self) -> int | None:
-        """The primary's allowance left, which the watcher's reserve is about."""
-        return self.primary.remaining
+        """The primary's allowance left, which the watcher's reserve is about (the fallback's when only it
+        is asked)."""
+        return (self.fallback if self.fallback_only else self.primary).remaining
 
     def fetch(self, days_ahead: int, want: EventFilter | None = None) -> list[RawEvent]:
-        try:
-            events = self.primary.fetch(days_ahead, want)
-            source = self.primary
-        except Exception as e:  # noqa: BLE001  (any failure: the fallback has the same prices)
-            logger.warning("%s failed (%s); asking %s instead", self.primary.name, e, self.fallback.name)
+        if self.fallback_only:
             events = self.fallback.fetch(days_ahead, want)
             source = self.fallback
+        else:
+            try:
+                events = self.primary.fetch(days_ahead, want)
+                source = self.primary
+            except Exception as e:  # noqa: BLE001  (any failure: the fallback has the same prices)
+                logger.warning("%s failed (%s); asking %s instead", self.primary.name, e, self.fallback.name)
+                events = self.fallback.fetch(days_ahead, want)
+                source = self.fallback
         self.used = source.name
         self.fetched_at = getattr(source, "fetched_at", None)
         self.spent = getattr(source, "spent", 0) or 0
         prefix = f"{source.name}:"
         self.competitor_odds = [
-            raw.model_copy(update={"source": f"{self.name}:{raw.source.removeprefix(prefix)}"})
+            raw.model_copy(
+                update={"source": f"{self.name}:{same_bookmaker(raw.source.removeprefix(prefix))}"}
+            )
             for raw in getattr(source, "competitor_odds", None) or []
         ]
         return [raw.model_copy(update={"source": self.name}) for raw in events]

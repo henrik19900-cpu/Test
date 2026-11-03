@@ -887,3 +887,33 @@ def test_with_oddslink_the_cards_show_the_competitors_odds(tmp_path, monkeypatch
     assert any(e.label.startswith("Konkurrentenes odds (2)") for e in app.expander)
     [picker] = [m for m in app.multiselect if m.label == "Spillselskaper du har konto hos"]
     assert set(picker.value) == {"norsk_tipping", "oddslink:unibet", "oddslink:bet365"}
+
+
+def test_old_odds_show_at_once_and_newer_ones_are_fetched_after_the_page(tmp_path, monkeypatch):
+    """Opening the app after a while: the page must not wait for Norsk Tipping before showing anything."""
+    (tmp_path / "config.yaml").write_text("", encoding="utf-8")
+    shift = datetime.now(UTC) - FIXTURE_NOW
+    calls = []
+
+    class CountingNT(ShiftedNT):
+        def fetch(self, days_ahead):
+            calls.append("nt")
+            return super().fetch(days_ahead)
+
+    monkeypatch.setattr(fetch, "build_sources", lambda cfg: (CountingNT(shift), ShiftedReference(shift)))
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert calls == ["nt"]  # an empty database: fetched first
+    conn = db.connect(tmp_path / "data" / "odds.db")
+    with db.transaction(conn):  # an hour later
+        conn.execute(
+            "UPDATE fetch_log SET started_at_utc = ?", (db.iso(datetime.now(UTC) - timedelta(hours=1)),)
+        )
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30)
+    app.run()
+    assert not app.exception and calls == ["nt", "nt"]  # fetched again (at the end of the run), then redrawn
+    assert app.metric[0].value == "84"
+    app.run()
+    assert calls == ["nt", "nt"]  # fresh now

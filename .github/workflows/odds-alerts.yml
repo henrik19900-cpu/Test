@@ -1,7 +1,8 @@
 name: odds-alerts
 
-# Every hour: Norsk Tipping's odds (free), reference odds for the matches starting soon (one credit
-# per league), and a phone notification through ntfy when a bet is worth it. See odds-compare/README.md,
+# Every hour: Norsk Tipping's odds (free), reference odds for every match a week ahead (one OddsLink
+# request; The Odds API only for the matches starting soon when OddsLink fails, a credit per league), and a
+# phone notification through ntfy when a bet is worth it. See odds-compare/README.md,
 # «Varsler». Until the secrets ODDSLINK_API_KEY (or THE_ODDS_API_KEY) and NTFY_TOPIC are set (Settings → Secrets and variables →
 # Actions), this does nothing. There is no GitHub schedule: cron-job.org starts it once an hour through
 # the workflow_dispatch API with a fine-grained token.

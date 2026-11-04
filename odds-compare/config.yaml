@@ -71,7 +71,8 @@ reference:
     bookmaker: Betfair Exchange
     leagues: []             # ligaslugs, f.eks. norway-eliteserien; tom = alle med odds hos bookmakeren
 
-# `oddscompare watch` (GitHub Actions hvert 15. minutt): når referanseodds kjøpes, og hva som gir varsel.
+# `oddscompare watch` (GitHub Actions, startet av cron-job.org én gang i timen): når referanseodds kjøpes, og hva
+# som gir varsel.
 alerts:
   min_ev: 0.02                # varsel når EV mot Pinnacle er minst 2 %
   max_reference_margin: 0.06  # og Pinnacles egen margin er høyst 6 %

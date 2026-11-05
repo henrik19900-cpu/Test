@@ -949,6 +949,11 @@ def test_with_oddslink_the_cards_show_the_competitors_odds(tmp_path, monkeypatch
     assert any(e.label.startswith("Konkurrentenes odds (3)") for e in app.expander)
     table = next(m.value for m in app.markdown if 'class="oc-books"' in m.value)
     assert re.search(r"Betfair Exchange</td><td[^>]*>2,42</td>", table)  # 2.50 after 5 % of the winnings
+    # Pinnacle, the reference, is in the table too, but not among the best prices: its 3,50 draw is not bold.
+    assert (
+        '<tr class="ref"><td>Pinnacle (referanse)</td><td class="">2,20</td><td class="">3,50</td>' in table
+    )
+    assert any("Pinnacle er referansen fair odds regnes fra" in c.value for c in app.caption)
     assert any("Betfair Exchange er vist etter 5,0 % provisjon" in c.value for c in app.caption)
     [picker] = [m for m in app.multiselect if m.label == "Spillselskaper du har konto hos"]
     assert set(picker.value) == {"norsk_tipping", "oddslink:unibet", "oddslink:bet365"}

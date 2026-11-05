@@ -118,6 +118,7 @@ table.oc-books th, table.oc-books td { padding: 0.2rem 0.4rem; text-align: right
 table.oc-books th:first-child, table.oc-books td:first-child { text-align: left; }
 table.oc-books td.top { font-weight: 700; }
 table.oc-books tr.nt td { background: rgba(128,128,128,0.10); }
+table.oc-books tr.ref td { font-style: italic; opacity: 0.8; }
 .oc-arb-teams { font-weight: 700; font-size: 1.05rem; line-height: 1.3; }
 table.oc-arb th:nth-child(2), table.oc-arb td:nth-child(2) { text-align: left; }
 .oc-arb-result { margin-top: 0.5rem; }
@@ -257,19 +258,27 @@ def commission_note(cfg: config.Config) -> str:
     )
 
 
-def books_table(card: dashboard.Card) -> str:
-    """Norsk Tipping and every competitor side by side; the best price per outcome in bold."""
+REFERENCE_ROW = "reference"  # the reference's row in books_table: shown, but not among the best prices
+
+
+def books_table(card: dashboard.Card, reference_name: str = "Pinnacle") -> str:
+    """Norsk Tipping, the reference (Pinnacle) and every competitor side by side; the best price per
+    outcome among Norsk Tipping and its competitors in bold."""
     best = [price for price, _ in card.best_prices()]
+    books = {dashboard.NT: card.nt_odds}
+    if card.ref_odds:
+        books[REFERENCE_ROW] = card.ref_odds
+    books.update(card.competitors)
     rows = []
-    for source, odds in {dashboard.NT: card.nt_odds, **card.competitors}.items():
+    for source, odds in books.items():
+        reference = source == REFERENCE_ROW
         cells = "".join(
-            f'<td class="{"top" if o == best[i] else ""}">{odds_text(o)}</td>' for i, o in enumerate(odds)
+            f'<td class="{"top" if o == best[i] and not reference else ""}">{odds_text(o)}</td>'
+            for i, o in enumerate(odds)
         )
-        css = ' class="nt"' if source == dashboard.NT else ""
-        rows.append(
-            f"<tr{css}><td>{html.escape(dashboard.bookmaker_name(source))}</td>{cells}"
-            f"<td>{percent(calc.margin(odds))}</td></tr>"
-        )
+        css = ' class="nt"' if source == dashboard.NT else ' class="ref"' if reference else ""
+        name = f"{reference_name} (referanse)" if reference else dashboard.bookmaker_name(source)
+        rows.append(f"<tr{css}><td>{html.escape(name)}</td>{cells}<td>{percent(calc.margin(odds))}</td></tr>")
     head = "<tr><th>Bookmaker</th><th>H</th><th>U</th><th>B</th><th>Margin</th></tr>"
     return f'<table class="oc-books">{head}{"".join(rows)}</table>'
 
@@ -1077,11 +1086,26 @@ def main() -> None:
                         card_html(card, now, stale_after, reference_name),
                         unsafe_allow_html=True,
                     )
-                    if card.competitors:
-                        with st.expander(f"Konkurrentenes odds ({len(card.competitors)})"):
-                            st.markdown(books_table(card), unsafe_allow_html=True)
-                            if any(dashboard.is_exchange(s) for s in card.competitors):
-                                st.caption(commission_note(cfg))
+                    if card.competitors or card.ref_odds:
+                        label = (
+                            f"Konkurrentenes odds ({len(card.competitors)})"
+                            if card.competitors
+                            else f"{reference_name}s odds"
+                        )
+                        with st.expander(label):
+                            st.markdown(books_table(card, reference_name), unsafe_allow_html=True)
+                            notes = (
+                                [commission_note(cfg)]
+                                if any(map(dashboard.is_exchange, card.competitors))
+                                else []
+                            )
+                            if card.ref_odds and card.competitors:
+                                notes.append(
+                                    f"{reference_name} er referansen fair odds regnes fra, og er ikke med blant "
+                                    "beste odds (i fet skrift)."
+                                )
+                            if notes:
+                                st.caption(" ".join(notes))
                     with st.expander("Registrer spill"):
                         bet_form(conn, card, reference_name)
                     # Drawn only when asked for: a chart for every card made each run about twice as slow.

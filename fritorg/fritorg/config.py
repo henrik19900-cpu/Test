@@ -14,8 +14,15 @@ def _env(name: str, default: str | None = None) -> str | None:
 
 
 def _env_int(name: str, default: int) -> int:
+    """A count, a limit, a port or a number of days, where 0 turns a feature off. Anything else stops the start:
+    -1 for "never" would otherwise delete every unused account after a month (FRITORG_INACTIVE_ACCOUNT_DAYS)."""
     value = _env(name)
-    return int(value) if value is not None else default
+    if value is None:
+        return default
+    number = int(value) if value.strip().isdigit() else -1
+    if number < 0:
+        raise ValueError(f"FRITORG_{name} må være et helt tall, 0 eller større, ikke {value!r}.")
+    return number
 
 
 def _env_bool(name: str, default: bool) -> bool:

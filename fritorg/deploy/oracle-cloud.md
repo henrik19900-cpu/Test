@@ -10,6 +10,35 @@ Det du trenger:
 
 > Oracle har endret gratisgrensene før, uten å si fra. Sjekk [Always Free-ressursene](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) før du begynner, og ta sikkerhetskopi til et annet sted (steg 9).
 
+## Har du allerede en maskin i Oracle?
+
+Kjører du for eksempel en aksjebot på en maskin i Oracle fra før, kan Gratistorget ligge på den samme. Da er det tre ting å gjøre:
+
+1. **Åpne port 80 og 443 i Oracle**, som i tabellen i steg 3 (delen «I Oracle»).
+2. **Kjør skriptet på maskinen.** Logg inn som vanlig (`ssh ubuntu@<ip-adressen>`, eller `opc@` på Oracle Linux), og lim inn:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/henrik19900-cpu/Test/main/fritorg/deploy/install.sh | sh
+   ```
+
+   Det spør etter domenet, e-postadressen folk kan kontakte deg på, og hvem som driver siden.
+3. **Gjør det skriptet lister opp til slutt:** pek domenet til maskinen (steg 5), legg inn de tre hemmelighetene på GitHub (steg 10), og fyll inn SMS og e-post når du har dem.
+
+Skriptet gjør resten av stegene for deg:
+
+- Først sjekker det at port 80 og 443 er ledige, og at disken har minst 4 GB ledig. Hvis ikke stopper det uten å endre noe.
+- Mangler Docker, installerer det Docker (på Ubuntu, Debian eller Oracle Linux). Så åpner det port 80 og 443 i brannmuren på maskinen.
+- Det henter koden til `~/fritorg-kode` og lager `.env` med en ny hemmelig nøkkel.
+- SMS står i testmodus til du har en SMS-leverandør. Da vises kodene på skjermen, og siden sier at den er en test.
+- Det starter siden, og setter opp sikkerhetskopi hver natt og publisering fra GitHub.
+- Du kan trygt kjøre det på nytt. Det som allerede er på plass, blir stående.
+
+Når siden deler maskin med andre programmer:
+
+- Gratistorget kjører i egne containere med egne navn (`fritorg-…`) og ser ikke filene til andre programmer. Skriptet rører ikke portene, filene eller cron-jobbene deres.
+- Hvis minnet tar slutt, stoppes nettsiden først. Den starter igjen av seg selv, og de andre programmene får beholde sitt.
+- Den som kan endre `main` på GitHub, kan styre hva som kjører på maskinen, og kommer dermed også til de andre programmene. Slå derfor på totrinnsinnlogging på GitHub-kontoen. Gi en aksjebot API-nøkler som bare kan handle, ikke ta ut penger. La `.env`-filene bare kunne leses av eieren (`chmod 600 .env`).
+
 ## 1. Lag kontoen
 
 1. Gå til [oracle.com/cloud/free](https://www.oracle.com/cloud/free/) og lag en konto.
@@ -158,6 +187,7 @@ Skriptet lager en egen SSH-nøkkel for GitHub og skriver ut tre hemmeligheter: `
 
 ## Feilsøking
 
+- **`install.sh` stopper:** det skriver hvorfor. Før sjekkene er bestått, er ingenting endret. Bruker et annet program port 80 eller 443, må det flyttes til andre porter eller settes bak Caddy sammen med Gratistorget.
 - **Siden svarer ikke:** sjekk at begge brannmurene er åpnet (steg 3), og at `docker compose ps` viser at `app` og `caddy` kjører.
 - **«429 Too Many Requests» når bildet bygges:** Docker Hub begrenser nedlastinger uten innlogging. Vent litt, eller hent Python-bildet fra Googles speil av Docker Hub: `docker compose build --build-arg PYTHON_IMAGE=mirror.gcr.io/library/python:3.12-slim`, og så `docker compose up -d`.
 - **Feil med sertifikatet:** domenet peker ikke til maskinen ennå, eller port 80 er stengt. Se `docker compose logs caddy`.

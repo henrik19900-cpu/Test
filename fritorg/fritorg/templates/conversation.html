@@ -76,16 +76,18 @@
   {% endif %}
 </section>
 {% endif %}
+{# A name such as "Kari N." already ends a sentence. #}
+{% set full_stop = "" if other.endswith(".") else "." %}
 {% if blocked_by_me %}
 <div class="notice" role="status">
-  <p>Du har blokkert {{ other }}. Dere kan ikke sende meldinger til hverandre.</p>
+  <p>Du har blokkert {{ other }}{{ full_stop }} Dere kan ikke sende meldinger til hverandre.</p>
   <form method="post" action="/meldinger/{{ conversation.id }}/opphev-blokkering">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="link-button">Opphev blokkeringen</button>
   </form>
 </div>
 {% elif blocked_me %}
-<p class="notice">Du kan ikke sende flere meldinger til {{ other }}.</p>
+<p class="notice">Du kan ikke sende flere meldinger til {{ other }}{{ full_stop }}</p>
 {% elif needs_verification %}
 <p class="notice">Bekreft mobilnummeret ditt for å svare. <a href="/verifiser-telefon?neste=/meldinger/{{ conversation.id }}">Bekreft nå</a> – det tar under ett minutt.</p>
 {% else %}

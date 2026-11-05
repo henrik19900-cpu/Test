@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import errno
 import os
 import re
 import shutil
@@ -19,6 +21,8 @@ from fritorg.__main__ import main
 from fritorg.app import create_app
 from fritorg.config import Settings
 from fritorg.db import MIGRATIONS, Database
+from fritorg.mailer import MemoryMailer
+from fritorg.util import iso_ago
 
 
 def test_backup_copies_database_and_images_for_the_owner_only(app, client, auth, settings, tmp_path):
@@ -198,6 +202,74 @@ def test_a_restore_brings_the_site_back_but_not_deleted_accounts(
     month_ago = time.time() - (maintenance.BACKUP_DAYS + 1) * 86_400
     os.utime(restored.safety_copy, (month_ago, month_ago))
     assert maintenance.remove_old_safety_copies(settings) == 1 and not restored.safety_copy.exists()
+
+
+def test_a_restore_that_stops_half_way_brings_back_no_deleted_account(
+    app, client, auth, other_auth, settings, tmp_path, monkeypatch
+):
+    listing = make_listing(client, auth)
+    client.post(
+        f"/api/v1/listings/{listing['id']}/images",
+        files={"file": ("p.png", PHOTO, "image/png")},
+        headers=auth,
+    )
+    web_login(client)
+    target = ops.backup(settings, tmp_path / "backup")
+    with app.state.db.session() as conn:  # after the backup Ola deletes the account, and the photos are lost
+        users.delete_user(conn, 2)
+    for file in settings.uploads_dir.rglob("*.webp"):
+        file.unlink()
+
+    copy = shutil.copy2
+
+    def disk_full(source, destination):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(shutil, "copy2", disk_full)
+    with pytest.raises(OSError):
+        ops.restore(settings, target)
+    assert client.get("/api/v1/me", headers=other_auth).status_code == 401  # still deleted
+    assert client.get("/min-side", follow_redirects=False).status_code == 303  # and everyone logged out
+
+    monkeypatch.setattr(shutil, "copy2", copy)  # room again: the restore is run once more
+    assert ops.restore(settings, target).photos == 2
+    assert client.get("/api/v1/me", headers=other_auth).status_code == 401
+
+
+def test_a_restore_gives_a_new_notice_before_an_unused_account_is_deleted(
+    app, client, auth, settings, tmp_path
+):
+    with app.state.db.session() as conn:  # Kari was told 29 days ago that her unused account will be deleted
+        conn.execute(
+            "UPDATE users SET last_active_at = ?, inactivity_notice_at = ?",
+            (iso_ago(days=settings.inactive_account_days + 2), iso_ago(days=29)),
+        )
+    target = ops.backup(settings, tmp_path / "backup")
+    client.get("/api/v1/me", headers=auth)  # so she logs in, after the backup was made
+    ops.restore(settings, target)
+    with app.state.db.session() as conn:  # two days later
+        conn.execute(
+            "UPDATE users SET inactivity_notice_at = ? WHERE inactivity_notice_at IS NOT NULL",
+            (iso_ago(days=31),),
+        )
+    report = maintenance.run(app.state.db, settings, MemoryMailer(settings))
+    assert (report.accounts_warned, report.accounts_deleted) == (1, 0)  # told again, a month before
+
+
+def test_a_restore_after_a_crash_deletes_the_newest_deleted_accounts_again(settings, tmp_path):
+    db = Database(settings.db_path)
+    db.init()
+    with db.session() as conn:
+        users.create_user(conn, "kari@example.no", "Kari Nordmann", "hemmelig123")
+        users.create_user(conn, "ola@example.no", "Ola Hansen", "hemmelig123")
+    target = ops.backup(settings, tmp_path / "backup")
+    crashed = dataclasses.replace(settings, data_dir=tmp_path / "crashed")
+    with closing(db.connect()) as still_open:  # the server stops before the app has closed the database
+        still_open.execute("SELECT 1").fetchone()
+        with db.session() as conn:  # so Ola's deletion is only in the -wal file
+            users.delete_user(conn, 2)
+        shutil.copytree(settings.data_dir, crashed.data_dir)  # the disk as the crash left it
+    assert ops.restore(crashed, target).deleted_again == 1
 
 
 def test_only_sound_backups_are_restored(settings, tmp_path, monkeypatch, capsys):

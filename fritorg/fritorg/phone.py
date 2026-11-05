@@ -100,13 +100,19 @@ class ConsoleSms(SmsSender):
         self.outbox = [*self.outbox[-49:], (to, message)]
 
 
+# Six digits or more (spaces and dashes allowed): phone numbers and codes, but not the providers' error numbers.
+_NUMBERS = re.compile(r"\+?\d[\d \-]{4,}\d")
+
+
 def _request(url: str, data: bytes | None, headers: dict[str, str]) -> None:
     request = urllib.request.Request(url, data=data, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 - configured provider URL
             response.read()
     except urllib.error.HTTPError as exc:
-        logger.warning("SMS provider answered %s: %s", exc.code, exc.read()[:300])
+        # Providers repeat the number, and sometimes the message with the code, when they refuse it.
+        answer = _NUMBERS.sub("***", exc.read()[:300].decode("utf-8", "replace"))
+        logger.warning("SMS provider answered %s: %s", exc.code, answer)
         raise SmsError("SMS-en kunne ikke sendes. Prøv igjen om litt.") from None
     except (urllib.error.URLError, TimeoutError) as exc:
         logger.warning("SMS provider unreachable: %s", exc)

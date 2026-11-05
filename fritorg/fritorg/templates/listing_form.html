@@ -73,7 +73,9 @@
 
   {% if category.attributes %}
   <fieldset class="attr-fields">
-    <legend>Detaljer om {{ category.name|lower }}</legend>
+    {# Lower case mid-sentence, but an abbreviation such as IT or MC keeps its capitals. #}
+    {% set name = category.name %}
+    <legend>Detaljer om {{ name if name.split(" ")[0].isupper() else name[:1]|lower ~ name[1:] }}</legend>
     <div class="attr-grid">
       {% for attr in category.attributes %}{{ attribute_input(attr, values.attributes.get(attr.key), errors) }}{% endfor %}
     </div>

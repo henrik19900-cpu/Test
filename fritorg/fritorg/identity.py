@@ -22,6 +22,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import secrets
 import sqlite3
 import time
@@ -64,8 +65,9 @@ def load_secret_key(settings: Settings) -> str:
         return path.read_text().strip()
     path.parent.mkdir(parents=True, exist_ok=True)
     key = secrets.token_hex(32)
-    path.write_text(key)
-    path.chmod(0o600)
+    # Created for the app's own user only: there is never a moment when others could open it.
+    with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as file:
+        file.write(key)
     return key
 
 

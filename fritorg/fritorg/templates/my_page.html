@@ -92,6 +92,7 @@
   </form>
 
   {% if tokens %}
+  <div class="table-wrap">
   <table class="token-table">
     <thead><tr><th>Navn</th><th>Nøkkel</th><th>Laget</th><th>Sist brukt</th><th><span class="visually-hidden">Handling</span></th></tr></thead>
     <tbody>
@@ -111,6 +112,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% endif %}
   <p class="small">Agenter som bruker REST-API-et, kan også be om tilgang selv: de viser deg en kode som du godkjenner på <a href="/koble-til">{{ base }}/koble-til</a>. Uten nøkkel kan assistenten fortsatt søke og lese annonser via <code>{{ base }}/mcp</code>. Se <a href="/for-agenter">veiledningen</a>.</p>
 </section>

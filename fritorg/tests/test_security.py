@@ -192,18 +192,28 @@ def test_passwords_are_hashed_at_full_cost_and_old_hashes_upgrade(app, client, m
         assert conn.execute("SELECT password_hash FROM users").fetchone()[0].startswith("scrypt$16384$8$5$")
 
 
+def _flash_attributes(response) -> list[list[str]]:
+    return [
+        [part.strip().lower() for part in value.split(";")[1:]]
+        for key, value in response.headers.multi_items()
+        if key == "set-cookie" and value.startswith("ft_flash=")
+    ]
+
+
 def test_the_confirmation_message_cookie_is_secure_on_https(tmp_path):
     settings = Settings(data_dir=tmp_path, verification="none", base_url="https://gratistorget.example")
     with TestClient(create_app(settings), base_url="https://gratistorget.example") as client:
-        register(client)
-        web_login(client)
+        register(client, name="Secure Nordmann")
+        welcome = client.post(  # "Velkommen tilbake, Secure!"
+            "/logg-inn",
+            data={"email": "kari@example.no", "password": "hemmelig123", "csrf_token": csrf(client)},
+            follow_redirects=False,
+        )
         changed = client.post(
             "/min-side/navn", data={"csrf_token": csrf(client), "name": "Kari N."}, follow_redirects=False
         )
-        flash = [
-            v for k, v in changed.headers.multi_items() if k == "set-cookie" and v.startswith("ft_flash=")
-        ]
-        assert flash and all("Secure" in v for v in flash)
+        flash = _flash_attributes(welcome) + _flash_attributes(changed)
+        assert len(flash) == 2 and all("secure" in attributes for attributes in flash)
 
 
 def test_strangers_see_only_the_day_an_account_was_made(client, auth):

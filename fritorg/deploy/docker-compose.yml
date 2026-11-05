@@ -1,6 +1,12 @@
 # Production: Gratistorget behind Caddy (automatic HTTPS). Usage:
 #   cp .env.example .env   # fill in domain, SMS provider, e-mail and secret key
 #   docker compose up -d --build
+# install.sh does all of it, also on a server that runs other programs.
+#
+# What Docker makes for the site (containers, volumes, network) is named after the project, fritorg, so it stays
+# apart from other programs' on the same machine.
+name: fritorg
+
 # Container logs (errors and the app's own messages) are rotated, so they cannot grow without end.
 x-logging: &logging
   driver: json-file
@@ -16,6 +22,9 @@ services:
         COMMIT: ${COMMIT:-}  # set by update.sh, shown on /healthz
     restart: unless-stopped
     logging: *logging
+    # If the machine runs out of memory, the site is stopped first, not other programs on the machine. It
+    # starts again by itself.
+    oom_score_adj: 500
     env_file: .env
     environment:
       FRITORG_UPLOADS_DIR: /uploads
@@ -29,6 +38,7 @@ services:
     image: caddy:2
     restart: unless-stopped
     logging: *logging
+    oom_score_adj: 500
     depends_on:
       - app
     ports:

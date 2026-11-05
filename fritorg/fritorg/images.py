@@ -39,7 +39,8 @@ PILImage.MAX_IMAGE_PIXELS = 40_000_000  # larger images are refused (decompressi
 MAX_SIDE = 1600
 THUMB_SIDE = 640
 SIMILAR_BITS = 5  # dHash distance below which two photos count as the same picture
-ALLOWED_FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
+# MPO: a JPEG with more pictures in it (phones store depth and HDR maps that way); only the first is used.
+ALLOWED_FORMATS = {"JPEG", "MPO", "PNG", "WEBP", "GIF"}
 
 
 def sniff_image_type(data: bytes) -> str | None:
@@ -106,6 +107,10 @@ def process_image(data: bytes) -> ProcessedImage:
             with PILImage.open(io.BytesIO(data)) as opened:
                 if opened.format not in ALLOWED_FORMATS:
                     raise ValueError(f"format {opened.format}")
+                # Checked here too: the warning filter above is shared by every thread, so a parallel upload
+                # can undo it while this one is read.
+                if opened.width * opened.height > PILImage.MAX_IMAGE_PIXELS:
+                    raise ValueError("too many pixels")
                 opened.seek(0)  # first frame of animations
                 image = ImageOps.exif_transpose(opened)  # respect the phone's rotation flag
                 image.load()

@@ -134,6 +134,14 @@ Dette bygger på en gjennomgang av vilkårene, loven og rettspraksis (blant anne
 
 Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyserver.com/), som henter og fornyer HTTPS-sertifikater automatisk.
 
+Raskest er å logge inn på serveren og kjøre `deploy/install.sh`. Det gjør steg 2 og 3 under, setter opp sikkerhetskopi og publisering fra GitHub, og passer også på en server som kjører andre programmer fra før. Les mer i [veiledningen for Oracle Cloud](deploy/oracle-cloud.md).
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/henrik19900-cpu/Test/main/fritorg/deploy/install.sh | sh
+```
+
+Slik gjør du det for hånd:
+
 1. Skaff en server med Docker (for eksempel en liten VPS i Norge eller EU) og pek domenets A/AAAA-oppføring dit. En gratis maskin hos Oracle Cloud holder godt: se [steg for steg](deploy/oracle-cloud.md).
 2. Fyll inn innstillingene:
    ```sh
@@ -159,12 +167,13 @@ Oppsettet i `deploy/` kjører Gratistorget i Docker bak [Caddy](https://caddyser
 - [ ] SMS-leverandør satt opp og testet, med en daglig grense du har budsjett for, og et avsendernavn på høyst 11 tegn (for eksempel «Gratistorg»). Alternativt: BankID-avtale.
 - [ ] E-post (SMTP) satt opp og testet, med SPF og DKIM for domenet.
 - [ ] `FRITORG_SECRET_KEY` er satt og lagret et trygt sted. Mister du den, kjennes ikke mobilnumre og BankID-identiteter igjen.
-- [ ] `FRITORG_OPERATOR` og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
+- [ ] `FRITORG_OPERATOR` (navn, postadresse og eventuelt org.nr., som ehandelsloven § 8 krever) og `FRITORG_CONTACT_EMAIL` er satt (vises i vilkårene, bunnteksten og `security.txt`).
 - [ ] Minst én moderator, og en plan for hvem som følger med på `/moderering` hver dag.
 - [ ] `fritorg doctor` viser ingen FEIL.
 - [ ] Publisering fra GitHub er satt opp (`deploy/github-deploy.sh`, se steg 10 i `deploy/oracle-cloud.md`), så nye versjoner på `main` legges ut av seg selv.
 - [ ] Daglig sikkerhetskopi som kopieres til et annet sted, og en gjenoppretting som er prøvd (se «Gjenopprette» under Drift).
 - [ ] Personvern:
+  - svar på spørsmålene i [JURIST.md](JURIST.md), som er samlet for juristen
   - juridisk gjennomgang av vilkår og personvernerklæring (`/vilkar` er et utkast), også aldersgrensen (18 år), lagringstidene (blant annet at ubrukte kontoer slettes etter to år, `FRITORG_INACTIVE_ACCOUNT_DAYS`), listen over hva som ikke kan selges, og teksten om forbrukerrettigheter ved kjøp fra bedrifter og privatpersoner
   - protokoll over behandlingene (personvernforordningen artikkel 30) og en vurdering av personvernkonsekvenser (DPIA, artikkel 35), fordi alle meldinger sjekkes automatisk for svindel og annonsene deles åpent med AI-agenter
   - databehandleravtaler med server-, SMS- og e-postleverandøren (og BankID-megleren), en vurdering av overføringen til USA hvis SMS går gjennom Twilio, og `FRITORG_PROCESSORS` satt
@@ -286,7 +295,7 @@ Alle innstillinger er miljøvariabler. De viktigste:
 | `FRITORG_UPLOADS_DIR` | `data/uploads` | Mappe for bildene. I `deploy/` er det et eget volum, så Caddy kan servere bildene uten tilgang til databasen. |
 | `FRITORG_SECRET_KEY` | fil i datamappen | Hemmelig nøkkel (64 heksadesimale tegn). |
 | `FRITORG_SITE_NAME` | `Gratistorget` | Navnet på siden. |
-| `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Behandlingsansvarlig og kontaktadresse for personvern (vises i vilkårene; `fritorg doctor` krever dem). |
+| `FRITORG_OPERATOR`, `FRITORG_CONTACT_EMAIL` | – | Hvem som driver siden (navn, postadresse og eventuelt org.nr.) og kontaktadresse for personvern (vises i vilkårene og bunnteksten; `fritorg doctor` krever dem). |
 | `FRITORG_PROCESSORS` | – | Databehandlerne, slik personvernerklæringen skal nevne dem, f.eks. «Oracle Cloud (servere, Sverige), Twilio (SMS, USA)». |
 | `FRITORG_VERIFICATION` | `sms` | `sms` eller `none` (bare for testing). |
 | `FRITORG_SMS_PROVIDER` | `console` | `twilio`, `http` eller `console` (viser koden på skjermen, avvises på https-sider). |

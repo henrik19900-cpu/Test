@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import re
+import smtplib
 
 import pytest
 from conftest import csrf, make_listing, register, web_login
@@ -157,3 +159,32 @@ def test_smtp_delivery(monkeypatch):
     assert sent["server"] == ("smtp.example.no", 587) and sent["tls"] and sent["login"] == ("fritorg", "pw")
     assert sent["message"]["To"] == "kari@example.no"
     assert sent["message"]["From"] == "Fritorg <post@fritorg.example>"
+
+
+def test_mail_that_cannot_be_sent_leaves_no_address_in_the_log(monkeypatch, caplog):
+    """SMTP errors name the recipient, and mail servers repeat the address in their answer."""
+
+    class RefusingSMTP:
+        def __init__(self, host, port, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def starttls(self, context):
+            pass
+
+        def send_message(self, message):
+            answer = (550, b"5.1.1 <kari.nordmann@example.no>: Recipient address rejected")
+            raise smtplib.SMTPRecipientsRefused({"kari.nordmann@example.no": answer})
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP", RefusingSMTP)
+    with caplog.at_level(logging.WARNING, logger="fritorg.mailer"):
+        Mailer(Settings(smtp_host="smtp.example.no"))._send_safely(
+            Mail("kari.nordmann@example.no", "Hei", "Tekst")
+        )
+    assert "Recipient address rejected" in caplog.text and "example.no" in caplog.text
+    assert "kari.nordmann" not in caplog.text

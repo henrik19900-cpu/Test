@@ -59,6 +59,18 @@ jobs:
         if: failure()
         run: cat "$RUNNER_TEMP/server.log"
 
+  scripts:
+    # The scripts that run on the server (install.sh, update.sh, github-deploy.sh) and the compose file, so a
+    # mistake shows up here and not on the server.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: fritorg/deploy
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck -s sh *.sh
+      - run: cp .env.example .env && docker compose config --quiet
+
   docker:
     name: docker${{ matrix.arch == 'arm64' && ' (arm64)' || '' }}
     runs-on: ubuntu-latest

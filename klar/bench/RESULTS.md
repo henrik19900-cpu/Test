@@ -124,21 +124,21 @@ Ordene modellen allerede kjenner, er de billigste den har. Nye ord koster flere 
 
 ## Klar Kort: så få tokens som mulig
 
-[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. Kort-200 er hele korpuset presset ned til maks 200 tokens, og der overlever bare hovedpoenget i hver tekst. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang «not». Det er omtrent gulvet for hva samme innhold kan koste i tokens. Hvor mange av fakta som overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md).
+[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. Kort v3 er enda strammere: nesten uten tegnsetting og med billigere ord, men uten å fjerne innhold med vilje. Kort-500 og Kort-200 er hele korpuset presset under 500 og 200 tokens; der må innhold ut. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang «not». Hvor mange av fakta som overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md).
 
-| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort | Kort-200 | Bare innholdsord |
-|---|---:|---:|---:|---:|---:|---:|
-| GPT-4 / GPT-3.5 | 1089 | 1019 | 862 | 687 | 181 | 539 |
-| GPT-4o / o-serien | 1080 | 1018 | 842 | 681 | 179 | 539 |
-| Claude (eldre, offentlig) | 1072 | 1001 | 847 | 662 | 178 | 505 |
-| Llama 3 | 1089 | 1018 | 862 | 687 | 181 | 539 |
-| Qwen 2.5 | 1128 | 1059 | 901 | 723 | 191 | 579 |
-| Mistral Nemo | 1138 | 1067 | 914 | 736 | 197 | 590 |
-| Gemma 2 | 1135 | 1073 | 913 | 724 | 188 | 574 |
-| DeepSeek V3 | 1093 | 1022 | 867 | 692 | 185 | 544 |
-| **Snitt** | **1103** | **1035** | **876** | **699** | **185** | **551** |
+| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort | Kort v3 | Kort-500 | Kort-200 | Bare innholdsord |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| GPT-4 / GPT-3.5 | 1089 | 1019 | 862 | 688 | 628 | 452 | 181 | 539 |
+| GPT-4o / o-serien | 1080 | 1018 | 842 | 682 | 623 | 449 | 179 | 539 |
+| Claude (eldre, offentlig) | 1072 | 1001 | 847 | 663 | 604 | 434 | 178 | 505 |
+| Llama 3 | 1089 | 1018 | 862 | 688 | 628 | 452 | 181 | 539 |
+| Qwen 2.5 | 1128 | 1059 | 901 | 724 | 662 | 485 | 191 | 579 |
+| Mistral Nemo | 1138 | 1067 | 914 | 737 | 675 | 493 | 197 | 590 |
+| Gemma 2 | 1135 | 1073 | 913 | 725 | 664 | 483 | 188 | 574 |
+| DeepSeek V3 | 1093 | 1022 | 867 | 693 | 634 | 457 | 185 | 544 |
+| **Snitt** | **1103** | **1035** | **876** | **700** | **640** | **463** | **185** | **551** |
 
-Klar Kort er −37 % mot engelsk, −32 % mot Klar og −20 % mot telegramengelsk. Kort-200 er −83 % mot engelsk.
+Klar Kort er −37 % mot engelsk og −32 % mot Klar. Kort v3 er −42 %, Kort-500 −58 % og Kort-200 −83 % mot engelsk. Kort-500 og Kort-200 holder budsjettet i alle åtte tokenizerne, og det koster innhold.
 
 ## Primeren: hva det koster å lære en modell Klar
 

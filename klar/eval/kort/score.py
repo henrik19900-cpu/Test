@@ -23,8 +23,10 @@ VERSIONS = {
     "en": "Engelsk (originalen)",
     "klar": "Klar",
     "tele": "Telegramengelsk",
-    "kort_v1": "Klar Kort, første versjon",
-    "kort": "Klar Kort",
+    "kort_v1": "Klar Kort, versjon 1",
+    "kort": "Klar Kort, versjon 2",
+    "kort_v3": "Kort v3 (enda strammere)",
+    "kort500": "Kort-500",
     "kort200": "Kort-200",
 }
 
@@ -64,7 +66,7 @@ def main() -> None:
     ids = list(facts)
 
     def tokens(version: str) -> float:
-        if version in ("kort", "kort_v1", "kort200"):
+        if version in ("kort", "kort_v1", "kort_v3", "kort500", "kort200"):
             return statistics.mean(sum(bench["compressed"][i][version][n] for i in ids) for n in names)
         return statistics.mean(sum(bench["counts"][i][version][n] for i in ids) for n in names)
 
@@ -115,13 +117,15 @@ def main() -> None:
             w(f"- {VERSIONS[version]}: " + ", ".join(f"dommer {j} {share:.0%}" for j, share in judged))
         w("")
 
-    for version in [v for v in ("kort", "kort_v1", "kort200", "klar", "tele") if v in grades]:
+    for version in [
+        v for v in ("kort", "kort_v3", "kort500", "kort_v1", "kort200", "klar", "tele") if v in grades
+    ]:
         lost = [(i, facts[i][k], g) for i in ids for k, g in enumerate(grades[version][i]) if g < 1]
         w(f"## Det {VERSIONS[version]} mistet ({len(lost)} av {n_facts} fakta under full score)\n")
         if not lost:
             w("Ingenting.\n")
             continue
-        if version == "kort200":
+        if version in ("kort200", "kort500"):
             per_text = {}
             for i, _, g in lost:
                 per_text[i] = per_text.get(i, 0) + (1 - g)

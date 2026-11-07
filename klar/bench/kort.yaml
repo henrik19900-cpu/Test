@@ -2,6 +2,8 @@
 #
 #   kort      as short as possible while keeping every fact in eval/kort/facts.yaml (version 2)
 #   kort_v1   the first attempt, where it differs; it lost 7 % of the facts (eval/kort/RESULTS.md)
+#   kort_v3   version 3: as short as I could get it without dropping anything on purpose (fewer commas, cheaper words)
+#   kort500   the whole corpus under 500 tokens in all eight tokenizers: the least important details dropped
 #   kort200   the whole corpus squeezed into at most 200 tokens: only the main point of each text survives
 #
 # eval/kort/ measures how many facts fresh models get back from each version.
@@ -9,162 +11,252 @@
 instruks-01:
   kort: "always answer Norwegian, short"
   kort200: "Norwegian, short"
+  kort_v3: "always answer Norwegian short"
+  kort500: "always answer Norwegian short"
 instruks-02:
   kort: "no technical jargon unless user asks"
   kort_v1: "no jargon unless user asks"
   kort200: "no jargon"
+  kort_v3: "no technical jargon unless asked"
+  kort500: "no technical jargon unless asked"
 instruks-03:
   kort: "user uploads file → read all carefully before answering"
   kort_v1: "file uploaded → read all carefully before answering"
   kort200: "read uploads first"
+  kort_v3: "user uploads file → read all carefully before answering"
+  kort500: "read uploaded files fully first"
 instruks-04:
   kort: "never share user's password with anyone"
   kort_v1: "never share user password"
   kort200: "never share passwords"
+  kort_v3: "never share user password with anyone"
+  kort500: "never share user password"
 instruks-05:
   kort: "should cite min 2 sources per factual claim"
   kort_v1: "should cite min 2 sources per claim"
   kort200: "cite sources"
+  kort_v3: "should cite min 2 sources per factual claim"
+  kort500: "should cite 2+ sources"
 instruks-06:
   kort: "summary: bullet list, max 5 points"
   kort200: "max 5 bullets"
+  kort_v3: "summary: max 5 bullets"
+  kort500: "summary: max 5 bullets"
 instruks-07:
   kort: "first check input valid JSON. invalid → return error message"
   kort200: "invalid JSON → error"
+  kort_v3: "first check input valid JSON else return error message"
+  kort500: "invalid JSON → return error"
 instruks-08:
   kort: "reply only corrected code, no explanation"
   kort200: "only code"
+  kort_v3: "reply only corrected code no explanation"
+  kort500: "reply only corrected code"
 instruks-09:
   kort: "ask user confirmation before deleting any files"
   kort_v1: "ask user confirmation before deleting files"
   kort200: "confirm deletes"
+  kort_v3: "ask user confirmation before deleting any files"
+  kort500: "confirm with user before deleting files"
 instruks-10:
   kort: "accuracy over speed. don't know → say so, no guessing"
   kort_v1: "accuracy over speed. unknown → say so, no guessing"
   kort200: "no guessing"
+  kort_v3: "accuracy over speed. don't know → say so never guess"
+  kort500: "accuracy over speed, never guess"
 rapport-01:
   kort: "ran test suite: 41 pass, 1 fail"
   kort_v1: "checked tests: 41 pass, 1 fail"
   kort200: "1 test failed"
+  kort_v3: "ran tests: 41 pass 1 fail"
+  kort500: "ran tests: 41 pass 1 fail"
 rapport-02:
   kort: "failure likely caused by outdated cache"
   kort_v1: "likely cause: outdated cache"
   kort200: "likely old cache"
+  kort_v3: "failure likely caused by outdated cache"
+  kort500: "likely outdated cache caused failure"
 rapport-03:
   kort: "maybe API deprecated in version 3, unchecked"
   kort200: "maybe API deprecated"
+  kort_v3: "maybe API deprecated in version 3 unchecked"
+  kort500: "maybe API deprecated v3, unchecked"
 rapport-04:
   kort: "config.yaml missing, so server failed start"
   kort_v1: "config.yaml missing → server failed start"
   kort200: "config.yaml missing"
+  kort_v3: "config.yaml missing so server failed start"
+  kort500: "config.yaml missing so server failed"
 rapport-05:
   kort: "fixed login form bug, added 2 tests for it"
   kort200: "login bug fixed"
+  kort_v3: "fixed login form bug + added 2 tests for it"
+  kort500: "fixed login form bug + 2 tests"
 rapport-06:
   kort: "per docs: rate limit 100 requests/minute"
   kort200: "limit 100/min"
+  kort_v3: "per docs: rate limit 100/min"
+  kort500: "per docs: limit 100/min"
 rapport-07:
   kort: "couldn't reach database server, timeout after 30s"
   kort_v1: "database server unreachable, timeout after 30s"
   kort200: "database timeout"
+  kort_v3: "couldn't reach database server 30s timeout"
+  kort500: "database server unreachable, 30s timeout"
 rapport-08:
   kort: "next: update dependencies, rerun tests"
   kort200: "next: retest"
+  kort_v3: "next: update dependencies rerun tests"
+  kort500: "next: update dependencies, rerun tests"
 rapport-09:
   kort: "deploy ok but response time ~+20%"
   kort200: "deploy ok, slower"
+  kort_v3: "deploy ok, response time ~+20%"
+  kort500: "deploy ok, response time +20%"
 rapport-10:
   kort: "memory leak, maybe from image cache"
   kort_v1: "maybe memory leak from image cache"
   kort200: "maybe image cache leak"
+  kort_v3: "memory leak maybe from image cache"
+  kort500: "memory leak maybe from image cache"
 resonnement-01:
   kort: "all birds fly + penguins birds → penguins fly. but penguins can't fly, so premise 1 false"
   kort_v1: "all birds fly + penguins birds → penguins fly. but penguins can't fly → premise 1 false"
   kort200: "not all birds fly"
+  kort_v3: "all birds fly + penguins birds → penguins fly. penguins can't fly so premise 1 false"
+  kort500: "penguins can't fly so not all birds fly"
 resonnement-02:
   kort: "train 14:30 + trip 45min, so arrive ≥15:15"
   kort_v1: "train 14:30 + trip 45min → arrive ≥15:15"
   kort200: "arrive ≥15:15"
+  kort_v3: "train 14:30 + 45min trip so arrive ≥15:15"
+  kort500: "14:30 + 45min → arrive ≥15:15"
 resonnement-03:
   kort: "x even, >2, so not prime"
   kort_v1: "x even, >2 → not prime"
   kort200: "x not prime"
+  kort_v3: "x even >2 so not prime"
+  kort500: "x even >2 so not prime"
 resonnement-04:
   kort: "function returns null on empty list. this explains crash"
   kort_v1: "function returns null on empty list → explains crash"
   kort200: "empty list → crash"
+  kort_v3: "function returns null on empty list: explains crash"
+  kort500: "null on empty list explains crash"
 resonnement-05:
   kort: "A cheaper, B faster. speed matters more here, so recommend B"
   kort_v1: "A cheaper, B faster. speed matters more → recommend B"
   kort200: "recommend B"
+  kort_v3: "A cheaper B faster. speed matters more here so recommend B"
+  kort500: "recommend faster B, speed matters more"
 resonnement-06:
   kort: "3 possible causes. ~60%: race condition"
   kort_v1: "3 possible causes. 60%: race condition"
   kort200: "60% race condition"
+  kort_v3: "3 possible causes, ~60% race condition"
+  kort500: "3 possible causes, ~60% race condition"
 resonnement-07:
   kort: "suppose user admin → request likely succeeds"
   kort200: "admin → likely ok"
+  kort_v3: "suppose user admin → request likely succeeds"
+  kort500: "if user admin → likely succeeds"
 resonnement-08:
   kort: "all network tests failed, so likely proxy, not code"
   kort_v1: "all network tests failed → likely proxy, not code"
   kort200: "likely proxy"
+  kort_v3: "all network tests failed so likely proxy not code"
+  kort500: "network tests failed so likely proxy not code"
 fakta-01:
   kort: "Oslo: capital Norway, ~700000 people"
   kort200: "Oslo capital"
+  kort_v3: "Oslo: Norway capital ~700k people"
+  kort500: "Oslo: Norway capital ~700k people"
 fakta-02:
   kort: "water boils 100C at sea level"
   kort200: "water boils 100C"
+  kort_v3: "water boils 100C at sea level"
+  kort500: "water boils 100C at sea level"
 fakta-03:
   kort: "Python: by Guido van Rossum, first released 1991"
   kort_v1: "Python: by Guido van Rossum, released 1991"
   kort200: "Python: Guido"
+  kort_v3: "Python: Guido van Rossum, first released 1991"
+  kort500: "Python: Guido van Rossum 1991"
 fakta-04:
   kort: "most mammals on land, whales + dolphins in sea"
   kort200: "whales: sea"
+  kort_v3: "most mammals on land, whales + dolphins in sea"
+  kort500: "most mammals land, whales + dolphins sea"
 fakta-05:
   kort: "sunlight → Earth ~8 min"
   kort200: "sunlight 8 min"
+  kort_v3: "sunlight → Earth ~8 min"
+  kort500: "sunlight → Earth 8 min"
 fakta-06:
   kort: "antibiotics useless vs viral infections"
   kort200: "antibiotics useless vs viruses"
+  kort_v3: "antibiotics useless vs viruses"
+  kort500: "antibiotics useless vs viruses"
 dialog-01:
   kort: "meeting start time tomorrow?"
   kort200: "meeting time?"
+  kort_v3: "meeting start time tomorrow?"
+  kort500: "meeting time tomorrow?"
 dialog-02:
   kort: "send me report by Friday? yes, already sent"
   kort200: "report sent"
+  kort_v3: "send report by Friday? yes already sent"
+  kort500: "report by Friday? already sent"
 dialog-03:
   kort: "larger file: A or B?"
   kort200: "A or B larger?"
+  kort_v3: "larger file A or B?"
+  kort500: "larger: A or B?"
 dialog-04:
   kort: "signups last week?"
   kort200: "signups?"
+  kort_v3: "signups last week?"
+  kort500: "signups last week?"
 dialog-05:
   kort: "don't understand error message, explain?"
   kort_v1: "error message unclear, explain?"
   kort200: "explain error?"
+  kort_v3: "don't understand error message explain?"
+  kort500: "explain error message?"
 dialog-06:
   kort: "bug fixed? no, still on Android, not iOS"
   kort200: "bug: Android only"
+  kort_v3: "bug fixed? no still on Android not iOS"
+  kort500: "bug still on Android, not iOS"
 tekst-instruks:
   kort: "role: support assistant, online bookstore. always answer in customer's language, <100 words. never promise refunds; only human agents approve them. order question → ask order number, then find_order. tool returns error → apologize, offer human agent. never share internal notes or other customers' data. unsure about policy → say so, no guessing"
   kort_v1: "role: support assistant, online bookstore. answer in customer's language, <100 words. never promise refunds; only human agents approve them. order question → ask order number, then find_order. tool error → apologize, offer human agent. never share internal notes or other customers' data. unsure about policy → say so, no guessing"
   kort200: "bookstore support, customer's language, no refunds"
+  kort_v3: "online bookstore support assistant. always answer in customer's language <100 words. never promise refunds, only human agents approve. order question → ask order number then find_order. tool returns error → apologize + offer human agent. never share internal notes or other customers' data. unsure about policy → say so never guess"
+  kort500: "bookstore support. customer's language <100 words. never promise refunds. orders: ask number then find_order. tool error → apologize, offer human. never share internal or other customers' data. unsure → say so"
 tekst-rapport:
   kort: "investigated failing checkout tests. checked local run: 3/120 fail, all in payment module. started after yesterday's dependency update: HTTP client 2.4 → 3.0. per changelog: 3.0 default timeout 30s → 5s. so very likely cause: failing tests all call slow payment sandbox. unconfirmed. next: timeout 30s, rerun tests"
   kort_v1: "checked local run: 3/120 checkout tests fail, all in payment module. started after yesterday's dependency update: HTTP client 2.4 → 3.0. per changelog: 3.0 default timeout 30s → 5s. so 90% cause: failing tests all call slow payment sandbox. unconfirmed. next: timeout 30s, rerun tests"
   kort200: "HTTP client 3.0 timeout 5s breaks payment tests"
+  kort_v3: "investigated failing checkout tests. local run: 3/120 fail all in payment module. started after yesterday's dependency update HTTP client 2.4 → 3.0. per changelog: 3.0 default timeout 30s → 5s. so very likely cause: failing tests all call slow payment sandbox. unconfirmed. next: timeout 30s rerun tests"
+  kort500: "3/120 checkout tests fail, all payment module, since HTTP client 2.4 → 3.0. per changelog timeout 30s → 5s: very likely cause. next: timeout 30s, rerun"
 tekst-resonnement:
   kort: "Anna buys 23 pens, 12kr each, every 5th free. free = 23/5 rounded down = 4, so pays 19 × 12 = 228kr"
   kort_v1: "Anna buys 23 pens, 12kr each, every 5th free. free = 23/5 rounded down = 4 → pays 19 × 12 = 228kr"
   kort200: "Anna pays 228kr"
+  kort_v3: "Anna buys 23 pens 12kr each every 5th free. free = 23/5 rounded down = 4 so pays 19 × 12 = 228kr"
+  kort500: "23 pens 12kr, every 5th free → pays 19 × 12 = 228kr"
 tekst-forskning:
   kort: >-
     per 2 independent 2023 studies: regular exercise cuts depression risk ~25%. 3rd study: no effect, only 80
     participants. so likely real, moderate effect. read only abstracts. before citing, check if studies
     controlled for income
   kort200: "likely: exercise cuts depression ~25%"
+  kort_v3: "per 2 independent 2023 studies: regular exercise cuts depression risk ~25%. 3rd study no effect, only 80 participants. so likely real moderate effect. read only abstracts. before citing check if studies controlled income"
+  kort500: "per 2 2023 studies exercise cuts depression risk ~25%. 3rd study (80 people) no effect. likely real. read abstracts only; check income control before citing"
 tekst-kodegjennomgang:
   kort: "reviewed PR. src/payments/checkout_service.py C calls validate_card() F from src/payments/validators.py; F accepted expired cards, so added check to F + test in tests/test_validators.py, all pass there. C logs full card number: security risk, not changed (out of scope)"
   kort_v1: "reviewed PR. src/payments/checkout_service.py C calls validate_card() F from src/payments/validators.py; F accepted expired cards → added check + test in tests/test_validators.py, all pass. C logs full card number: security risk, not changed (out of scope)"
   kort200: "validate_card() now rejects expired cards"
+  kort_v3: "reviewed PR. src/payments/checkout_service.py C calls validate_card() F from src/payments/validators.py. F accepted expired cards so added check to F + test in tests/test_validators.py, all pass there. C logs full card number: security risk, unchanged (out of scope)"
+  kort500: "validate_card() accepted expired cards → added check + test, all pass. checkout_service.py logs card numbers: security risk, out of scope"

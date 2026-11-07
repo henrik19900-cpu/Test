@@ -124,6 +124,8 @@ def main() -> None:
                 n: counters[n](kort[e["id"]].get("kort_v1", kort[e["id"]]["kort"]).strip()) for n in names
             },
             "kort200": {n: counters[n](kort[e["id"]]["kort200"].strip()) for n in names},
+            "kort_v3": {n: counters[n](kort[e["id"]]["kort_v3"].strip()) for n in names},
+            "kort500": {n: counters[n](kort[e["id"]]["kort500"].strip()) for n in names},
             "content": {n: counters[n](content_words(e["klar"])) for n in names},
         }
         for e in entries
@@ -278,32 +280,41 @@ def report(corpus: dict, data: dict) -> str:
     w("## Klar Kort: så få tokens som mulig\n")
     w(
         "[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. "
-        "Kort-200 er hele korpuset presset ned til maks 200 tokens, og der overlever bare hovedpoenget i hver "
-        "tekst. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang "
-        "«not». Det er omtrent gulvet for hva samme innhold kan koste i tokens. Hvor mange av fakta som "
-        "overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md).\n"
+        "Kort v3 er enda strammere: nesten uten tegnsetting og med billigere ord, men uten å fjerne innhold "
+        "med vilje. Kort-500 og Kort-200 er hele korpuset presset under 500 og 200 tokens; der må innhold ut. "
+        "«Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang "
+        "«not». Hvor mange av fakta som overlever i hver versjon, står i "
+        "[eval/kort/RESULTS.md](../eval/kort/RESULTS.md).\n"
     )
-    w("| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort | Kort-200 | Bare innholdsord |")
-    w("|---|---:|---:|---:|---:|---:|---:|")
+    cols = [("kort", "Klar Kort"), ("kort_v3", "Kort v3"), ("kort500", "Kort-500"), ("kort200", "Kort-200")]
+    w(
+        "| Tokenizer | Engelsk | Klar | Telegramengelsk | "
+        + " | ".join(title for _, title in cols)
+        + " | Bare innholdsord |"
+    )
+    w("|---|" + "---:|" * (len(cols) + 4))
     comp = data["compressed"]
+
+    def comp_total(key: str, n: str) -> int:
+        return sum(comp[i][key][n] for i in all_ids)
+
     for n in names:
-        k = sum(comp[i]["kort"][n] for i in all_ids)
-        k2 = sum(comp[i]["kort200"][n] for i in all_ids)
-        cw = sum(comp[i]["content"][n] for i in all_ids)
+        cells = " | ".join(str(comp_total(key, n)) for key, _ in cols)
         w(
             f"| {data['tokenizers'][n]} | {total(all_ids, 'en', n)} | {total(all_ids, 'klar', n)} "
-            f"| {total(all_ids, 'tele', n)} | {k} | {k2} | {cw} |"
+            f"| {total(all_ids, 'tele', n)} | {cells} | {comp_total('content', n)} |"
         )
-    mk = statistics.mean(sum(comp[i]["kort"][n] for i in all_ids) for n in names)
-    mk2 = statistics.mean(sum(comp[i]["kort200"][n] for i in all_ids) for n in names)
-    mcw = statistics.mean(sum(comp[i]["content"][n] for i in all_ids) for n in names)
+    means = {key: statistics.mean(comp_total(key, n) for n in names) for key, _ in cols + [("content", "")]}
+    cells = " | ".join(f"**{means[key]:.0f}**" for key, _ in cols)
     w(
-        f"| **Snitt** | **{m['en']:.0f}** | **{m['klar']:.0f}** | **{m['tele']:.0f}** | **{mk:.0f}** "
-        f"| **{mk2:.0f}** | **{mcw:.0f}** |"
+        f"| **Snitt** | **{m['en']:.0f}** | **{m['klar']:.0f}** | **{m['tele']:.0f}** | {cells} "
+        f"| **{means['content']:.0f}** |"
     )
     w(
-        f"\nKlar Kort er {pct(mk, m['en'])} mot engelsk, {pct(mk, m['klar'])} mot Klar og {pct(mk, m['tele'])} "
-        f"mot telegramengelsk. Kort-200 er {pct(mk2, m['en'])} mot engelsk.\n"
+        f"\nKlar Kort er {pct(means['kort'], m['en'])} mot engelsk og {pct(means['kort'], m['klar'])} mot Klar. "
+        f"Kort v3 er {pct(means['kort_v3'], m['en'])}, Kort-500 {pct(means['kort500'], m['en'])} og Kort-200 "
+        f"{pct(means['kort200'], m['en'])} mot engelsk. Kort-500 og Kort-200 holder budsjettet i alle åtte "
+        "tokenizerne, og det koster innhold.\n"
     )
 
     if data["primer"]:

@@ -1,0 +1,81 @@
+This is a test of how much meaning survives compression.
+
+Rules:
+- Do NOT use any tools: no reading files, no searching, no commands. Use only the text below.
+- Reply with one JSON object and nothing else.
+
+Below are 45 short texts written in a compact language. Its grammar comes first.
+
+<grammar>
+# Klar Kort — compressed notes between models
+
+Klar Kort is the shortest way to pass facts, instructions and reports to another model while keeping every fact. Write only what the reader cannot rebuild; the reader expands it to full English.
+
+## Writing
+- Content words only. Leave out the/a/is/are/was/will/do, filler, politeness, and obvious pronouns (I in reports, you in instructions). Normal English word forms: failed, tests, cheaper.
+- A statement that starts with a verb in base form is an instruction (required). Weaker: `should` (recommended), `may` (allowed). Bans: `no X`, `never X`. A past-tense verb reports what the writer did: `ran tests`, `couldn't reach server`.
+- Source first: `checked` verified here · `so` inferred · `suppose` assumed · `per X:` according to X. None: stated as known.
+- Certainty first: `likely` ≈75% · `maybe` ≈50% · `unlikely` ≈25% · or `60%`. None: confident.
+- `:` is, has, consists of (`Oslo: capital Norway`). `→` if/when … then, leads to, changes to (`user uploads file → read all`, `timeout 30s → 5s`). `so` therefore, a conclusion about what was just said (`x even, >2, so not prime`). `=` equals. `+` and. `~` about. `<` `>` `≤` `≥` compare. `min` `max` at least, at most.
+- Keep every number, name, condition (unless, until, before, only), negation and qualifier (any, all, first, about, technical, here) exactly. Keep who did something when it is not the writer.
+- A capital letter after a noun names it for later: `file F … F`.
+- Separate statements with `.`; the last one needs none. `?` asks.
+
+## Reading
+Expand each statement into complete English: restore articles, verbs, tense and the obvious subject, and keep source and certainty. Never add facts.
+
+## Example
+English: I ran the tests: 41 passed and 1 failed. The failure was probably caused by an old cache, so you should clear it.
+Kort: `ran tests: 41 pass, 1 fail. failure likely caused by old cache, so should clear it`
+</grammar>
+
+Task: expand each text into complete, natural English, as the writer meant it. Keep every detail: numbers, names, conditions, negations, who did what, tense, how certain the writer is, and where a claim comes from. Do not add facts the text does not give or clearly imply.
+
+instruks-01: always answer Norwegian short
+instruks-02: no technical jargon unless asked
+instruks-03: read uploaded files fully first
+instruks-04: never share user password
+instruks-05: should cite 2+ sources
+instruks-06: summary: max 5 bullets
+instruks-07: invalid JSON → return error
+instruks-08: reply only corrected code
+instruks-09: confirm with user before deleting files
+instruks-10: accuracy over speed, never guess
+rapport-01: ran tests: 41 pass 1 fail
+rapport-02: likely outdated cache caused failure
+rapport-03: maybe API deprecated v3, unchecked
+rapport-04: config.yaml missing so server failed
+rapport-05: fixed login form bug + 2 tests
+rapport-06: per docs: limit 100/min
+rapport-07: database server unreachable, 30s timeout
+rapport-08: next: update dependencies, rerun tests
+rapport-09: deploy ok, response time +20%
+rapport-10: memory leak maybe from image cache
+resonnement-01: penguins can't fly so not all birds fly
+resonnement-02: 14:30 + 45min → arrive ≥15:15
+resonnement-03: x even >2 so not prime
+resonnement-04: null on empty list explains crash
+resonnement-05: recommend faster B, speed matters more
+resonnement-06: 3 possible causes, ~60% race condition
+resonnement-07: if user admin → likely succeeds
+resonnement-08: network tests failed so likely proxy not code
+fakta-01: Oslo: Norway capital ~700k people
+fakta-02: water boils 100C at sea level
+fakta-03: Python: Guido van Rossum 1991
+fakta-04: most mammals land, whales + dolphins sea
+fakta-05: sunlight → Earth 8 min
+fakta-06: antibiotics useless vs viruses
+dialog-01: meeting time tomorrow?
+dialog-02: report by Friday? already sent
+dialog-03: larger: A or B?
+dialog-04: signups last week?
+dialog-05: explain error message?
+dialog-06: bug still on Android, not iOS
+tekst-instruks: bookstore support. customer's language <100 words. never promise refunds. orders: ask number then find_order. tool error → apologize, offer human. never share internal or other customers' data. unsure → say so
+tekst-rapport: 3/120 checkout tests fail, all payment module, since HTTP client 2.4 → 3.0. per changelog timeout 30s → 5s: very likely cause. next: timeout 30s, rerun
+tekst-resonnement: 23 pens 12kr, every 5th free → pays 19 × 12 = 228kr
+tekst-forskning: per 2 2023 studies exercise cuts depression risk ~25%. 3rd study (80 people) no effect. likely real. read abstracts only; check income control before citing
+tekst-kodegjennomgang: validate_card() accepted expired cards → added check + test, all pass. checkout_service.py logs card numbers: security risk, out of scope
+
+Answer format (JSON only, one entry per id):
+{"instruks-01": "full English ...", "instruks-02": "..."}

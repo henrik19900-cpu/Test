@@ -3,7 +3,18 @@
 **Spørsmålet:** Kan testkorpuset skrives med maks 200 tokens i stedet for rundt 1 000, uten å miste
 innhold? Og hvor langt ned kommer man hvis alt innhold skal være med?
 
-Tallene står i [RESULTS.md](RESULTS.md).
+**Svaret:** 200 tokens går, men da forsvinner det meste av innholdet. Med alt innholdet kommer vi ned til
+rundt 660.
+
+| Versjon | Tokens (snitt, 8 tokenizere) | Fakta som overlevde |
+|---|---:|---:|
+| Engelsk (originalen) | 1103 | 100 % |
+| Klar | 1035 | 99 % |
+| Telegramengelsk | 876 | 100 % |
+| **Klar Kort** | **664** | **93 %** |
+| **Kort-200** | **185** | **39 %** |
+
+Alle tallene og hvert tapte faktum står i [RESULTS.md](RESULTS.md).
 
 ## Gulvet
 
@@ -39,6 +50,22 @@ Begge står i [bench/kort.yaml](../../bench/kort.yaml), ved siden av [bench/corp
    ([judged/labels.json](judged/labels.json)). Svarene står i [judged/](judged/).
 4. **Poeng.** [score.py](score.py) regner ut andelen fakta som overlevde, og deler tokens på antall bevarte
    fakta.
+
+## Hva tallene viser
+
+- **Kort-200 holder budsjettet, men mister 61 % av innholdet.** Hver tekst blir til hovedpoenget sitt:
+  «Before you delete any files, ask the user for confirmation» blir `confirm deletes`. Det går bra. Men
+  «The function returns null when the list is empty, which explains the crash» blir `empty list → crash`,
+  og da er både «null» og forklaringen borte. De lange tekstene taper mest: av 13 poeng i systemprompten
+  ble 3 igjen.
+- **Klar Kort beholder 93 % for 60 % av tokenene.** Det som forsvant, er små presiseringer, ikke
+  hovedinnhold: «technical» foran jargon, «with anyone», «about» foran 60 %, «first» foran released. Hver av
+  dem koster omtrent ett token å ta med. Én feil var mer alvorlig: `x even, >2 → not prime` ble lest som en
+  regel («hvis x er partall …») og ikke som en påstand om x.
+- **Telegramengelsk mistet ingenting her.** Med 876 tokens er det et godt valg når leseren er en modell og
+  man ikke trenger at teksten kan sjekkes maskinelt. Klar koster litt mer og gir én tolkning per setning.
+- **Tokens per bevart faktum** faller fra 7,1 (engelsk) til 4,6 (Klar Kort) og 3,0 (Kort-200). Kort-200 er
+  altså mest effektiv per faktum den beholder, men den beholder færre enn to av fem.
 
 ## Begrensninger
 

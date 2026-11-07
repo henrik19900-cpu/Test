@@ -16,6 +16,7 @@ ble. Tallene kommer fra [bench/RESULTS.md](../bench/RESULTS.md) og [eval/RESULTS
 8. [Når Klar lønner seg, og når ikke](#8-når-klar-lønner-seg-og-når-ikke)
 9. [Begrensninger](#9-begrensninger)
 10. [Videre arbeid](#10-videre-arbeid)
+11. [Kan testen skrives med 200 tokens?](#11-kan-testen-skrives-med-200-tokens)
 
 ## 1. Hva «effektivt» betyr for en AI
 
@@ -247,3 +248,40 @@ Klar passer dårlig for:
 - **Flere språk:** Klar-grammatikk med norske innholdsord ville vært lettere for norske lesere, men målingene
   viser at det ville kostet mer. Med en tokenizer trent på norsk kunne det sett annerledes ut.
 - **Teste andre modellfamilier** med samme prompt (`eval/round2/prompt.txt`).
+
+## 11. Kan testen skrives med 200 tokens?
+
+Målet var å skrive testkorpuset med maks 200 tokens i stedet for rundt 1 000. Målingene ga dette svaret
+([eval/kort/README.md](../eval/kort/README.md)):
+
+| Versjon | Tokens | Fakta som overlevde |
+|---|---:|---:|
+| Engelsk | 1103 | 100 % |
+| Klar | 1035 | 99 % |
+| Telegramengelsk | 876 | 100 % |
+| Klar Kort | 664 | 93 % |
+| Kort-200 | 185 | 39 % |
+| Bare innholdsordene | 551 | (gulvet) |
+
+**Gulvet.** Innholdsordene alene, uten et eneste grammatikkord, koster 551 tokens. Det er nesten tre ganger
+200. Ingen skrivemåte kan gjøre et ord billigere enn ett token, og de fleste innholdsordene er allerede ett
+token. Derfor finnes det ikke et språk som skriver samme innhold med 200 tokens for dagens modeller.
+
+**Det beste med alt innhold** er Klar Kort, med 664 tokens og 93 % av fakta. Resten var små presiseringer,
+som kan tas med for omtrent ett token hver, altså rundt 700 tokens for alt.
+
+**200 tokens** går bare ved å kaste innhold. Kort-200 beholdt 39 %: hovedpoenget i hver tekst, men ikke
+tallene, betingelsene og begrunnelsene.
+
+**Hva skal til for å komme under gulvet?** Da må ett token bære mer enn ett ord. Det finnes tre veier, og
+ingen av dem er et nytt skriftspråk:
+
+1. **En lært kodebok.** En modell som er finjustert med egne tokens for vanlige begreper i et fagfelt, kan
+   skrive «kundeservice-instruks om refusjon» som ett token. Det krever trening, og kodeboken må være lik hos
+   begge parter.
+2. **Felles kontekst.** Det som allerede står i samtalen eller i en delt database, kan pekes på med en
+   etikett i stedet for å gjentas. Klar har dette med etiketter og definisjoner. Det gir mye i lange samtaler,
+   men ingenting for en tekst som står alene.
+3. **Vektorer i stedet for tokens.** Modeller kan sende hverandre interne tilstander direkte (se
+   [§ 7](#7-hvorfor-ikke-et-språk-bare-maskiner-forstår)). Det er kortere, men ingen mennesker kan lese det.
+

@@ -107,6 +107,33 @@ første runde, skrev de gyldig Klar i 48 av 48 nye setninger.
 Primeren koster omtrent 1 700 tokens og lønner seg etter rundt 5 300 tokens med tekst mot norsk, eller rundt
 28 000 mot engelsk. Med prompt caching er tallene en tidel. Se [når Klar lønner seg](docs/begrunnelse.md#8-når-klar-lønner-seg-og-når-ikke).
 
+## Klar Kort: når tokens teller mest
+
+Klar er laget for presisjon. Når det bare gjelder å få ned antall tokens, finnes [Klar Kort](docs/kort.en.md):
+korte notater mellom modeller som dropper alt leseren kan bygge opp igjen. Primeren er på rundt 440 tokens.
+
+```text
+checked tests: 41 pass, 1 fail. likely cause: old cache → should clear it
+```
+
+Er det mulig å få hele testen ned i 200 tokens? Ja, men da forsvinner det meste av innholdet. Ferske modeller
+pakket hver versjon ut igjen uten å se originalen, og uavhengige dommere telte hvor mange av de 156
+nøkkelfaktaene som overlevde ([metode og alle svar](eval/kort/README.md)):
+
+| Versjon | Tokens (snitt, 8 tokenizere) | Fakta som overlevde |
+|---|---:|---:|
+| Engelsk | 1103 | 100 % |
+| Klar | 1035 | 99 % |
+| Telegramengelsk | 876 | 100 % |
+| **Klar Kort** | **664** | **93 %** |
+| **Kort-200** | **185** | **39 %** |
+| *bare innholdsordene, uten grammatikk* | *551* | *(gulvet)* |
+
+Bare innholdsordene i testen koster 551 tokens, så 200 tokens med samme innhold er under gulvet. Et ord kan
+ikke koste mindre enn ett token. Klar Kort kommer nærmest gulvet og beholder nesten alt. Kort-200 holder
+budsjettet, men bare hovedpoenget i hver tekst overlever. Se [begrunnelsen](docs/begrunnelse.md#11-kan-testen-skrives-med-200-tokens)
+for hva som skal til for å komme under gulvet.
+
 ## Kom i gang
 
 Krever Python 3.11 eller nyere. Selve språkverktøyene har ingen avhengigheter.
@@ -163,10 +190,10 @@ print(features(text.sentences[1])["confidence"])  # likely
 | Mappe | Innhold |
 |---|---|
 | [`klar/`](klar/) | språket i kode: ordlisten (`lexicon.py`), lexer, parser, syntakstre, glossator og sjekker |
-| [`docs/`](docs/) | spesifikasjon, primer (engelsk og norsk) og begrunnelse |
+| [`docs/`](docs/) | spesifikasjon, primer (engelsk og norsk), Klar Kort og begrunnelse |
 | [`eksempler/`](eksempler/) | systemprompt, agentrapport og kodegjennomgang på Klar |
-| [`bench/`](bench/) | parallelkorpuset (engelsk, telegramengelsk, norsk, Klar) og målingene |
-| [`eval/`](eval/) | læringstesten: prompter, fasit, modellsvar, vurdering og resultater |
+| [`bench/`](bench/) | parallelkorpuset (engelsk, telegramengelsk, norsk, Klar, Klar Kort, Kort-200) og målingene |
+| [`eval/`](eval/) | læringstesten og komprimeringstesten: prompter, fasit, modellsvar, vurdering og resultater |
 | [`tests/`](tests/) | tester for parser, glossator, sjekker, korpus, dokumentasjon og robusthet |
 
 ## Begrensninger

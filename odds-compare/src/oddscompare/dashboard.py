@@ -354,6 +354,59 @@ def nt_best(cards: list[Card]) -> list[NtBest]:
     return sorted(found, key=lambda b: (-b.lead, b.card.kickoff_utc))
 
 
+@dataclass
+class BestEv:
+    """An outcome's best price among the bookmakers, and its EV against the reference's fair odds."""
+
+    card: Card
+    outcome: int
+    odds: float
+    sources: list[str]  # the bookmakers offering it (odds_snapshots sources)
+    ev: float
+
+    @property
+    def books(self) -> list[str]:
+        return [bookmaker_name(s) for s in self.sources]
+
+    @property
+    def fair(self) -> float:
+        return self.card.fair_odds[self.outcome]
+
+    @property
+    def nt_odds(self) -> float:
+        return self.card.nt_odds[self.outcome]
+
+    @property
+    def nt_ev(self) -> float:
+        return self.card.ev[self.outcome]
+
+    @property
+    def fetched(self) -> datetime | None:
+        """When the newest of the quotes at this price was fetched."""
+        times = [
+            self.card.nt_fetched if s == NT else self.card.competitors_fetched.get(s) for s in self.sources
+        ]
+        return max((t for t in times if t), default=None)
+
+
+def best_ev(cards: list[Card], books: list[str] | None = None) -> list[BestEv]:
+    """Every outcome's best price among Norsk Tipping and its competitors (those in books, when given), with
+    its EV against the reference's fair odds, highest EV first. Only the matches the reference priced: fair
+    odds from the competitors' average would be measured against the very prices they come from."""
+    found = []
+    for card in cards:
+        if not card.ref_odds or card.fair_from or not card.fair_odds:
+            continue
+        prices = {NT: card.nt_odds, **card.competitors}
+        if books is not None:
+            prices = {s: odds for s, odds in prices.items() if s in books}
+        for i in range(len(OUTCOMES) if prices else 0):
+            top = max(odds[i] for odds in prices.values())
+            sources = [s for s, odds in prices.items() if odds[i] == top]
+            found.append(BestEv(card, i, top, sources, top / card.fair_odds[i] - 1))
+    return sorted(found, key=lambda b: (-b.ev, b.card.kickoff_utc))
+
+
 def summary(cards: list[Card]) -> dict[str, float | int | None]:
     """The counts, and the average margins over the matches the reference itself has priced."""
     compared = [c for c in cards if c.ev is not None]

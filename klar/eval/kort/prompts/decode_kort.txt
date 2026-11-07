@@ -54,7 +54,7 @@ rapport-10: memory leak, maybe from image cache
 resonnement-01: all birds fly + penguins birds → penguins fly. but penguins can't fly, so premise 1 false
 resonnement-02: train 14:30 + trip 45min, so arrive ≥15:15
 resonnement-03: x even, >2, so not prime
-resonnement-04: function returns null on empty list → explains crash
+resonnement-04: function returns null on empty list. this explains crash
 resonnement-05: A cheaper, B faster. speed matters more here, so recommend B
 resonnement-06: 3 possible causes. ~60%: race condition
 resonnement-07: suppose user admin → request likely succeeds

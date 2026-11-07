@@ -90,7 +90,8 @@ resonnement-03:
   kort_v1: "x even, >2 → not prime"
   kort200: "x not prime"
 resonnement-04:
-  kort: "function returns null on empty list → explains crash"
+  kort: "function returns null on empty list. this explains crash"
+  kort_v1: "function returns null on empty list → explains crash"
   kort200: "empty list → crash"
 resonnement-05:
   kort: "A cheaper, B faster. speed matters more here, so recommend B"

@@ -1,0 +1,429 @@
+# Parallel corpus: the same content in four forms.
+#
+#   en     natural English, written as a careful writer would (not padded)
+#   tele   telegraphic English: articles, copulas and auxiliaries dropped, inflection kept
+#   nb     natural Norwegian (bokmål); not "no", which YAML reads as false
+#   klar   Klar, carrying the same information as en: no more, no less
+#
+# Klar sometimes states what English leaves implicit (that a directive is a requirement, that a claim is a
+# guess). Where English says it, Klar says it too; where English does not, Klar does not add it, so the
+# token counts compare equal information. Every klar entry must parse without errors (tests/test_corpus.py).
+
+items:
+  # ------------------------------------------------------------------ instruks
+  - id: instruks-01
+    category: instruks
+    en: "Always answer in Norwegian, and keep the answer short."
+    tele: "Always answer in Norwegian, keep answer short."
+    nb: "Svar alltid på norsk, og hold svaret kort."
+    klar: "must always answer in Norwegian. answer must short."
+
+  - id: instruks-02
+    category: instruks
+    en: "Do not use technical jargon unless the user asks for it."
+    tele: "Don't use technical jargon unless user asks for it."
+    nb: "Ikke bruk fagsjargong med mindre brukeren ber om det."
+    klar: "must not use technical jargon unless user li ask for it."
+
+  - id: instruks-03
+    category: instruks
+    en: "If the user uploads a file, read all of it carefully before you answer."
+    tele: "If user uploads file, read all of it carefully before answering."
+    nb: "Hvis brukeren laster opp en fil, les hele filen nøye før du svarer."
+    klar: "if user li upload file, must read all of it with care before answer."
+
+  - id: instruks-04
+    category: instruks
+    en: "You must never share the user's password with anyone."
+    tele: "Never share user's password with anyone."
+    nb: "Du må aldri dele brukerens passord med noen."
+    klar: "must never share password of user with anyone."
+
+  - id: instruks-05
+    category: instruks
+    en: "You should cite at least two sources for each factual claim."
+    tele: "Should cite at least two sources per factual claim."
+    nb: "Du bør oppgi minst to kilder for hver faktapåstand."
+    klar: "should cite min 2 source for each factual claim."
+
+  - id: instruks-06
+    category: instruks
+    en: "Write the summary as a bulleted list with at most five points."
+    tele: "Write summary as bulleted list, max five points."
+    nb: "Skriv sammendraget som en punktliste med maks fem punkter."
+    klar: "must write summary as bullet list with max 5 point."
+
+  - id: instruks-07
+    category: instruks
+    en: "First check whether the input is valid JSON. If it is not, return an error message."
+    tele: "First check whether input valid JSON. If not, return error message."
+    nb: "Sjekk først om inndataene er gyldig JSON. Hvis ikke, returner en feilmelding."
+    klar: "first, must check whether input li a valid JSON. if it not valid, must return error message."
+
+  - id: instruks-08
+    category: instruks
+    en: "Respond only with the corrected code, without any explanation."
+    tele: "Respond only with corrected code, no explanation."
+    nb: "Svar bare med den rettede koden, uten noen forklaring."
+    klar: "must only reply with corrected code without explanation."
+
+  - id: instruks-09
+    category: instruks
+    en: "Before you delete any files, ask the user for confirmation."
+    tele: "Before deleting any files, ask user for confirmation."
+    nb: "Før du sletter noen filer, spør brukeren om bekreftelse."
+    klar: "before you delete any file, must ask user for confirmation."
+
+  - id: instruks-10
+    category: instruks
+    en: "Prioritize accuracy over speed. If you don't know something, say so instead of guessing."
+    tele: "Prioritize accuracy over speed. If don't know, say so, don't guess."
+    nb: "Prioriter nøyaktighet foran hastighet. Hvis du ikke vet noe, si det i stedet for å gjette."
+    klar: "should prefer accuracy over speed. if you not know, must say this instead of guess."
+
+  # ------------------------------------------------------------------ rapport
+  - id: rapport-01
+    category: rapport
+    en: "I ran the test suite: 41 tests passed and 1 failed."
+    tele: "Ran test suite: 41 passed, 1 failed."
+    nb: "Jeg kjørte testene: 41 tester besto og 1 feilet."
+    klar: "checked 41 test pa pass and 1 pa fail."
+
+  - id: rapport-02
+    category: rapport
+    en: "The failure was probably caused by an outdated cache."
+    tele: "Failure probably caused by outdated cache."
+    nb: "Feilen skyldtes sannsynligvis en utdatert hurtigbuffer."
+    klar: "likely old cache pa cause failure."
+
+  - id: rapport-03
+    category: rapport
+    en: "I have not verified this, but the API seems to have been deprecated in version 3."
+    tele: "Not verified, but API seems deprecated in version 3."
+    nb: "Jeg har ikke bekreftet dette, men API-et ser ut til å ha blitt avviklet i versjon 3."
+    klar: "maybe pa deprecate API in version 3. I pa not check this."
+
+  - id: rapport-04
+    category: rapport
+    en: "The file config.yaml is missing, so the server could not start."
+    tele: "File config.yaml missing, so server couldn't start."
+    nb: "Filen config.yaml mangler, så serveren kunne ikke starte."
+    klar: "file config.yaml li missing so server pa can not start."
+
+  - id: rapport-05
+    category: rapport
+    en: "I fixed the bug in the login form and added two tests for it."
+    tele: "Fixed bug in login form, added two tests for it."
+    nb: "Jeg fikset feilen i innloggingsskjemaet og la til to tester for den."
+    klar: "I pa fix bug in login form pa add 2 test for it."
+
+  - id: rapport-06
+    category: rapport
+    en: "According to the documentation, the rate limit is 100 requests per minute."
+    tele: "Per docs, rate limit 100 requests per minute."
+    nb: "Ifølge dokumentasjonen er grensen 100 forespørsler per minutt."
+    klar: "per documentation, rate limit li 100 request per minute."
+
+  - id: rapport-07
+    category: rapport
+    en: "I could not reach the database server; the connection timed out after 30 seconds."
+    tele: "Couldn't reach database server; connection timed out after 30 seconds."
+    nb: "Jeg fikk ikke kontakt med databaseserveren; tilkoblingen ble tidsavbrutt etter 30 sekunder."
+    klar: "I pa can not reach database server. connection pa time-out after 30s."
+
+  - id: rapport-08
+    category: rapport
+    en: "Next, I will update the dependencies and run the tests again."
+    tele: "Next: update dependencies, rerun tests."
+    nb: "Deretter skal jeg oppdatere avhengighetene og kjøre testene på nytt."
+    klar: "then I fu update dependency then rerun test."
+
+  - id: rapport-09
+    category: rapport
+    en: "The deployment succeeded, but the response time increased by about 20%."
+    tele: "Deployment succeeded, but response time up about 20%."
+    nb: "Utrullingen lyktes, men responstiden økte med omtrent 20 %."
+    klar: "deployment pa succeed but response time pa increase by approx 20%."
+
+  - id: rapport-10
+    category: rapport
+    en: "I'm not sure, but I think the memory leak comes from the image cache."
+    tele: "Not sure, but memory leak probably from image cache."
+    nb: "Jeg er ikke sikker, men jeg tror minnelekkasjen kommer fra bildebufferen."
+    klar: "maybe memory leak li from image cache."
+
+  # ------------------------------------------------------------------ resonnement
+  - id: resonnement-01
+    category: resonnement
+    en: "If all birds can fly and penguins are birds, then penguins can fly. But penguins cannot fly, so the first premise is false."
+    tele: "If all birds fly and penguins birds, penguins fly. But penguins can't fly, so first premise false."
+    nb: "Hvis alle fugler kan fly og pingviner er fugler, så kan pingviner fly. Men pingviner kan ikke fly, så den første premissen er usann."
+    klar: "if all bird can fly and penguin li bird, penguin can fly. but penguin can not fly. so first premise li false."
+
+  - id: resonnement-02
+    category: resonnement
+    en: "The train leaves at 14:30 and the trip takes 45 minutes, so we will not arrive before 15:15."
+    tele: "Train leaves 14:30, trip 45 minutes, so won't arrive before 15:15."
+    nb: "Toget går 14.30 og turen tar 45 minutter, så vi er ikke fremme før 15.15."
+    klar: "train li leave at 14:30 and trip li take 45min so we fu not arrive before 15:15."
+
+  - id: resonnement-03
+    category: resonnement
+    en: "Since x is even and greater than 2, x cannot be prime."
+    tele: "x even and greater than 2, so x not prime."
+    nb: "Siden x er et partall og større enn 2, kan ikke x være et primtall."
+    klar: "x li even li greater than 2 so x li not prime."
+
+  - id: resonnement-04
+    category: resonnement
+    en: "The function returns null when the list is empty, which explains the crash."
+    tele: "Function returns null when list empty, explains crash."
+    nb: "Funksjonen returnerer null når listen er tom, noe som forklarer krasjet."
+    klar: "function li return null when list li empty. this li explain crash."
+
+  - id: resonnement-05
+    category: resonnement
+    en: "Option A is cheaper, but option B is faster. Because speed matters more here, I recommend B."
+    tele: "Option A cheaper, but B faster. Speed matters more here, so recommend B."
+    nb: "Alternativ A er billigere, men alternativ B er raskere. Fordi hastighet betyr mer her, anbefaler jeg B."
+    klar: "option A li cheaper but option B li faster. because speed li more important here, I recommend B."
+
+  - id: resonnement-06
+    category: resonnement
+    en: "There are three possible causes. With about 60% probability, the cause is a race condition."
+    tele: "Three possible causes. ~60%: race condition."
+    nb: "Det finnes tre mulige årsaker. Med omtrent 60 % sannsynlighet er årsaken en race condition."
+    klar: "li exist 3 possible cause. 60% cause li a race condition."
+
+  - id: resonnement-07
+    category: resonnement
+    en: "Assume the user has admin rights. Then the request will probably succeed."
+    tele: "Assume user has admin rights. Then request probably succeeds."
+    nb: "Anta at brukeren har administratorrettigheter. Da vil forespørselen sannsynligvis lykkes."
+    klar: "suppose user li have admin right. then likely request fu succeed."
+
+  - id: resonnement-08
+    category: resonnement
+    en: "Every test that touches the network failed, so the cause is probably the proxy, not the code."
+    tele: "All network tests failed, so cause probably proxy, not code."
+    nb: "Alle tester som bruker nettverket feilet, så årsaken er sannsynligvis proxyen, ikke koden."
+    klar: "all test which li touch network pa fail. so likely proxy and not code li cause."
+
+  # ------------------------------------------------------------------ fakta
+  - id: fakta-01
+    category: fakta
+    en: "Oslo is the capital of Norway and has about 700,000 inhabitants."
+    tele: "Oslo: capital of Norway, about 700,000 inhabitants."
+    nb: "Oslo er hovedstaden i Norge og har omtrent 700 000 innbyggere."
+    klar: "Oslo li capital of Norway li have approx 700000 inhabitant."
+
+  - id: fakta-02
+    category: fakta
+    en: "Water boils at 100 degrees Celsius at sea level."
+    tele: "Water boils at 100 °C at sea level."
+    nb: "Vann koker ved 100 grader celsius ved havnivå."
+    klar: "water li boil at 100C at sea level."
+
+  - id: fakta-03
+    category: fakta
+    en: "Python was created by Guido van Rossum and first released in 1991."
+    tele: "Python created by Guido van Rossum, first released 1991."
+    nb: "Python ble laget av Guido van Rossum og først utgitt i 1991."
+    klar: "Guido van Rossum pa create Python. first release pa in 1991."
+
+  - id: fakta-04
+    category: fakta
+    en: "Most mammals live on land, but whales and dolphins live in the sea."
+    tele: "Most mammals live on land, but whales, dolphins in sea."
+    nb: "De fleste pattedyr lever på land, men hvaler og delfiner lever i havet."
+    klar: "most mammal li live on land but whale and dolphin li live in sea."
+
+  - id: fakta-05
+    category: fakta
+    en: "Light from the Sun takes about eight minutes to reach the Earth."
+    tele: "Sunlight takes about eight minutes to reach Earth."
+    nb: "Lys fra sola bruker omtrent åtte minutter på å nå jorda."
+    klar: "light from Sun li need approx 8min to reach Earth."
+
+  - id: fakta-06
+    category: fakta
+    en: "Antibiotics do not work against viral infections."
+    tele: "Antibiotics don't work against viral infections."
+    nb: "Antibiotika virker ikke mot virusinfeksjoner."
+    klar: "antibiotic li not work against viral infection."
+
+  # ------------------------------------------------------------------ dialog
+  - id: dialog-01
+    category: dialog
+    en: "When does the meeting start tomorrow?"
+    tele: "When does meeting start tomorrow?"
+    nb: "Når begynner møtet i morgen?"
+    klar: "meeting fu start when tomorrow?"
+
+  - id: dialog-02
+    category: dialog
+    en: "Can you send me the report by Friday? Yes, I have already sent it."
+    tele: "Can you send me report by Friday? Yes, already sent."
+    nb: "Kan du sende meg rapporten innen fredag? Ja, jeg har allerede sendt den."
+    klar: "you can send report to I by Friday? yes. I pa already send it."
+
+  - id: dialog-03
+    category: dialog
+    en: "Which of the two files is larger, A or B?"
+    tele: "Which file larger, A or B?"
+    nb: "Hvilken av de to filene er størst, A eller B?"
+    klar: "which of (file A and file B) li larger?"
+
+  - id: dialog-04
+    category: dialog
+    en: "How many users signed up last week?"
+    tele: "How many users signed up last week?"
+    nb: "Hvor mange brukere registrerte seg forrige uke?"
+    klar: "how many user pa register in last week?"
+
+  - id: dialog-05
+    category: dialog
+    en: "I don't understand the error message. Could you explain what it means?"
+    tele: "Don't understand error message. Explain what it means?"
+    nb: "Jeg forstår ikke feilmeldingen. Kan du forklare hva den betyr?"
+    klar: "I not understand error message. you can explain what it mean?"
+
+  - id: dialog-06
+    category: dialog
+    en: "Is the bug fixed? No, it still happens on Android, but not on iOS."
+    tele: "Bug fixed? No, still happens on Android, not iOS."
+    nb: "Er feilen rettet? Nei, den skjer fortsatt på Android, men ikke på iOS."
+    klar: "pa fix bug? no. it still happen on Android but li not on iOS."
+
+passages:
+  - id: tekst-instruks
+    category: instruks
+    title: Systemprompt for kundeservice
+    en: >-
+      You are a customer support assistant for an online bookstore. Always answer in the customer's
+      language and keep answers under 100 words. Never promise refunds; only a human agent can approve
+      them. If a customer asks about an order, ask for the order number, then look up the order with the
+      tool find_order. If the tool returns an error, apologize and offer to connect the customer to a human
+      agent. Do not share internal notes or other customers' data. When you are unsure about a policy, say
+      so instead of guessing.
+    tele: >-
+      You: customer support assistant, online bookstore. Always answer in customer's language, answers
+      under 100 words. Never promise refunds; only human agent can approve. If customer asks about order:
+      ask for order number, then look up order with tool find_order. If tool returns error: apologize,
+      offer to connect customer to human agent. Don't share internal notes or other customers' data. If
+      unsure about policy, say so, don't guess.
+    nb: >-
+      Du er en kundeserviceassistent for en nettbokhandel. Svar alltid på kundens språk, og hold svarene
+      under 100 ord. Lov aldri refusjon; bare en menneskelig medarbeider kan godkjenne det. Hvis en kunde
+      spør om en bestilling, be om ordrenummeret, og slå deretter opp bestillingen med verktøyet
+      find_order. Hvis verktøyet gir en feil, be om unnskyldning og tilby å sette kunden over til en
+      menneskelig medarbeider. Ikke del interne notater eller andre kunders data. Når du er usikker på en
+      regel, si det i stedet for å gjette.
+    klar: |-
+      you a customer support assistant for online bookstore.
+      must always answer in language of customer. answer must short than 100 word.
+      must never promise refund. only human agent can approve refund.
+      if customer li ask about order, must ask for order number then find order with tool find_order.
+      if tool li return error, must apologize then offer transfer of customer to human agent.
+      must not share internal note or data of other customer.
+      when you not sure about policy, must say this instead of guess.
+
+  - id: tekst-rapport
+    category: rapport
+    title: Agentrapport om feilende tester
+    en: >-
+      I investigated the failing checkout tests. I ran the test suite locally: 3 of 120 tests failed, all
+      in the payment module. The failures started after yesterday's dependency update, which upgraded the
+      HTTP client from version 2.4 to 3.0. According to its changelog, version 3.0 changed the default
+      timeout from 30 to 5 seconds. I think this is very likely the cause, because all the failing tests
+      call the slow payment sandbox. I have not confirmed it yet. Next, I will set the timeout to 30
+      seconds and rerun the tests.
+    tele: >-
+      Investigated failing checkout tests. Ran suite locally: 3 of 120 failed, all in payment module.
+      Failures started after yesterday's dependency update, which upgraded HTTP client from 2.4 to 3.0. Per
+      changelog, 3.0 changed default timeout from 30 to 5 seconds. Very likely the cause: all failing tests
+      call slow payment sandbox. Not confirmed yet. Next: set timeout to 30 seconds, rerun tests.
+    nb: >-
+      Jeg undersøkte de feilende kassetestene. Jeg kjørte testene lokalt: 3 av 120 tester feilet, alle i
+      betalingsmodulen. Feilene startet etter gårsdagens oppdatering av avhengigheter, som oppgraderte
+      HTTP-klienten fra versjon 2.4 til 3.0. Ifølge endringsloggen endret versjon 3.0 standard
+      tidsavbrudd fra 30 til 5 sekunder. Jeg tror det er svært sannsynlig at dette er årsaken, fordi alle
+      de feilende testene kaller den trege betalingssandkassen. Jeg har ikke bekreftet det ennå. Nå skal
+      jeg sette tidsavbruddet til 30 sekunder og kjøre testene på nytt.
+    klar: |-
+      checked 3 of 120 checkout test pa fail in local run. all failed test li in payment module.
+      failure pa start after dependency update U of yesterday. U pa upgrade HTTP client from version 2.4 to 3.0.
+      per changelog, version 3.0 pa change default timeout from 30s to 5s.
+      so 90% this li cause because all failed test li call slow payment sandbox. I pa not yet confirm this.
+      then I fu set timeout to 30s then rerun test.
+
+  - id: tekst-resonnement
+    category: resonnement
+    title: Regnestykke steg for steg
+    en: >-
+      A shop sells pens for 12 kroner each, and every fifth pen is free. Anna buys 23 pens. The number of
+      free pens is 23 divided by 5, rounded down, which is 4. So she pays for 19 pens. 19 times 12 is
+      228. Therefore Anna pays 228 kroner.
+    tele: >-
+      Shop sells pens 12 kroner each, every fifth pen free. Anna buys 23 pens. Free pens: 23 divided by 5,
+      rounded down = 4. So pays for 19 pens. 19 × 12 = 228. Anna pays 228 kroner.
+    nb: >-
+      En butikk selger penner for 12 kroner stykket, og hver femte penn er gratis. Anna kjøper 23 penner.
+      Antall gratis penner er 23 delt på 5, rundet ned, altså 4. Hun betaler derfor for 19 penner. 19
+      ganger 12 er 228. Altså betaler Anna 228 kroner.
+    klar: |-
+      shop li sell pen for 12kr per pen. each fifth pen li free. Anna pa buy 23 pen.
+      number F of free pen = 23 div 5 round down. F = 4. so Anna pa pay for 19 pen.
+      19 times 12 = 228. so Anna pa pay 228kr.
+
+  - id: tekst-forskning
+    category: fakta
+    title: Forskningssammendrag med kilder og usikkerhet
+    en: >-
+      According to two independent studies from 2023, regular exercise lowers the risk of depression by
+      about 25%. A third study found no effect, but it had only 80 participants. Overall, the evidence
+      suggests a real but moderate effect; I would rate this as likely, not certain. I have read only the
+      abstracts, not the full papers. Before we cite the studies, we should check whether they controlled
+      for income.
+    tele: >-
+      Per two independent 2023 studies, regular exercise lowers depression risk about 25%. Third study: no
+      effect, but only 80 participants. Overall: real but moderate effect, likely, not certain. Read only
+      abstracts, not full papers. Before citing, should check whether studies controlled for income.
+    nb: >-
+      Ifølge to uavhengige studier fra 2023 senker regelmessig trening risikoen for depresjon med omtrent
+      25 %. En tredje studie fant ingen effekt, men den hadde bare 80 deltakere. Samlet tyder funnene på en
+      reell, men moderat effekt; jeg vil vurdere dette som sannsynlig, ikke sikkert. Jeg har bare lest
+      sammendragene, ikke hele artiklene. Før vi siterer studiene, bør vi sjekke om de kontrollerte for
+      inntekt.
+    klar: |-
+      per 2 independent study S from 2023, regular exercise li lower risk of depression by approx 25%.
+      third study T pa find no effect but T pa have only 80 participant.
+      so likely effect li real but li moderate.
+      I pa read only abstract of (S and T) and not full paper.
+      before we li cite S and T, we should check whether S and T pa control for income.
+
+  - id: tekst-kodegjennomgang
+    category: rapport
+    title: Kodegjennomgang med filer og funksjoner det vises til flere ganger
+    en: >-
+      I reviewed the pull request. src/payments/checkout_service.py calls validate_card() from
+      src/payments/validators.py, but validate_card() does not reject expired cards. I added that check to
+      validate_card() and a test for it in tests/test_validators.py; all tests in that file pass.
+      checkout_service.py also logs the full card number, which is a security risk. I did not change
+      checkout_service.py, because that is outside the scope of this task.
+    tele: >-
+      Reviewed pull request. src/payments/checkout_service.py calls validate_card() from
+      src/payments/validators.py, but validate_card() doesn't reject expired cards. Added check to
+      validate_card(), plus test in tests/test_validators.py; all tests there pass. checkout_service.py also
+      logs full card number: security risk. Didn't change checkout_service.py: outside scope of task.
+    nb: >-
+      Jeg gikk gjennom pull requesten. src/payments/checkout_service.py kaller validate_card() fra
+      src/payments/validators.py, men validate_card() avviser ikke utløpte kort. Jeg la til den sjekken i
+      validate_card() og en test for den i tests/test_validators.py; alle testene i den filen består.
+      checkout_service.py logger også hele kortnummeret, noe som er en sikkerhetsrisiko. Jeg endret ikke
+      checkout_service.py, fordi det ligger utenfor denne oppgaven.
+    klar: |-
+      C = src/payments/checkout_service.py. F = validate_card().
+      checked I pa review pull request. C li call F from src/payments/validators.py but F li not reject expired card.
+      I pa add this check to F pa add test for it in tests/test_validators.py. checked all test in this file pa pass.
+      C li also log full card number. this li a security risk. I pa not change C because this li outside scope of task.

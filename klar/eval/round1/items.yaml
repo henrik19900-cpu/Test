@@ -1,0 +1,99 @@
+# Held-out test set for the learnability evaluation. None of these sentences appear in the primer.
+comprehension:   # Klar -> English. "key" = what a correct reading must get right.
+  - id: A1
+    klar: "checked 3 of 50 user pa not receive email yesterday."
+    gold: "I verified that 3 of the 50 users did not receive the email yesterday."
+    key: "verified directly; past; 3 of 50 did NOT receive"
+  - id: A2
+    klar: "suppose server li overload. then maybe request fu fail."
+    gold: "Assume the server is overloaded. Then the request will maybe (about 50%) fail."
+    key: "assumption, not a claim; future; about 50%"
+  - id: A3
+    klar: "must not delete log unless user pa ask for it."
+    gold: "You must not delete the log unless the user has asked for it (the log's deletion)."
+    key: "prohibition; exception only if the user asked; it = the log"
+  - id: A4
+    klar: "file A li bigger than file B. so likely A pa cause error."
+    gold: "File A is bigger than file B. So (inferred), A probably (~75%) caused the error."
+    key: "A is the bigger file; inference; ~75%; A (not B) caused it; past"
+  - id: A5
+    klar: "user pa hit man with stick."
+    gold: "The user hit the man, using a stick."
+    key: "the user used the stick (instrument)"
+  - id: A6
+    klar: "user pa hit (man with stick)."
+    gold: "The user hit the man who had a stick."
+    key: "the man had the stick"
+  - id: A7
+    klar: "all agent pa read some report."
+    gold: "Each agent read at least one report; the reports may differ between agents."
+    key: "for each agent some report (wide scope for all); may be different reports"
+  - id: A8
+    klar: "per log, job pa stop at 03:00. checked job li not run now."
+    gold: "According to the log, the job stopped at 03:00. I verified that the job is not running now."
+    key: "first claim from the log (not verified); second verified; past vs present"
+  - id: A9
+    klar: "customer C pa order book B. C li ask when B fu arrive."
+    gold: "A customer ordered a book. The customer is asking when the book will arrive."
+    key: "C = customer, B = book; embedded question about the arrival time; future"
+  - id: A10
+    klar: "you may skip test but must not skip review."
+    gold: "You are allowed to skip the tests, but you must not skip the review."
+    key: "skipping tests permitted (optional); skipping review forbidden"
+  - id: A11
+    klar: "file which user pa upload yesterday li corrupt."
+    gold: "The file that the user uploaded yesterday is corrupt."
+    key: "the upload was yesterday; the file is corrupt now"
+  - id: A12
+    klar: "unlikely bug li in parser. 80% bug li in lexer."
+    gold: "The bug is probably not in the parser (about 25%); it is in the lexer with 80% probability."
+    key: "~25% parser; 80% lexer"
+production:      # English -> Klar. "check" = features the Klar answer must have (from klar.features()).
+  - id: B1
+    en: "I checked: the backup finished at 02:00."
+    gold: "checked backup pa finish at 02:00."
+    check: {evidential: checked, tenses: [pa]}
+  - id: B2
+    en: "You must never log passwords."
+    gold: "must never log password."
+    check: {modals: [must], adverbs: [never]}
+  - id: B3
+    en: "The tests will probably pass after the fix."
+    gold: "likely test fu pass after fix."
+    check: {confidence: likely, tenses: [fu]}
+  - id: B4
+    en: "Assume the cache is empty. Then the first request is slow."
+    gold: "suppose cache li empty. then first request li slow."
+    check: {evidential: suppose}
+  - id: B5
+    en: "According to the manual, the limit is 10 GB per user."
+    gold: "per manual, limit li 10GB per user."
+    check: {source: manual}
+  - id: B6
+    en: "Ask the user whether the file is still needed."
+    gold: "must ask user whether file li still necessary."
+    check: {modals: [must], complements: [whether]}
+  - id: B7
+    en: "The user who reported the bug is from Oslo."
+    gold: "user which pa report bug li from Oslo."
+    check: {relative: true}
+  - id: B8
+    en: "If the build fails, notify the team and do not deploy."
+    gold: "if build li fail, must notify team and must not deploy."
+    check: {subordinators: [if], modals: [must], negated: true}
+  - id: B9
+    en: "I saw the man who had the binoculars."
+    gold: "I pa see (man with binoculars)."
+    check: {tenses: [pa]}
+  - id: B10
+    en: "Each server sent a report to the admin."
+    gold: "each server pa send report to admin."
+    check: {tenses: [pa]}
+  - id: B11
+    en: "Does the service run on port 8080?"
+    gold: "service li run on port 8080?"
+    check: {kind: question}
+  - id: B12
+    en: "I think the bug is probably in the parser, but I have not checked."
+    gold: "likely bug li in parser. I pa not check this."
+    check: {confidence: likely, negated: true}

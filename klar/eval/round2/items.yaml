@@ -1,0 +1,93 @@
+# Held-out test set, round 2: new sentences, tested with the primer after the fixes from round 1.
+# The fixes target the mistakes seen in round 1, so these items test them again on new sentences, together
+# with harder cases (which "it" means, scope of not, xor, chains of instructions).
+comprehension:
+  - id: D1
+    klar: "script pa delete file and it pa crash."
+    gold: "The script deleted the file, and the file crashed (by the it-rule: it = the nearest subject or object, here the object 'file')."
+    key: "it = the file, not the script"
+  - id: D2
+    klar: "user pa open file and admin pa close it."
+    gold: "The user opened the file and the admin closed the file."
+    key: "it = the file (never the subject of its own verb, so not the admin)"
+  - id: D3
+    klar: "server A xor server B must active."
+    gold: "Exactly one of server A and server B must be active."
+    key: "exactly one, not both"
+  - id: D4
+    klar: "not all test pa pass."
+    gold: "Not every test passed (at least one failed)."
+    key: "some failed; not 'none passed'"
+  - id: D5
+    klar: "all agent pa not read report."
+    gold: "No agent read the report (each agent did not read it)."
+    key: "none of the agents read it"
+  - id: D6
+    klar: "per monitor, CPU li 95% since 10:00. so likely job J li stuck. must restart J if J li still stuck at 11:00."
+    gold: "According to the monitor, CPU has been at 95% since 10:00. So (inferred) job J is probably (~75%) stuck. You must restart J if it is still stuck at 11:00."
+    key: "first claim from the monitor; second inferred, ~75%; restart required only if still stuck at 11:00"
+production:
+  - id: C1
+    en: "I think the migration will probably finish tonight, but I'm not sure."
+    gold: "likely migration fu finish tonight."
+    check: {confidence: [likely, maybe], tenses: [fu]}
+  - id: C2
+    en: "Open the config file, change the port to 8080 and restart the server."
+    gold: "must open config file then change port to 8080 then restart server."
+    check: {modals: [must], min_predicates: 3}
+  - id: C3
+    en: "The report was written by the analytics team."
+    gold: "analytics team pa write report."
+    check: {tenses: [pa]}
+  - id: C4
+    en: "Do not merge the branch until all checks pass."
+    gold: "must not merge branch until all check li pass."
+    check: {modals: [must], negated: true, subordinators: [until]}
+  - id: C5
+    en: "The function that parses dates is still slow."
+    gold: "function which li parse date li still slow."
+    check: {relative: true, adverbs: [still]}
+  - id: C6
+    en: "We tested the backup: it works, but a restore takes three hours."
+    gold: "checked backup li work but restore li take 3 hour."
+    check: {evidential: checked}
+  - id: C7
+    en: "According to the vendor, the new version fixes the memory leak."
+    gold: "per vendor, new version li fix memory leak."
+    check: {source: vendor}
+  - id: C8
+    en: "If the user is an admin or the file is public, show the file."
+    gold: "if user li admin or file li public, must show file."
+    check: {subordinators: [if], modals: [must]}
+  - id: C9
+    en: "Exactly one of the two servers must be active."
+    gold: "server A xor server B must active."
+    check: {}
+  - id: C10
+    en: "Tell the customer that the package was delayed because of the storm."
+    gold: "must tell customer that pa delay package because of storm."
+    check: {modals: [must], complements: [that]}
+  - id: C11
+    en: "Each user may upload at most 3 files per day."
+    gold: "each user may upload max 3 file per day."
+    check: {modals: [may]}
+  - id: C12
+    en: "Who changed the configuration yesterday?"
+    gold: "who pa change configuration yesterday?"
+    check: {kind: question, tenses: [pa]}
+  - id: C13
+    en: "I am 90% sure that the cache is the problem."
+    gold: "90% cache li problem."
+    check: {confidence: "90%"}
+  - id: C14
+    en: "Suppose the API is down. What should the app do?"
+    gold: "suppose API li down. app should do what?"
+    check: {evidential: suppose, kind: question}
+  - id: C15
+    en: "The script deleted the file and then it crashed."
+    gold: "script pa delete file then crash."
+    check: {tenses: [pa], min_predicates: 2}
+  - id: C16
+    en: "Only admins can see this page."
+    gold: "only admin can see this page."
+    check: {modals: [can]}

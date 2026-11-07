@@ -1,0 +1,67 @@
+# Klar v1 — grammar for models
+
+Klar is a written language for AI messages: English base words, a small exact grammar, one meaning per sentence. Every grammar word below is one token.
+
+## Words
+- Content words: English words without "the/a/an" and without "is/are/was/will/did". Verbs in base form (go, not went). Plural and comparative forms are allowed (tests, bigger).
+- Names: Capitalized (Oslo, GitHub). Numbers: digits, unit attached (5MB, 30s, 70%, 14:30). Code and paths as is (config.yaml, find_order()) or in `backticks`. Quotes: "text".
+- One capital letter (A–Z except I) is a label (see References).
+- Phrasal verbs are one word: log-in, set-up, or a synonym (register).
+
+## Clause = subject + marker + head + object + extras
+Every verb, adjective or noun used as predicate gets one marker before it:
+
+| tense | li now/always · pa past · fu future |
+|---|---|
+| modal | must required · should recommended · may allowed · can able/possible · would hypothetical |
+
+A tense may precede a modal: `pa can` = could.
+- `user pa test system.` = The user tested the system.
+- `sky li blue.` `user li in Oslo.`
+- `Python li a programming language.` — `a` marks a predicate noun phrase of 2+ words.
+- After the pronouns I, you, we, it or a label, `li` may be left out: `it valid.` `I recommend B.`
+- No subject + modal = instruction to the reader: `must answer short.` `must not use jargon.`
+- No subject + tense = agent unknown (passive): `pa delete file.` = The file was deleted.
+- Between marker and head: not never always often already still yet again only also very too more less most. `pa not yet test login.`
+- Head = first word after the marker; the next phrase is its object. Modifiers come before their noun: `new login system`.
+- Extras after the object: prepositions of in on at to from with without by for about per via than as into over under between during since before after until against through within despite except around, `because of`, `instead of`; and the words now today yesterday tomorrow soon later here there.
+- A preposition after the object attaches to the verb. To attach it to the noun, group with ( ): `I pa see (man with telescope).`
+- Each verb needs its own marker. Same subject, more verbs: `user pa open file pa edit it.` / `user pa open file and pa edit it.` / `then` repeats the previous marker: `must read file then summarize it then save summary.`
+- Manner: say it as a property or with a preposition: `answer must short.` `must read file with care.`
+
+## Source and certainty (sentence start)
+- Source: `checked` = verified here (ran, read, measured) · `so` = inferred from what was said · `suppose` = assumption, not claimed · `per X,` = according to X (only first in the sentence; elsewhere per = for each: 100 request per minute). No source word: stated as known.
+- Certainty: `likely` ≈75% · `maybe` ≈50% · `unlikely` ≈25% · or a percentage `90%`. None: confident (≥90%). `80% of user` is a quantity, not certainty.
+- Order: source, certainty, rest. `checked test li pass.` `so likely cache li old.` `maybe pa deprecate API in version 3.`
+- "I think", "probably", "seems": use `likely` or `maybe`. `suppose` is only for an assumption you do not claim (assume, let's say).
+
+## Connecting
+- Clauses: and · or (inclusive) · xor (exactly one) · but · so (therefore) · because · iff. `and` binds tighter than `or`/`xor`, which bind tighter than the rest; group with ( ).
+- `and`/`or`/`but`/`so` + marker continues the same subject; `and` + noun + marker starts a new clause; `and` + noun alone joins nouns.
+- Subordinate: if when unless until while before after since where (and `because` at the start). In front, end it with `,` or `then`: `if file li big, must compress it.` After the main clause: `must compress file if it li big.`
+- Object clauses: `user pa say that file li big.` `must check whether test pa pass.` `must explain why test pa fail.` `must check which test pa fail.` After an object too: `must tell user that build pa fail.`
+- Relative clause: noun + which + clause with a gap: `file which user pa upload li big.` `user which pa log-in pa see error.` An embedded clause ends at the next marker that has no and/or/but/so before it; group longer ones with ( ).
+- Something put first ends with a comma: `in 2024, user pa buy car.` `yesterday, server pa crash.`
+
+## References
+- Pronouns I, you, we, it (no object forms: `to I`); possessives my, your, our, its; `this` = what was just said.
+- `it` = the nearest earlier subject or object, not one inside a which-clause or preposition phrase, and never the subject or object of its own verb: `I pa fix bug pa add test for it.` (it = bug). To keep the subject, use `then` or repeat the word: `script pa delete file then crash.`
+- Label: a capital letter after a noun names it: `user U pa send file F to admin. U want copy of F.`
+- Definition: `K = customer support ticket.` Claim name: `P: all bird li fly. so P li false.`
+
+## Quantity and scope
+- Before a noun: all each some (at least one) no any many few most more less this which, numbers, `how many`, `min 2`, `max 5`, `approx 20%`.
+- The earlier quantifier has wider scope: `all student pa read some book.` = each read some, maybe different, book.
+- `not` scopes over what follows it. `only`/`not` may stand before a noun: `only admin may delete file.`
+- `may not` means "allowed not to"; for a ban write `must not`.
+
+## Questions and answers
+- End with `?`. The question word stands where the answer goes: `user pa want what?` `who pa delete file?` `meeting fu start when?` `which test pa fail?` `file li exist?`
+- Answers: `yes.` `no.` `= F.` (= + phrase).
+
+## Example
+English: I ran the tests: 41 passed and 1 failed. The failure is probably caused by an old cache, so you should clear it.
+Klar: `checked 41 test pa pass and 1 pa fail. likely old cache li cause of failure. so you should clear cache.`
+
+## Mistakes to avoid
+No the/an/is/are/was/will/did/he/she/they. Never two markers in a row (except tense + modal). "and" + verb without a marker joins nouns, not verbs: write `and pa`/`and must` or `then`. Adverbs come after the marker: `file li still necessary.`, not "file still li". A comma only ends a part put first; never put a comma before but/and/so. Sentences end with `.` or `?`.

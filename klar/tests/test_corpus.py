@@ -32,3 +32,11 @@ def test_examples_are_clean(path):
     strict = path.name == "agentrapport.klar"
     _, issues = check(path.read_text(encoding="utf-8"), strict=strict)
     assert issues == [], [str(i) for i in issues]
+
+
+def test_kort_covers_the_corpus():
+    kort = yaml.safe_load((ROOT / "bench" / "kort.yaml").read_text(encoding="utf-8"))
+    facts = yaml.safe_load((ROOT / "eval" / "kort" / "facts.yaml").read_text(encoding="utf-8"))
+    ids = {e["id"] for e in ENTRIES}
+    assert set(kort) == ids and set(facts) == ids
+    assert all(v["kort"] and v["kort200"] for v in kort.values())

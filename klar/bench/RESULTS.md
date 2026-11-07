@@ -122,10 +122,29 @@ Et språk med eget ordforråd (som esperanto eller toki pona) måtte bytte ut de
 
 Ordene modellen allerede kjenner, er de billigste den har. Nye ord koster flere tokens, og modellen må i tillegg lære hva de betyr.
 
+## Klar Kort: så få tokens som mulig
+
+[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. Kort-200 er hele korpuset presset ned til maks 200 tokens, og der overlever bare hovedpoenget i hver tekst. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang «not». Det er omtrent gulvet for hva samme innhold kan koste i tokens. Hvor mange av fakta som overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md).
+
+| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort | Kort-200 | Bare innholdsord |
+|---|---:|---:|---:|---:|---:|---:|
+| GPT-4 / GPT-3.5 | 1089 | 1019 | 862 | 653 | 181 | 539 |
+| GPT-4o / o-serien | 1080 | 1018 | 842 | 649 | 179 | 539 |
+| Claude (eldre, offentlig) | 1072 | 1001 | 847 | 627 | 178 | 505 |
+| Llama 3 | 1089 | 1018 | 862 | 653 | 181 | 539 |
+| Qwen 2.5 | 1128 | 1059 | 901 | 690 | 191 | 579 |
+| Mistral Nemo | 1138 | 1067 | 914 | 700 | 197 | 590 |
+| Gemma 2 | 1135 | 1073 | 913 | 687 | 188 | 574 |
+| DeepSeek V3 | 1093 | 1022 | 867 | 657 | 185 | 544 |
+| **Snitt** | **1103** | **1035** | **876** | **664** | **185** | **551** |
+
+Klar Kort er −40 % mot engelsk, −36 % mot Klar og −24 % mot telegramengelsk. Kort-200 er −83 % mot engelsk.
+
 ## Primeren: hva det koster å lære en modell Klar
 
-- `docs/primer.en.md` (engelsk): 1713 tokens i snitt (1689–1780).
-- `docs/primer.no.md` (norsk): 2063 tokens i snitt (1924–2266).
+- `docs/primer.en.md` (Klar, engelsk): 1713 tokens i snitt (1689–1780).
+- `docs/primer.no.md` (Klar, norsk): 2063 tokens i snitt (1924–2266).
+- `docs/kort.en.md` (Klar Kort): 436 tokens i snitt (429–452).
 
 Klar sparer 6% av tokenene mot engelsk i korpuset. Primeren på 1713 tokens lønner seg derfor etter omtrent **27 627 tokens** med engelsk tekst som ellers ville blitt skrevet eller lest i samme samtale. Med prompt caching koster en lagret primer omtrent en tidel per gjenbruk, og da er grensen nær **2 763 tokens**. Mot norsk tekst sparer Klar 32%, og grensen er omtrent **5 276 tokens** (528 med caching). Når modellen *skriver* Klar, teller besparelsen mer, fordi output-tokens er dyrere og tregere enn input-tokens.
 

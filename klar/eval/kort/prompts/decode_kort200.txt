@@ -1,0 +1,81 @@
+This is a test of how much meaning survives compression.
+
+Rules:
+- Do NOT use any tools: no reading files, no searching, no commands. Use only the text below.
+- Reply with one JSON object and nothing else.
+
+Below are 45 short texts written in a compact language. Its grammar comes first.
+
+<grammar>
+# Klar Kort — compressed notes between models
+
+Klar Kort is the shortest way to pass facts, instructions and reports to another model while keeping every fact. Write only what the reader cannot rebuild; the reader expands it to full English.
+
+## Writing
+- Content words only. Leave out the/a/is/are/was/will/do, filler, politeness, and obvious pronouns (I in reports, you in instructions). Normal English word forms: failed, tests, cheaper.
+- A statement that starts with a verb is an instruction (required). Weaker: `should` (recommended), `may` (allowed). Bans: `no X`, `never X`.
+- Source first: `checked` verified here · `so` inferred · `suppose` assumed · `per X:` according to X. None: stated as known.
+- Certainty first: `likely` ≈75% · `maybe` ≈50% · `unlikely` ≈25% · or `60%`. None: confident.
+- `:` is, has, consists of (`Oslo: capital Norway`). `→` if/then, leads to, therefore (`file uploaded → read all`). `=` equals. `+` and. `~` about. `<` `>` `≤` `≥` compare. `min` `max` at least, at most.
+- Keep every number, name, condition (unless, until, before, only) and negation exactly.
+- A capital letter after a noun names it for later: `file F … F`.
+- Separate statements with `.`; the last one needs none. `?` asks.
+
+## Reading
+Expand each statement into complete English: restore articles, verbs, tense and the obvious subject, and keep source and certainty. Never add facts.
+
+## Example
+English: I ran the tests: 41 passed and 1 failed. The failure was probably caused by an old cache, so you should clear it.
+Kort: `checked tests: 41 pass, 1 fail. likely cause: old cache → should clear it`
+</grammar>
+
+Task: expand each text into complete, natural English, as the writer meant it. Keep every detail: numbers, names, conditions, negations, who did what, tense, how certain the writer is, and where a claim comes from. Do not add facts the text does not give or clearly imply.
+
+instruks-01: Norwegian, short
+instruks-02: no jargon
+instruks-03: read uploads first
+instruks-04: never share passwords
+instruks-05: cite sources
+instruks-06: max 5 bullets
+instruks-07: invalid JSON → error
+instruks-08: only code
+instruks-09: confirm deletes
+instruks-10: no guessing
+rapport-01: 1 test failed
+rapport-02: likely old cache
+rapport-03: maybe API deprecated
+rapport-04: config.yaml missing
+rapport-05: login bug fixed
+rapport-06: limit 100/min
+rapport-07: database timeout
+rapport-08: next: retest
+rapport-09: deploy ok, slower
+rapport-10: maybe image cache leak
+resonnement-01: not all birds fly
+resonnement-02: arrive ≥15:15
+resonnement-03: x not prime
+resonnement-04: empty list → crash
+resonnement-05: recommend B
+resonnement-06: 60% race condition
+resonnement-07: admin → likely ok
+resonnement-08: likely proxy
+fakta-01: Oslo capital
+fakta-02: water boils 100C
+fakta-03: Python: Guido
+fakta-04: whales: sea
+fakta-05: sunlight 8 min
+fakta-06: antibiotics useless vs viruses
+dialog-01: meeting time?
+dialog-02: report sent
+dialog-03: A or B larger?
+dialog-04: signups?
+dialog-05: explain error?
+dialog-06: bug: Android only
+tekst-instruks: bookstore support, customer's language, no refunds
+tekst-rapport: HTTP client 3.0 timeout 5s breaks payment tests
+tekst-resonnement: Anna pays 228kr
+tekst-forskning: likely: exercise cuts depression ~25%
+tekst-kodegjennomgang: validate_card() now rejects expired cards
+
+Answer format (JSON only, one entry per id):
+{"instruks-01": "full English ...", "instruks-02": "..."}

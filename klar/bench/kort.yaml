@@ -1,0 +1,155 @@
+# Klar Kort (docs/kort.en.md): the corpus in bench/corpus.yaml, compressed.
+#
+#   kort      as short as possible while keeping every fact in eval/kort/facts.yaml
+#   kort200   the whole corpus squeezed into at most 200 tokens: only the main point of each text survives
+#
+# eval/kort/ measures how many facts fresh models get back from each version.
+
+instruks-01:
+  kort: "always answer Norwegian, short"
+  kort200: "Norwegian, short"
+instruks-02:
+  kort: "no jargon unless user asks"
+  kort200: "no jargon"
+instruks-03:
+  kort: "file uploaded → read all carefully before answering"
+  kort200: "read uploads first"
+instruks-04:
+  kort: "never share user password"
+  kort200: "never share passwords"
+instruks-05:
+  kort: "should cite min 2 sources per claim"
+  kort200: "cite sources"
+instruks-06:
+  kort: "summary: bullet list, max 5 points"
+  kort200: "max 5 bullets"
+instruks-07:
+  kort: "first check input valid JSON. invalid → return error message"
+  kort200: "invalid JSON → error"
+instruks-08:
+  kort: "reply only corrected code, no explanation"
+  kort200: "only code"
+instruks-09:
+  kort: "ask user confirmation before deleting files"
+  kort200: "confirm deletes"
+instruks-10:
+  kort: "accuracy over speed. unknown → say so, no guessing"
+  kort200: "no guessing"
+rapport-01:
+  kort: "checked tests: 41 pass, 1 fail"
+  kort200: "1 test failed"
+rapport-02:
+  kort: "likely cause: outdated cache"
+  kort200: "likely old cache"
+rapport-03:
+  kort: "maybe API deprecated in version 3, unchecked"
+  kort200: "maybe API deprecated"
+rapport-04:
+  kort: "config.yaml missing → server failed start"
+  kort200: "config.yaml missing"
+rapport-05:
+  kort: "fixed login form bug, added 2 tests for it"
+  kort200: "login bug fixed"
+rapport-06:
+  kort: "per docs: rate limit 100 requests/minute"
+  kort200: "limit 100/min"
+rapport-07:
+  kort: "database server unreachable, timeout after 30s"
+  kort200: "database timeout"
+rapport-08:
+  kort: "next: update dependencies, rerun tests"
+  kort200: "next: retest"
+rapport-09:
+  kort: "deploy ok but response time ~+20%"
+  kort200: "deploy ok, slower"
+rapport-10:
+  kort: "maybe memory leak from image cache"
+  kort200: "maybe image cache leak"
+resonnement-01:
+  kort: "all birds fly + penguins birds → penguins fly. but penguins can't fly → premise 1 false"
+  kort200: "not all birds fly"
+resonnement-02:
+  kort: "train 14:30 + trip 45min → arrive ≥15:15"
+  kort200: "arrive ≥15:15"
+resonnement-03:
+  kort: "x even, >2 → not prime"
+  kort200: "x not prime"
+resonnement-04:
+  kort: "function returns null on empty list → explains crash"
+  kort200: "empty list → crash"
+resonnement-05:
+  kort: "A cheaper, B faster. speed matters more → recommend B"
+  kort200: "recommend B"
+resonnement-06:
+  kort: "3 possible causes. 60%: race condition"
+  kort200: "60% race condition"
+resonnement-07:
+  kort: "suppose user admin → request likely succeeds"
+  kort200: "admin → likely ok"
+resonnement-08:
+  kort: "all network tests failed → likely proxy, not code"
+  kort200: "likely proxy"
+fakta-01:
+  kort: "Oslo: capital Norway, ~700000 people"
+  kort200: "Oslo capital"
+fakta-02:
+  kort: "water boils 100C at sea level"
+  kort200: "water boils 100C"
+fakta-03:
+  kort: "Python: by Guido van Rossum, released 1991"
+  kort200: "Python: Guido"
+fakta-04:
+  kort: "most mammals on land, whales + dolphins in sea"
+  kort200: "whales: sea"
+fakta-05:
+  kort: "sunlight → Earth ~8 min"
+  kort200: "sunlight 8 min"
+fakta-06:
+  kort: "antibiotics useless vs viral infections"
+  kort200: "antibiotics useless vs viruses"
+dialog-01:
+  kort: "meeting start time tomorrow?"
+  kort200: "meeting time?"
+dialog-02:
+  kort: "send me report by Friday? yes, already sent"
+  kort200: "report sent"
+dialog-03:
+  kort: "larger file: A or B?"
+  kort200: "A or B larger?"
+dialog-04:
+  kort: "signups last week?"
+  kort200: "signups?"
+dialog-05:
+  kort: "error message unclear, explain?"
+  kort200: "explain error?"
+dialog-06:
+  kort: "bug fixed? no, still on Android, not iOS"
+  kort200: "bug: Android only"
+tekst-instruks:
+  kort: >-
+    role: support assistant, online bookstore. answer in customer's language, <100 words. never promise
+    refunds; only human agents approve them. order question → ask order number, then find_order. tool error →
+    apologize, offer human agent. never share internal notes or other customers' data. unsure about policy →
+    say so, no guessing
+  kort200: "bookstore support, customer's language, no refunds"
+tekst-rapport:
+  kort: >-
+    checked local run: 3/120 checkout tests fail, all in payment module. started after yesterday's dependency
+    update: HTTP client 2.4 → 3.0. per changelog: 3.0 default timeout 30s → 5s. so 90% cause: failing tests
+    all call slow payment sandbox. unconfirmed. next: timeout 30s, rerun tests
+  kort200: "HTTP client 3.0 timeout 5s breaks payment tests"
+tekst-resonnement:
+  kort: "Anna buys 23 pens, 12kr each, every 5th free. free = 23/5 rounded down = 4 → pays 19 × 12 = 228kr"
+  kort200: "Anna pays 228kr"
+tekst-forskning:
+  kort: >-
+    per 2 independent 2023 studies: regular exercise cuts depression risk ~25%. 3rd study: no effect, only 80
+    participants. so likely real, moderate effect. read only abstracts. before citing, check if studies
+    controlled for income
+  kort200: "likely: exercise cuts depression ~25%"
+tekst-kodegjennomgang:
+  kort: >-
+    reviewed PR. src/payments/checkout_service.py C calls validate_card() F from src/payments/validators.py; F
+    accepted expired cards → added check + test in tests/test_validators.py, all pass. C logs full card
+    number: security risk, not changed (out of scope)
+  kort200: "validate_card() now rejects expired cards"

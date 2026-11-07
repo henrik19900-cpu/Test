@@ -1,0 +1,128 @@
+This is a test of how much meaning survives compression.
+
+Rules:
+- Do NOT use any tools: no reading files, no searching, no commands. Use only the text below.
+- Reply with one JSON object and nothing else.
+
+Below are 45 short texts written in a compact language. Its grammar comes first.
+
+<grammar>
+# Klar v1 — grammar for models
+
+Klar is a written language for AI messages: English base words, a small exact grammar, one meaning per sentence. Every grammar word below is one token.
+
+## Words
+- Content words: English words without "the/a/an" and without "is/are/was/will/did". Verbs in base form (go, not went). Plural and comparative forms are allowed (tests, bigger).
+- Names: Capitalized (Oslo, GitHub). Numbers: digits, unit attached (5MB, 30s, 70%, 14:30). Code and paths as is (config.yaml, find_order()) or in `backticks`. Quotes: "text".
+- One capital letter (A–Z except I) is a label (see References).
+- Phrasal verbs are one word: log-in, set-up, or a synonym (register).
+
+## Clause = subject + marker + head + object + extras
+Every verb, adjective or noun used as predicate gets one marker before it:
+
+| tense | li now/always · pa past · fu future |
+|---|---|
+| modal | must required · should recommended · may allowed · can able/possible · would hypothetical |
+
+A tense may precede a modal: `pa can` = could.
+- `user pa test system.` = The user tested the system.
+- `sky li blue.` `user li in Oslo.`
+- `Python li a programming language.` — `a` marks a predicate noun phrase of 2+ words.
+- After the pronouns I, you, we, it or a label, `li` may be left out: `it valid.` `I recommend B.`
+- No subject + modal = instruction to the reader: `must answer short.` `must not use jargon.`
+- No subject + tense = agent unknown (passive): `pa delete file.` = The file was deleted.
+- Between marker and head: not never always often already still yet again only also very too more less most. `pa not yet test login.`
+- Head = first word after the marker; the next phrase is its object. Modifiers come before their noun: `new login system`.
+- Extras after the object: prepositions of in on at to from with without by for about per via than as into over under between during since before after until against through within despite except around, `because of`, `instead of`; and the words now today yesterday tomorrow soon later here there.
+- A preposition after the object attaches to the verb. To attach it to the noun, group with ( ): `I pa see (man with telescope).`
+- Each verb needs its own marker. Same subject, more verbs: `user pa open file pa edit it.` / `user pa open file and pa edit it.` / `then` repeats the previous marker: `must read file then summarize it then save summary.`
+- Manner: say it as a property or with a preposition: `answer must short.` `must read file with care.`
+
+## Source and certainty (sentence start)
+- Source: `checked` = verified here (ran, read, measured) · `so` = inferred from what was said · `suppose` = assumption, not claimed · `per X,` = according to X (only first in the sentence; elsewhere per = for each: 100 request per minute). No source word: stated as known.
+- Certainty: `likely` ≈75% · `maybe` ≈50% · `unlikely` ≈25% · or a percentage `90%`. None: confident (≥90%). `80% of user` is a quantity, not certainty.
+- Order: source, certainty, rest. `checked test li pass.` `so likely cache li old.` `maybe pa deprecate API in version 3.`
+- "I think", "probably", "seems": use `likely` or `maybe`. `suppose` is only for an assumption you do not claim (assume, let's say).
+
+## Connecting
+- Clauses: and · or (inclusive) · xor (exactly one) · but · so (therefore) · because · iff. `and` binds tighter than `or`/`xor`, which bind tighter than the rest; group with ( ).
+- `and`/`or`/`but`/`so` + marker continues the same subject; `and` + noun + marker starts a new clause; `and` + noun alone joins nouns.
+- Subordinate: if when unless until while before after since where (and `because` at the start). In front, end it with `,` or `then`: `if file li big, must compress it.` After the main clause: `must compress file if it li big.`
+- Object clauses: `user pa say that file li big.` `must check whether test pa pass.` `must explain why test pa fail.` `must check which test pa fail.` After an object too: `must tell user that build pa fail.`
+- Relative clause: noun + which + clause with a gap: `file which user pa upload li big.` `user which pa log-in pa see error.` An embedded clause ends at the next marker that has no and/or/but/so before it; group longer ones with ( ).
+- Something put first ends with a comma: `in 2024, user pa buy car.` `yesterday, server pa crash.`
+
+## References
+- Pronouns I, you, we, it (no object forms: `to I`); possessives my, your, our, its; `this` = what was just said.
+- `it` = the nearest earlier subject or object, not one inside a which-clause or preposition phrase, and never the subject or object of its own verb: `I pa fix bug pa add test for it.` (it = bug). To keep the subject, use `then` or repeat the word: `script pa delete file then crash.`
+- Label: a capital letter after a noun names it: `user U pa send file F to admin. U want copy of F.`
+- Definition: `K = customer support ticket.` Claim name: `P: all bird li fly. so P li false.`
+
+## Quantity and scope
+- Before a noun: all each some (at least one) no any many few most more less this which, numbers, `how many`, `min 2`, `max 5`, `approx 20%`.
+- The earlier quantifier has wider scope: `all student pa read some book.` = each read some, maybe different, book.
+- `not` scopes over what follows it. `only`/`not` may stand before a noun: `only admin may delete file.`
+- `may not` means "allowed not to"; for a ban write `must not`.
+
+## Questions and answers
+- End with `?`. The question word stands where the answer goes: `user pa want what?` `who pa delete file?` `meeting fu start when?` `which test pa fail?` `file li exist?`
+- Answers: `yes.` `no.` `= F.` (= + phrase).
+
+## Example
+English: I ran the tests: 41 passed and 1 failed. The failure is probably caused by an old cache, so you should clear it.
+Klar: `checked 41 test pa pass and 1 pa fail. likely old cache li cause of failure. so you should clear cache.`
+
+## Mistakes to avoid
+No the/an/is/are/was/will/did/he/she/they. Never two markers in a row (except tense + modal). "and" + verb without a marker joins nouns, not verbs: write `and pa`/`and must` or `then`. Adverbs come after the marker: `file li still necessary.`, not "file still li". A comma only ends a part put first; never put a comma before but/and/so. Sentences end with `.` or `?`.
+</grammar>
+
+Task: expand each text into complete, natural English, as the writer meant it. Keep every detail: numbers, names, conditions, negations, who did what, tense, how certain the writer is, and where a claim comes from. Do not add facts the text does not give or clearly imply.
+
+instruks-01: must always answer in Norwegian. answer must short.
+instruks-02: must not use technical jargon unless user li ask for it.
+instruks-03: if user li upload file, must read all of it with care before answer.
+instruks-04: must never share password of user with anyone.
+instruks-05: should cite min 2 source for each factual claim.
+instruks-06: must write summary as bullet list with max 5 point.
+instruks-07: first, must check whether input li a valid JSON. if it not valid, must return error message.
+instruks-08: must only reply with corrected code without explanation.
+instruks-09: before you delete any file, must ask user for confirmation.
+instruks-10: should prefer accuracy over speed. if you not know, must say this instead of guess.
+rapport-01: checked 41 test pa pass and 1 pa fail.
+rapport-02: likely old cache pa cause failure.
+rapport-03: maybe pa deprecate API in version 3. I pa not check this.
+rapport-04: file config.yaml li missing so server pa can not start.
+rapport-05: I pa fix bug in login form pa add 2 test for it.
+rapport-06: per documentation, rate limit li 100 request per minute.
+rapport-07: I pa can not reach database server. connection pa time-out after 30s.
+rapport-08: then I fu update dependency then rerun test.
+rapport-09: deployment pa succeed but response time pa increase by approx 20%.
+rapport-10: maybe memory leak li from image cache.
+resonnement-01: if all bird can fly and penguin li bird, penguin can fly. but penguin can not fly. so first premise li false.
+resonnement-02: train li leave at 14:30 and trip li take 45min so we fu not arrive before 15:15.
+resonnement-03: x li even li greater than 2 so x li not prime.
+resonnement-04: function li return null when list li empty. this li explain crash.
+resonnement-05: option A li cheaper but option B li faster. because speed li more important here, I recommend B.
+resonnement-06: li exist 3 possible cause. 60% cause li a race condition.
+resonnement-07: suppose user li have admin right. then likely request fu succeed.
+resonnement-08: all test which li touch network pa fail. so likely proxy and not code li cause.
+fakta-01: Oslo li capital of Norway li have approx 700000 inhabitant.
+fakta-02: water li boil at 100C at sea level.
+fakta-03: Guido van Rossum pa create Python. first release pa in 1991.
+fakta-04: most mammal li live on land but whale and dolphin li live in sea.
+fakta-05: light from Sun li need approx 8min to reach Earth.
+fakta-06: antibiotic li not work against viral infection.
+dialog-01: meeting fu start when tomorrow?
+dialog-02: you can send report to I by Friday? yes. I pa already send it.
+dialog-03: which of (file A and file B) li larger?
+dialog-04: how many user pa register in last week?
+dialog-05: I not understand error message. you can explain what it mean?
+dialog-06: pa fix bug? no. it still happen on Android but li not on iOS.
+tekst-instruks: you a customer support assistant for online bookstore. must always answer in language of customer. answer must short than 100 word. must never promise refund. only human agent can approve refund. if customer li ask about order, must ask for order number then find order with tool find_order. if tool li return error, must apologize then offer transfer of customer to human agent. must not share internal note or data of other customer. when you not sure about policy, must say this instead of guess.
+tekst-rapport: checked 3 of 120 checkout test pa fail in local run. all failed test li in payment module. failure pa start after dependency update U of yesterday. U pa upgrade HTTP client from version 2.4 to 3.0. per changelog, version 3.0 pa change default timeout from 30s to 5s. so 90% this li cause because all failed test li call slow payment sandbox. I pa not yet confirm this. then I fu set timeout to 30s then rerun test.
+tekst-resonnement: shop li sell pen for 12kr per pen. each fifth pen li free. Anna pa buy 23 pen. number F of free pen = 23 div 5 round down. F = 4. so Anna pa pay for 19 pen. 19 times 12 = 228. so Anna pa pay 228kr.
+tekst-forskning: per 2 independent study S from 2023, regular exercise li lower risk of depression by approx 25%. third study T pa find no effect but T pa have only 80 participant. so likely effect li real but li moderate. I pa read only abstract of (S and T) and not full paper. before we li cite S and T, we should check whether S and T pa control for income.
+tekst-kodegjennomgang: C = src/payments/checkout_service.py. F = validate_card(). checked I pa review pull request. C li call F from src/payments/validators.py but F li not reject expired card. I pa add this check to F pa add test for it in tests/test_validators.py. checked all test in this file pa pass. C li also log full card number. this li a security risk. I pa not change C because this li outside scope of task.
+
+Answer format (JSON only, one entry per id):
+{"instruks-01": "full English ...", "instruks-02": "..."}

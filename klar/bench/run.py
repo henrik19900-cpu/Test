@@ -49,7 +49,11 @@ SYMBOLS = [
     ("❓", "maybe"),
     ("🔒", "must"),
 ]
-PRIMERS = {"en": ROOT / "docs" / "primer.en.md", "no": ROOT / "docs" / "primer.no.md"}
+PRIMERS = {
+    "en": ROOT / "docs" / "primer.en.md",
+    "no": ROOT / "docs" / "primer.no.md",
+    "kort": ROOT / "docs" / "kort.en.md",
+}
 CONSONANTS = "ptkmnslvbdgfj"
 VOWELS = "aeiou"
 
@@ -62,6 +66,17 @@ def invented(word: str) -> str:
     return "".join(
         CONSONANTS[digest[2 * i] % len(CONSONANTS)] + VOWELS[digest[2 * i + 1] % 5] for i in range(syllables)
     )
+
+
+def content_words(text: str) -> str:
+    """Only the content words, names, numbers and code of a Klar text: what is left with no grammar at all."""
+    kinds = ("NAME", "NUM", "IDENT", "CODE", "STR", "LABEL")
+    words = [
+        t.text
+        for t in tokenize(text)
+        if t.kind in kinds or (t.kind == "WORD" and t.text not in lexicon.ALL_FORMS)
+    ]
+    return " ".join(words)
 
 
 def with_invented_words(text: str) -> str:
@@ -101,6 +116,15 @@ def main() -> None:
     apriori = {
         e["id"]: {n: counters[n](with_invented_words(e["klar"].strip())) for n in names} for e in entries
     }
+    kort = yaml.safe_load((HERE / "kort.yaml").read_text(encoding="utf-8"))
+    compressed = {
+        e["id"]: {
+            "kort": {n: counters[n](kort[e["id"]]["kort"].strip()) for n in names},
+            "kort200": {n: counters[n](kort[e["id"]]["kort200"].strip()) for n in names},
+            "content": {n: counters[n](content_words(e["klar"])) for n in names},
+        }
+        for e in entries
+    }
     primer_cost = {
         lang: {n: counters[n](path.read_text(encoding="utf-8")) for n in names}
         for lang, path in PRIMERS.items()
@@ -114,6 +138,7 @@ def main() -> None:
         "particles": particle_cost,
         "symbols": symbol_cost,
         "apriori": apriori,
+        "compressed": compressed,
         "apriori_example": with_invented_words(entries[0]["klar"]),
         "primer": primer_cost,
     }
@@ -247,14 +272,46 @@ def report(corpus: dict, data: dict) -> str:
         "må i tillegg lære hva de betyr.\n"
     )
 
+    w("## Klar Kort: så få tokens som mulig\n")
+    w(
+        "[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. "
+        "Kort-200 er hele korpuset presset ned til maks 200 tokens, og der overlever bare hovedpoenget i hver "
+        "tekst. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang "
+        "«not». Det er omtrent gulvet for hva samme innhold kan koste i tokens. Hvor mange av fakta som "
+        "overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md).\n"
+    )
+    w("| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort | Kort-200 | Bare innholdsord |")
+    w("|---|---:|---:|---:|---:|---:|---:|")
+    comp = data["compressed"]
+    for n in names:
+        k = sum(comp[i]["kort"][n] for i in all_ids)
+        k2 = sum(comp[i]["kort200"][n] for i in all_ids)
+        cw = sum(comp[i]["content"][n] for i in all_ids)
+        w(
+            f"| {data['tokenizers'][n]} | {total(all_ids, 'en', n)} | {total(all_ids, 'klar', n)} "
+            f"| {total(all_ids, 'tele', n)} | {k} | {k2} | {cw} |"
+        )
+    mk = statistics.mean(sum(comp[i]["kort"][n] for i in all_ids) for n in names)
+    mk2 = statistics.mean(sum(comp[i]["kort200"][n] for i in all_ids) for n in names)
+    mcw = statistics.mean(sum(comp[i]["content"][n] for i in all_ids) for n in names)
+    w(
+        f"| **Snitt** | **{m['en']:.0f}** | **{m['klar']:.0f}** | **{m['tele']:.0f}** | **{mk:.0f}** "
+        f"| **{mk2:.0f}** | **{mcw:.0f}** |"
+    )
+    w(
+        f"\nKlar Kort er {pct(mk, m['en'])} mot engelsk, {pct(mk, m['klar'])} mot Klar og {pct(mk, m['tele'])} "
+        f"mot telegramengelsk. Kort-200 er {pct(mk2, m['en'])} mot engelsk.\n"
+    )
+
     if data["primer"]:
         w("## Primeren: hva det koster å lære en modell Klar\n")
         rate = 1 - m["klar"] / m["en"]
+        labels = {"en": "Klar, engelsk", "no": "Klar, norsk", "kort": "Klar Kort"}
+        files = {"en": "primer.en.md", "no": "primer.no.md", "kort": "kort.en.md"}
         for lang, c in data["primer"].items():
             pm_ = statistics.mean(c.values())
-            label = "engelsk" if lang == "en" else "norsk"
             w(
-                f"- `docs/primer.{lang}.md` ({label}): {pm_:.0f} tokens i snitt "
+                f"- `docs/{files[lang]}` ({labels[lang]}): {pm_:.0f} tokens i snitt "
                 f"({min(c.values())}–{max(c.values())})."
             )
         p_en = statistics.mean(data["primer"]["en"].values()) if "en" in data["primer"] else None

@@ -280,13 +280,19 @@ def report(corpus: dict, data: dict) -> str:
     w("## Klar Kort: så få tokens som mulig\n")
     w(
         "[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. "
-        "Kort v3 er enda strammere: nesten uten tegnsetting og med billigere ord, men uten å fjerne innhold "
-        "med vilje. Kort-500 og Kort-200 er hele korpuset presset under 500 og 200 tokens; der må innhold ut. "
-        "«Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang "
-        "«not». Hvor mange av fakta som overlever i hver versjon, står i "
-        "[eval/kort/RESULTS.md](../eval/kort/RESULTS.md).\n"
+        "Versjon 3 skriver det samme strammere enn versjon 2: færre komma og billigere ord, uten å fjerne "
+        "innhold med vilje. Kort-500 og Kort-200 er hele korpuset presset under 500 og 200 tokens; der må "
+        "innhold ut. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke "
+        "engang «not». Hvor mange av fakta som overlever i hver versjon, står i "
+        "[eval/kort/RESULTS.md](../eval/kort/RESULTS.md), og hva en lengre primer med kodebok kunne spart, i "
+        "[CODEBOOK.md](CODEBOOK.md).\n"
     )
-    cols = [("kort", "Klar Kort"), ("kort_v3", "Kort v3"), ("kort500", "Kort-500"), ("kort200", "Kort-200")]
+    cols = [
+        ("kort", "Klar Kort v2"),
+        ("kort_v3", "Klar Kort v3"),
+        ("kort500", "Kort-500"),
+        ("kort200", "Kort-200"),
+    ]
     w(
         "| Tokenizer | Engelsk | Klar | Telegramengelsk | "
         + " | ".join(title for _, title in cols)
@@ -311,10 +317,10 @@ def report(corpus: dict, data: dict) -> str:
         f"| **{means['content']:.0f}** |"
     )
     w(
-        f"\nKlar Kort er {pct(means['kort'], m['en'])} mot engelsk og {pct(means['kort'], m['klar'])} mot Klar. "
-        f"Kort v3 er {pct(means['kort_v3'], m['en'])}, Kort-500 {pct(means['kort500'], m['en'])} og Kort-200 "
-        f"{pct(means['kort200'], m['en'])} mot engelsk. Kort-500 og Kort-200 holder budsjettet i alle åtte "
-        "tokenizerne, og det koster innhold.\n"
+        f"\nKlar Kort versjon 3 er {pct(means['kort_v3'], m['en'])} mot engelsk og {pct(means['kort_v3'], m['klar'])} "
+        f"mot Klar (versjon 2: {pct(means['kort'], m['en'])} mot engelsk). Kort-500 er {pct(means['kort500'], m['en'])} "
+        f"og Kort-200 {pct(means['kort200'], m['en'])} mot engelsk. Kort-500 og Kort-200 holder budsjettet i alle "
+        "åtte tokenizerne, og det koster innhold.\n"
     )
 
     if data["primer"]:

@@ -16,7 +16,8 @@ ble. Tallene kommer fra [bench/RESULTS.md](../bench/RESULTS.md) og [eval/RESULTS
 8. [Når Klar lønner seg, og når ikke](#8-når-klar-lønner-seg-og-når-ikke)
 9. [Begrensninger](#9-begrensninger)
 10. [Videre arbeid](#10-videre-arbeid)
-11. [Kan testen skrives med 200 tokens?](#11-kan-testen-skrives-med-200-tokens)
+11. [Kan testen skrives med 200 eller 500 tokens?](#11-kan-testen-skrives-med-200-eller-500-tokens)
+12. [Lønner det seg med noe mer avansert, som krever lengre opplæring?](#12-lønner-det-seg-med-noe-mer-avansert-som-krever-lengre-opplæring)
 
 ## 1. Hva «effektivt» betyr for en AI
 
@@ -242,46 +243,80 @@ Klar passer dårlig for:
 
 ## 10. Videre arbeid
 
-- **Finjustere en liten modell på Klar**, slik at primeren ikke trengs og lengden faller ytterligere.
+- **Finjustere en liten modell på Klar og Klar Kort**, slik at primeren ikke trengs og lesefeilene blir
+  færre ([§ 12](#12-lønner-det-seg-med-noe-mer-avansert-som-krever-lengre-opplæring)).
+- **En felles ordbok for hele samtalen**, så etiketter for lange navn gjelder på tvers av meldinger.
 - **Klar som utdataformat** for agenter, med `klar check` som validering, for eksempel som et verktøy i MCP.
 - **Måle resonnering:** gir resonnering skrevet i Klar like riktige svar som på engelsk, med færre tokens?
 - **Flere språk:** Klar-grammatikk med norske innholdsord ville vært lettere for norske lesere, men målingene
   viser at det ville kostet mer. Med en tokenizer trent på norsk kunne det sett annerledes ut.
 - **Teste andre modellfamilier** med samme prompt (`eval/round2/prompt.txt`).
 
-## 11. Kan testen skrives med 200 tokens?
+## 11. Kan testen skrives med 200 eller 500 tokens?
 
-Målet var å skrive testkorpuset med maks 200 tokens i stedet for rundt 1 000. Målingene ga dette svaret
-([eval/kort/README.md](../eval/kort/README.md)):
+Målet var først å skrive testkorpuset med maks 200 tokens i stedet for rundt 1 000, og deretter under 500.
+Målingene ga dette svaret ([eval/kort/README.md](../eval/kort/README.md)):
 
 | Versjon | Tokens | Fakta som overlevde |
 |---|---:|---:|
 | Engelsk | 1103 | 100 % |
 | Klar | 1035 | 99 % |
 | Telegramengelsk | 876 | 100 % |
-| Klar Kort | 664 | 93 % |
-| Kort-200 | 185 | 39 % |
+| Klar Kort, versjon 3 | 640 | 99 % |
 | Bare innholdsordene | 551 | (gulvet) |
+| Kort-500 | 463 | 79 % |
+| Kort-200 | 185 | 39 % |
 
-**Gulvet.** Innholdsordene alene, uten et eneste grammatikkord, koster 551 tokens. Det er nesten tre ganger
-200. Ingen skrivemåte kan gjøre et ord billigere enn ett token, og de fleste innholdsordene er allerede ett
-token. Derfor finnes det ikke et språk som skriver samme innhold med 200 tokens for dagens modeller.
+**Gulvet.** Innholdsordene alene, uten et eneste grammatikkord, koster 551 tokens. Ingen skrivemåte kan gjøre
+et ord billigere enn ett token, og de fleste innholdsordene er allerede ett token. Derfor finnes det ikke et
+språk som skriver samme innhold med 500 tokens, og langt mindre med 200, for dagens modeller.
 
-**Det beste med alt innhold** er Klar Kort, med 664 tokens og 93 % av fakta. Resten var små presiseringer,
-som kan tas med for omtrent ett token hver, altså rundt 700 tokens for alt.
+**Det beste med alt innhold** er Klar Kort versjon 3, med 640 tokens og 99 % av fakta. Versjon 1 (664
+tokens) mistet 7 %, mest små presiseringer. Versjon 2 tok dem med igjen (700 tokens, 98 %), og versjon 3
+skriver det samme strammere.
 
-**200 tokens** går bare ved å kaste innhold. Kort-200 beholdt 39 %: hovedpoenget i hver tekst, men ikke
+**Under 500 tokens** går bare ved å kaste innhold. Kort-500 (463 tokens i snitt, høyst 493) beholdt 79 %. Mest
+forsvant fra de lange tekstene, der filstier og begrunnelser ble tatt ut. Et utvalg av de målte tekstene
+tyder på at rundt 87 % kan beholdes under 500 hvis tokenene brukes der fakta er billigst.
+
+**200 tokens** går bare ved å kaste det meste. Kort-200 beholdt 39 %: hovedpoenget i hver tekst, men ikke
 tallene, betingelsene og begrunnelsene.
 
-**Hva skal til for å komme under gulvet?** Da må ett token bære mer enn ett ord. Det finnes tre veier, og
-ingen av dem er et nytt skriftspråk:
+**Hva skal til for å komme under gulvet?** Da må ett token bære mer enn ett ord, og det krever at modellen
+eller tokenizeren trenes. [§ 12](#12-lønner-det-seg-med-noe-mer-avansert-som-krever-lengre-opplæring) går
+gjennom veiene dit og hva de koster.
 
-1. **En lært kodebok.** En modell som er finjustert med egne tokens for vanlige begreper i et fagfelt, kan
-   skrive «kundeservice-instruks om refusjon» som ett token. Det krever trening, og kodeboken må være lik hos
-   begge parter.
-2. **Felles kontekst.** Det som allerede står i samtalen eller i en delt database, kan pekes på med en
-   etikett i stedet for å gjentas. Klar har dette med etiketter og definisjoner. Det gir mye i lange samtaler,
-   men ingenting for en tekst som står alene.
-3. **Vektorer i stedet for tokens.** Modeller kan sende hverandre interne tilstander direkte (se
-   [§ 7](#7-hvorfor-ikke-et-språk-bare-maskiner-forstår)). Det er kortere, men ingen mennesker kan lese det.
+## 12. Lønner det seg med noe mer avansert, som krever lengre opplæring?
 
+Primeren til Klar Kort er på rundt 530 tokens. Et mer avansert språk kunne hatt en lengre primer med en
+kodebok: korte koder for vanlige ord og uttrykk. [bench/CODEBOOK.md](../bench/CODEBOOK.md) måler hvor mye
+det i beste fall kan gi, ved å dele tokenene i Kort v3 etter hva de er (snitt over åtte tokenizere):
+
+| Del av Kort v3 (640 tokens) | Andel |
+|---|---:|
+| Første token i hvert ord | 69 % |
+| Tall og enheter, tokens utover det første | 13 % |
+| Tegnsetting og symboler | 11 % |
+| Navn, stier og kode, tokens utover det første | 4 % |
+| Engelske ord, tokens utover det første | 3 % |
+
+En kodebok kan bare gjøre noe med engelske ord som koster mer enn ett token, og med uttrykk som går igjen.
+Selv en kodebok laget med fasit, som kjenner testen på forhånd, sparer bare 33 tokens (5 %), og selve
+kodeboken koster rundt 190 tokens i primeren. **Et mer avansert skriftspråk lønner seg altså ikke for denne
+typen tekst.** To tredeler av tokenene er ett token per ord, og ingen skrivemåte gjør et ord billigere enn
+det. Tallene er data og kan ikke kodes bort. Et tettere oppdiktet språk ville vært dyrere, ikke billigere:
+oppdiktede ord gjorde tekstene 27–41 % lengre ([§ 2](#2-tre-funn-som-styrte-designet)). Hver ny regel er
+dessuten en ny måte å lese feil på. Den alvorligste feilen i Kort versjon 1 kom av at `→` kunne bety to ting.
+
+Det som kan lønne seg, er å trene selve modellen, ikke å gjøre primeren lengre:
+
+| Tiltak | Hva det gir | Hva det krever |
+|---|---|---|
+| **Felles ordbok for samtalen** | Et langt navn skrives én gang, og etiketten brukes resten av samtalen. `src/payments/checkout_service.py` koster 7–9 tokens, etiketten 1. | Nesten ingenting: én regel i primeren. Lønner seg bare når navnene går igjen, som i lange økter med kode. |
+| **Finjustere en modell på Klar Kort** | Primeren faller bort (rundt 530 tokens per samtale, rundt 53 med caching), og trolig blir det færre lesefeil. Hver tekst blir ikke kortere. | Treningsdata og en modell man kan finjustere. Begge parter må bruke den. |
+| **Ny tokenizer med tokens som dekker flere ord** | Opptil 33 % færre tokens for samme tekst ([SuperBPE, Liu mfl. 2025](https://arxiv.org/abs/2503.13423)). Det er den eneste veien under gulvet uten å kaste innhold. | En ny modell trent fra bunnen. Gevinsten er størst for vanlige ordfølger som «of the», som Kort allerede stryker, så den blir mindre for Kort-tekst. |
+| **Komprimerte vektorer** | Opptil 26 ganger kortere prompter ([gist tokens, Mu mfl. 2023](https://arxiv.org/abs/2304.08467)). | Tilgang til modellens indre. Det er ikke tekst lenger, og ingen mennesker kan lese det ([§ 7](#7-hvorfor-ikke-et-språk-bare-maskiner-forstår)). |
+
+Anbefalingen er derfor å bruke Klar Kort med primeren cachet, og etiketter for navn som går igjen. Gulvet
+ligger i tokenizeren, ikke i språket: skal tekstene enda lenger ned uten å miste innhold, må modellen og
+tokenizeren trenes.

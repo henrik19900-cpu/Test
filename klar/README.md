@@ -16,6 +16,8 @@ Prosjektet inneholder hele språket, ikke bare en idé:
 - [målinger](bench/RESULTS.md) med åtte ekte tokenizere (GPT-4, GPT-4o, Llama 3, Qwen, Mistral, Gemma,
   DeepSeek og en eldre Claude-tokenizer);
 - en [læringstest](eval/README.md) der ferske modeller lærte Klar av primeren alene;
+- en [komprimeringstest](eval/kort/README.md) der blinde dommere telte hvor mange fakta som overlever når
+  teksten presses ned;
 - [begrunnelsen](docs/begrunnelse.md) for hvert valg, med det som ikke virket.
 
 ## Språket på ett minutt
@@ -110,29 +112,36 @@ Primeren koster omtrent 1 700 tokens og lønner seg etter rundt 5 300 tokens med
 ## Klar Kort: når tokens teller mest
 
 Klar er laget for presisjon. Når det bare gjelder å få ned antall tokens, finnes [Klar Kort](docs/kort.en.md):
-korte notater mellom modeller som dropper alt leseren kan bygge opp igjen. Primeren er på rundt 440 tokens.
+korte notater mellom modeller som dropper alt leseren kan bygge opp igjen. Primeren er på rundt 530 tokens.
 
 ```text
-checked tests: 41 pass, 1 fail. likely cause: old cache → should clear it
+ran tests: 41 pass, 1 fail. failure likely caused by old cache, so should clear it
 ```
 
-Er det mulig å få hele testen ned i 200 tokens? Ja, men da forsvinner det meste av innholdet. Ferske modeller
-pakket hver versjon ut igjen uten å se originalen, og uavhengige dommere telte hvor mange av de 156
-nøkkelfaktaene som overlevde ([metode og alle svar](eval/kort/README.md)):
+Hvor kort kan testen bli? Ferske modeller pakket hver versjon ut igjen uten å se originalen, og uavhengige
+dommere telte hvor mange av de 156 nøkkelfaktaene som overlevde ([metode og alle svar](eval/kort/README.md)):
 
 | Versjon | Tokens (snitt, 8 tokenizere) | Fakta som overlevde |
 |---|---:|---:|
 | Engelsk | 1103 | 100 % |
 | Klar | 1035 | 99 % |
 | Telegramengelsk | 876 | 100 % |
-| **Klar Kort** | **664** | **93 %** |
-| **Kort-200** | **185** | **39 %** |
+| **Klar Kort** (versjon 3) | **640** | **99 %** |
 | *bare innholdsordene, uten grammatikk* | *551* | *(gulvet)* |
+| **Kort-500** | **463** | **79 %** |
+| **Kort-200** | **185** | **39 %** |
 
-Bare innholdsordene i testen koster 551 tokens, så 200 tokens med samme innhold er under gulvet. Et ord kan
-ikke koste mindre enn ett token. Klar Kort kommer nærmest gulvet og beholder nesten alt. Kort-200 holder
-budsjettet, men bare hovedpoenget i hver tekst overlever. Se [begrunnelsen](docs/begrunnelse.md#11-kan-testen-skrives-med-200-tokens)
-for hva som skal til for å komme under gulvet.
+Bare innholdsordene i testen koster 551 tokens, og et ord kan ikke koste mindre enn ett token. Klar Kort
+kommer nær gulvet og beholder nesten alt, med 42 % færre tokens enn engelsk. Under 500 og 200 tokens går
+også, men da er teksten under gulvet, og innhold må ut. Kort-500 beholder omtrent fire av fem fakta, og
+Kort-200 bare hovedpoenget i hver tekst. Se [begrunnelsen](docs/begrunnelse.md#11-kan-testen-skrives-med-200-eller-500-tokens)
+for hva som skal til for å komme lenger ned.
+
+**Lønner det seg med noe mer avansert, som krever lengre opplæring?** Ikke som skriftspråk. To tredeler av
+tokenene i Klar Kort er allerede ett token per ord, og selv en kodebok som kjenner testen på forhånd, sparer
+bare 5 % ([CODEBOOK.md](bench/CODEBOOK.md)). Det som kan gi mer, er å trene selve modellen. Finjustering
+fjerner primeren. En tokenizer med tokens som dekker flere ord kan gi opptil en tredel færre tokens, men
+krever en ny modell ([begrunnelsen](docs/begrunnelse.md#12-lønner-det-seg-med-noe-mer-avansert-som-krever-lengre-opplæring)).
 
 ## Kom i gang
 
@@ -159,8 +168,10 @@ Målingene og læringstesten kan kjøres på nytt:
 
 ```sh
 pip install -e ".[bench]"
-python bench/run.py      # laster ned tokenizerne første gang (ca. 60 MB) og skriver bench/RESULTS.md
-python eval/score.py     # skriver eval/RESULTS.md fra de lagrede svarene
+python bench/run.py        # laster ned tokenizerne første gang (ca. 60 MB) og skriver bench/RESULTS.md
+python bench/codebook.py   # hva en kodebok kunne spart, skriver bench/CODEBOOK.md
+python eval/score.py       # skriver eval/RESULTS.md fra de lagrede svarene
+python eval/kort/score.py  # skriver eval/kort/RESULTS.md fra de lagrede svarene
 ```
 
 ## Bruke Klar med en språkmodell
@@ -192,7 +203,7 @@ print(features(text.sentences[1])["confidence"])  # likely
 | [`klar/`](klar/) | språket i kode: ordlisten (`lexicon.py`), lexer, parser, syntakstre, glossator og sjekker |
 | [`docs/`](docs/) | spesifikasjon, primer (engelsk og norsk), Klar Kort og begrunnelse |
 | [`eksempler/`](eksempler/) | systemprompt, agentrapport og kodegjennomgang på Klar |
-| [`bench/`](bench/) | parallelkorpuset (engelsk, telegramengelsk, norsk, Klar, Klar Kort, Kort-200) og målingene |
+| [`bench/`](bench/) | parallelkorpuset (engelsk, telegramengelsk, norsk, Klar, Klar Kort, Kort-500, Kort-200), målingene og kodebokanalysen |
 | [`eval/`](eval/) | læringstesten og komprimeringstesten: prompter, fasit, modellsvar, vurdering og resultater |
 | [`tests/`](tests/) | tester for parser, glossator, sjekker, korpus, dokumentasjon og robusthet |
 

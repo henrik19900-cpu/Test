@@ -49,3 +49,29 @@ def test_primer_examples_parse(path):
 def test_primer_mentions_every_grammar_word(path):
     words = set(re.findall(r"[A-Za-z]+", path.read_text(encoding="utf-8")))
     assert sorted(f for f in lexicon.ALL_FORMS if f not in words) == []
+
+
+MARKDOWN = sorted(
+    p
+    for p in DOCS.parent.rglob("*.md")
+    if not any(part.startswith(".") for part in p.relative_to(DOCS.parent).parts)
+)
+
+
+def slug(heading: str) -> str:
+    """The anchor GitHub gives a heading: lower case, punctuation removed, spaces to hyphens."""
+    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
+
+
+@pytest.mark.parametrize("path", MARKDOWN, ids=lambda p: str(p.relative_to(DOCS.parent)))
+def test_links_between_documents_resolve(path):
+    text = re.sub(r"```.*?```", "", path.read_text(encoding="utf-8"), flags=re.S)
+    for target in re.findall(r"\]\(([^)\s]+)\)", text):
+        if re.match(r"[a-z]+:", target):
+            continue
+        file, _, anchor = target.partition("#")
+        linked = (path.parent / file).resolve() if file else path
+        assert linked.exists(), f"{target}: finnes ikke"
+        if anchor and linked.suffix == ".md":
+            headings = re.findall(r"^#+ (.+)$", linked.read_text(encoding="utf-8"), flags=re.M)
+            assert anchor in {slug(h) for h in headings}, f"{target}: ingen overskrift med det ankeret"

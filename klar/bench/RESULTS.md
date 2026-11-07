@@ -124,9 +124,9 @@ Ordene modellen allerede kjenner, er de billigste den har. Nye ord koster flere 
 
 ## Klar Kort: så få tokens som mulig
 
-[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. Kort v3 er enda strammere: nesten uten tegnsetting og med billigere ord, men uten å fjerne innhold med vilje. Kort-500 og Kort-200 er hele korpuset presset under 500 og 200 tokens; der må innhold ut. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang «not». Hvor mange av fakta som overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md).
+[Klar Kort](../docs/kort.en.md) dropper alt leseren kan gjette seg til, men beholder hvert faktum. Versjon 3 skriver det samme strammere enn versjon 2: færre komma og billigere ord, uten å fjerne innhold med vilje. Kort-500 og Kort-200 er hele korpuset presset under 500 og 200 tokens; der må innhold ut. «Bare innholdsord» er innholdsordene i Klar-tekstene uten et eneste grammatikkord, ikke engang «not». Hvor mange av fakta som overlever i hver versjon, står i [eval/kort/RESULTS.md](../eval/kort/RESULTS.md), og hva en lengre primer med kodebok kunne spart, i [CODEBOOK.md](CODEBOOK.md).
 
-| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort | Kort v3 | Kort-500 | Kort-200 | Bare innholdsord |
+| Tokenizer | Engelsk | Klar | Telegramengelsk | Klar Kort v2 | Klar Kort v3 | Kort-500 | Kort-200 | Bare innholdsord |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | GPT-4 / GPT-3.5 | 1089 | 1019 | 862 | 688 | 628 | 452 | 181 | 539 |
 | GPT-4o / o-serien | 1080 | 1018 | 842 | 682 | 623 | 449 | 179 | 539 |
@@ -138,7 +138,7 @@ Ordene modellen allerede kjenner, er de billigste den har. Nye ord koster flere 
 | DeepSeek V3 | 1093 | 1022 | 867 | 693 | 634 | 457 | 185 | 544 |
 | **Snitt** | **1103** | **1035** | **876** | **700** | **640** | **463** | **185** | **551** |
 
-Klar Kort er −37 % mot engelsk og −32 % mot Klar. Kort v3 er −42 %, Kort-500 −58 % og Kort-200 −83 % mot engelsk. Kort-500 og Kort-200 holder budsjettet i alle åtte tokenizerne, og det koster innhold.
+Klar Kort versjon 3 er −42 % mot engelsk og −38 % mot Klar (versjon 2: −37 % mot engelsk). Kort-500 er −58 % og Kort-200 −83 % mot engelsk. Kort-500 og Kort-200 holder budsjettet i alle åtte tokenizerne, og det koster innhold.
 
 ## Primeren: hva det koster å lære en modell Klar
 

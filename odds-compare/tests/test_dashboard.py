@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from conftest import load_fixture, raw_event
 
-from oddscompare import config, dashboard, db, fetch
+from oddscompare import calc, config, dashboard, db, fetch
 from oddscompare.matching import Aliases
 from oddscompare.sources.nt import parse_event_groups
 from oddscompare.sources.reference import parse_odds
@@ -987,3 +987,93 @@ def test_old_odds_show_at_once_and_newer_ones_are_fetched_after_the_page(tmp_pat
     assert app.metric[0].value == "84"
     app.run()
     assert calls == ["nt", "nt"]  # fresh now
+
+
+def priced_card(nt, books, ref, event_id=1, fetched=None):
+    """A card as load_cards makes it, with the reference's fair odds and Norsk Tipping's EV."""
+    card = card_with_competitors(nt, books, ref)
+    card.event_id = event_id
+    probabilities = calc.fair_probabilities(card.ref_odds, "proportional")
+    card.fair_odds = [1 / p for p in probabilities]
+    card.ev = calc.expected_value(card.nt_odds, probabilities)
+    card.ref_fetched = NOW
+    card.competitors_fetched = {s: fetched or NOW - timedelta(hours=1) for s in card.competitors}
+    return card
+
+
+def test_the_best_ev_is_at_the_best_price_whoever_offers_it():
+    # Pinnacle 2.00 / 3.60 / 4.00: fair odds about 2.07 / 3.73 / 4.14.
+    card = priced_card(
+        (1.95, 3.40, 4.00),
+        {"betsson": (2.20, 3.50, 4.10), "unibet_se": (2.10, 3.75, 4.10)},
+        (2.00, 3.60, 4.00),
+    )
+    found = dashboard.best_ev([card])
+    best = {b.outcome: b for b in found}
+    assert best[0].odds == 2.20 and best[0].books == ["Betsson"]
+    assert best[0].ev == pytest.approx(2.20 / card.fair_odds[0] - 1) and best[0].ev > 0
+    assert best[1].odds == 3.75 and best[1].books == ["Unibet"]
+    assert best[2].books == ["Betsson", "Unibet"]  # shared
+    assert [b.ev for b in found] == sorted((b.ev for b in found), reverse=True)  # highest EV first
+    assert best[0].nt_odds == 1.95 and best[0].nt_ev == pytest.approx(card.ev[0])
+    assert best[0].fetched == NOW - timedelta(hours=1)
+    # Only the bookmakers picked: without Betsson, Unibet's 2.10 is the best home price.
+    without = {b.outcome: b for b in dashboard.best_ev([card], [dashboard.NT, "the_odds_api:unibet_se"])}
+    assert without[0].odds == 2.10 and without[0].books == ["Unibet"]
+    only_nt = {b.outcome: b for b in dashboard.best_ev([card], [dashboard.NT])}
+    assert only_nt[0].books == ["Norsk Tipping"] and only_nt[0].fetched == NOW
+
+
+def test_the_best_ev_needs_the_references_fair_odds():
+    """Fair odds from the competitors' average would be measured against the prices they come from."""
+    unpriced = card_with_competitors((2.0, 3.4, 3.6), {"betsson": (2.1, 3.4, 3.5)})
+    from_competitors = priced_card((2.0, 3.4, 3.6), {"betsson": (2.1, 3.4, 3.5)}, (2.0, 3.6, 4.0))
+    from_competitors.ref_odds, from_competitors.fair_from = None, "konkurrenter"
+    assert dashboard.best_ev([unpriced, from_competitors]) == []
+    assert dashboard.best_ev([priced_card((2.0, 3.4, 3.6), {}, (2.0, 3.6, 4.0))], []) == []  # none picked
+
+
+def test_the_best_ev_tab(tmp_path, monkeypatch):
+    (tmp_path / "data").mkdir()
+    (tmp_path / "config.yaml").write_text("reference:\n  source: oddslink\n", encoding="utf-8")
+    conn = db.connect(tmp_path / "data" / "odds.db")
+    now = datetime.now(UTC)
+    matches = {  # Norsk Tipping, Pinnacle, bet365, Betfair (before its commission)
+        ("Brann", "Molde"): [(2.00, 3.40, 3.60), (2.10, 3.50, 3.80), (2.35, 3.40, 3.50), (2.20, 3.60, 3.90)],
+        # Pinnacle's margin is 12 % here, so its fair odds are doubtful (shown, marked, unless switched off).
+        ("Viking", "Odd"): [(2.00, 3.40, 3.60), (1.90, 3.20, 3.40), (2.60, 3.50, 3.70), (2.10, 3.40, 3.60)],
+    }
+    for n, ((home, away), (nt_odds, *books)) in enumerate(matches.items()):
+        nt = raw_event(source_event_id=home, home=home, away=away, kickoff_utc=now + timedelta(days=1),
+                       odds=dict(zip(("home", "draw", "away"), nt_odds, strict=True)))  # fmt: skip
+        event_id = db.create_event(conn, nt)
+        db.link(conn, nt, event_id)
+        db.add_snapshot(conn, event_id, nt, now)
+        for source, odds in zip(("oddslink", "oddslink:bet365", "oddslink:betfair"), books, strict=True):
+            raw = nt.model_copy(update={"source": source, "source_event_id": f"o{n}",
+                                        "odds": dict(zip(("home", "draw", "away"), odds, strict=True))})  # fmt: skip
+            db.add_snapshot(conn, event_id, raw, now)
+    db.log_fetch(conn, "norsk_tipping", now, "ok", 2)
+    conn.commit()
+    monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
+    from streamlit.testing.v1 import AppTest
+
+    app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
+    assert not app.exception
+    [tab] = [t for t in app.tabs if t.label == "Beste EV"]
+    [picker] = [m for m in tab.multiselect if m.label == "Spillselskaper"]
+    assert set(picker.value) == {"norsk_tipping", "oddslink:bet365", "oddslink:betfair"}  # every bookmaker
+    [table] = tab.dataframe
+    rows = table.value.to_dict("records")
+    # Viking – Odd first: bet365's 2.60 against Pinnacle's 1.90, whose 12 % margin makes it doubtful (⚠).
+    assert [(r["Kamp"], r["Utfall"], r["Odds"], r["Hos"]) for r in rows] == [
+        ("Viking – Odd", "H", "2,60", "bet365"),
+        ("Brann – Molde", "H", "2,35", "bet365"),
+    ]
+    assert rows[0]["EV"].endswith("⚠") and rows[1]["EV"].startswith("+") and not rows[1]["EV"].endswith("⚠")
+    assert rows[1]["NT-odds"] == "2,00" and rows[1]["Pinnacle hentet"] == "under 1 min siden"
+    [doubtful] = [t for t in tab.toggle if t.label == "Vis også usikre"]
+    app = doubtful.set_value(False).run()
+    [tab] = [t for t in app.tabs if t.label == "Beste EV"]
+    rows = tab.dataframe[0].value.to_dict("records")
+    assert [r["Kamp"] for r in rows] == ["Brann – Molde"]  # the doubtful one hidden

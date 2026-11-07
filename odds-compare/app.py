@@ -635,6 +635,84 @@ def arbitrage_tab(
     )
 
 
+BEST_EV_ROWS = 100  # the table's length: the outcomes with the best EV
+
+
+def best_ev_tab(
+    cards: list[dashboard.Card],
+    reference_name: str,
+    now: datetime,
+    stale_after: timedelta,
+    cfg: config.Config,
+) -> None:
+    """The outcomes with the best EV against the reference's fair odds, at the best price among all the
+    bookmakers, not only Norsk Tipping."""
+    if not any(c.ref_odds for c in cards):
+        st.info(f"Ingen kamper med {reference_name}s odds ennå. De kommer med når du henter referanseodds.")
+        return
+    books = [b for b in dashboard.arbitrage_books(cards) if b != dashboard.REFERENCE]
+    picked = st.multiselect(
+        "Spillselskaper",
+        books,
+        default=books,
+        format_func=dashboard.bookmaker_name,
+        key="best-ev-books",
+        help="Ta bort dem du ikke har konto hos. Betfair Exchange er regnet etter provisjon.",
+    )
+    left, right = st.columns(2)
+    positive_only = left.toggle("Bare positiv EV", value=True, key="best-ev-positive")
+    doubtful = right.toggle(
+        "Vis også usikre",
+        value=True,
+        key="best-ev-doubtful",
+        help=f"Kamper der {reference_name}s egen margin er over {percent(dashboard.DOUBTFUL_MARGIN)}: fair odds "
+        "er da usikre, og langskuddene får ofte en EV som ikke holder.",
+    )
+    found = [b for b in dashboard.best_ev(cards, picked) if doubtful or not b.card.doubtful]
+    positive = [b for b in found if b.ev > 0]
+    shown = positive if positive_only else found
+    priced = len({b.card.event_id for b in found})
+    st.markdown(
+        f"**{len(positive)} utfall med positiv EV** blant {priced} kamper med {reference_name}s odds, med beste "
+        f"odds hos spillselskapene du har valgt. EV er mot {reference_name}s fair odds, uten margin."
+    )
+    if not shown:
+        st.info("Ingen utfall med positiv EV akkurat nå." if positive_only else "Ingen utfall å vise.")
+        return
+    st.dataframe(
+        [
+            {
+                "Avspark": local(b.card.kickoff_utc),
+                "Kamp": f"{b.card.home} – {b.card.away}",
+                "Utfall": ("H", "U", "B")[b.outcome],
+                "Odds": odds_text(b.odds),
+                "Hos": either(b.books),
+                "EV": percent(b.ev, signed=True) + (" ⚠" if b.card.doubtful else ""),
+                "Fair": odds_text(b.fair),
+                "NT-odds": odds_text(b.nt_odds),
+                "NT-EV": percent(b.nt_ev, signed=True),
+                f"{reference_name} hentet": f"{age_text(now - b.card.ref_fetched)} siden",
+                "Odds hentet": f"{age_text(now - b.fetched)} siden" if b.fetched else "–",
+                "Liga": b.card.league,
+            }
+            for b in shown[:BEST_EV_ROWS]
+        ],
+        hide_index=True,
+        width="stretch",
+    )
+    notes = [
+        f"Viser de {BEST_EV_ROWS} beste av {len(shown)}." if len(shown) > BEST_EV_ROWS else "",
+        f"EV er mot {reference_name}s odds slik de var da de ble hentet: er de gamle, kan markedet ha flyttet seg. "
+        "Konkurrentenes odds er fra samme henting, så sjekk oddsen hos spillselskapet før du spiller.",
+        f"⚠: {reference_name}s margin er over {percent(dashboard.DOUBTFUL_MARGIN)}, så fair odds er usikre."
+        if doubtful
+        else "",
+        f"Betfair Exchange er etter {percent(cfg.exchange_commission)} provisjon, men prisen kan være midt mellom "
+        "kjøps- og salgsprisen, og det er ikke sikkert det står nok penger på den.",
+    ]
+    st.caption(" ".join(n for n in notes if n))
+
+
 @st.cache_resource
 def bet_log_sync() -> dict:
     """Shared by every session of this app process: whether the stored bet log has been read back, and
@@ -1040,8 +1118,8 @@ def main() -> None:
             if now - last > stale_after:
                 st.warning(f"{name}: siste vellykkede henting var {local(last)}. Kjører `oddscompare run`?")
 
-    matches_tab, market_tab_, arbitrage_tab_, my_bets_tab, unmatched_tab = st.tabs(
-        ["Kamper", "NT mot markedet", "Sikker gevinst", "Mine spill", "Umatchede kamper"]
+    matches_tab, best_ev_tab_, market_tab_, arbitrage_tab_, my_bets_tab, unmatched_tab = st.tabs(
+        ["Kamper", "Beste EV", "NT mot markedet", "Sikker gevinst", "Mine spill", "Umatchede kamper"]
     )
     with matches_tab:
         # Before any reference odds are fetched here, nothing has EV, and the EV filter would hide every match:
@@ -1121,6 +1199,15 @@ def main() -> None:
             if st.button(f"Vis flere ({len(cards) - shown} til)"):
                 st.session_state["shown"] = shown + PAGE_SIZE
                 st.rerun()
+
+    with best_ev_tab_:
+        best_ev_tab(
+            [c for c in all_cards if not leagues or c.league in leagues],
+            reference_name,
+            now,
+            stale_after,
+            cfg,
+        )
 
     with market_tab_:
         market_tab(

@@ -120,6 +120,9 @@ def main() -> None:
     compressed = {
         e["id"]: {
             "kort": {n: counters[n](kort[e["id"]]["kort"].strip()) for n in names},
+            "kort_v1": {
+                n: counters[n](kort[e["id"]].get("kort_v1", kort[e["id"]]["kort"]).strip()) for n in names
+            },
             "kort200": {n: counters[n](kort[e["id"]]["kort200"].strip()) for n in names},
             "content": {n: counters[n](content_words(e["klar"])) for n in names},
         }

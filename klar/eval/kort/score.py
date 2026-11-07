@@ -23,17 +23,27 @@ VERSIONS = {
     "en": "Engelsk (originalen)",
     "klar": "Klar",
     "tele": "Telegramengelsk",
+    "kort_v1": "Klar Kort, første versjon",
     "kort": "Klar Kort",
     "kort200": "Kort-200",
 }
 
 
-def load_grades(facts: dict) -> dict[str, dict[str, list[float]]]:
-    """Grades per version and text, checked against the number of facts."""
+def load_grades(facts: dict) -> tuple[dict[str, dict[str, list[float]]], dict[str, list[tuple[str, float]]]]:
+    """Grades per version and text, checked against the number of facts.
+
+    A version graded by more than one judge keeps the last judge's grades (judges are run in order A, B, C, so
+    the last one saw the comparison that matters most); every judge's share is returned for the report.
+    """
     labels = json.loads((HERE / "judged" / "labels.json").read_text(encoding="utf-8"))
     grades: dict[str, dict[str, list[float]]] = {}
+    shares: dict[str, list[tuple[str, float]]] = {}
+    n_facts = sum(len(fl) for fl in facts.values())
     for judge, sets in labels.items():
-        verdict = json.loads((HERE / "judged" / f"{judge}.json").read_text(encoding="utf-8"))
+        path = HERE / "judged" / f"{judge}.json"
+        if not path.exists():
+            continue
+        verdict = json.loads(path.read_text(encoding="utf-8"))
         for label, version in sets.items():
             per_text = verdict[label]
             for text_id, fl in facts.items():
@@ -41,7 +51,8 @@ def load_grades(facts: dict) -> dict[str, dict[str, list[float]]]:
                 if got is None or len(got) != len(fl):
                     raise SystemExit(f"{judge}/{label}/{text_id}: ventet {len(fl)} karakterer, fikk {got}")
             grades[version] = {i: [float(g) for g in per_text[i]] for i in facts}
-    return grades
+            shares.setdefault(version, []).append((judge, sum(map(sum, grades[version].values())) / n_facts))
+    return grades, shares
 
 
 def main() -> None:
@@ -53,12 +64,13 @@ def main() -> None:
     ids = list(facts)
 
     def tokens(version: str) -> float:
-        if version in ("kort", "kort200"):
+        if version in ("kort", "kort_v1", "kort200"):
             return statistics.mean(sum(bench["compressed"][i][version][n] for i in ids) for n in names)
         return statistics.mean(sum(bench["counts"][i][version][n] for i in ids) for n in names)
 
-    grades = load_grades(facts)
+    grades, shares = load_grades(facts)
     grades["en"] = {i: [1.0] * len(fl) for i, fl in facts.items()}  # the facts are written from English
+    versions = {v: t for v, t in VERSIONS.items() if v in grades}
     n_facts = sum(len(fl) for fl in facts.values())
 
     def kept(version: str, only: set[str] | None = None) -> float:
@@ -77,7 +89,7 @@ def main() -> None:
     w("## Resultat\n")
     w("| Versjon | Tokens (snitt, 8 tokenizere) | Fakta som overlevde | Tokens per bevart faktum |")
     w("|---|---:|---:|---:|")
-    for version, title in VERSIONS.items():
+    for version, title in versions.items():
         t = tokens(version)
         k = kept(version)
         w(f"| {title} | {t:.0f} | {k:.0%} | {t / (k * n_facts):.1f} |")
@@ -85,15 +97,25 @@ def main() -> None:
 
     w("## Per kategori\n")
     cats = sorted(set(category.values()))
-    w("| Kategori | " + " | ".join(VERSIONS[v] for v in VERSIONS if v != "en") + " |")
-    w("|---|" + "---:|" * (len(VERSIONS) - 1))
+    w("| Kategori | " + " | ".join(versions[v] for v in versions if v != "en") + " |")
+    w("|---|" + "---:|" * (len(versions) - 1))
     for cat in cats:
         group = {i for i in ids if category[i] == cat}
-        cells = [f"{kept(v, group):.0%}" for v in VERSIONS if v != "en"]
+        cells = [f"{kept(v, group):.0%}" for v in versions if v != "en"]
         w(f"| {cat} | " + " | ".join(cells) + " |")
     w("")
 
-    for version in ("kort", "kort200", "klar", "tele"):
+    twice = {v: s for v, s in shares.items() if len(s) > 1}
+    if twice:
+        w("## Samme tekst, to dommere\n")
+        w(
+            "En versjon som ble vurdert av to uavhengige dommere, viser hvor mye karakteren varierer mellom dommere:\n"
+        )
+        for version, judged in twice.items():
+            w(f"- {VERSIONS[version]}: " + ", ".join(f"dommer {j} {share:.0%}" for j, share in judged))
+        w("")
+
+    for version in [v for v in ("kort", "kort_v1", "kort200", "klar", "tele") if v in grades]:
         lost = [(i, facts[i][k], g) for i in ids for k, g in enumerate(grades[version][i]) if g < 1]
         w(f"## Det {VERSIONS[version]} mistet ({len(lost)} av {n_facts} fakta under full score)\n")
         if not lost:
@@ -114,7 +136,7 @@ def main() -> None:
         w("")
 
     (HERE / "RESULTS.md").write_text("\n".join(out) + "\n", encoding="utf-8")
-    print("\n".join(out[: 12 + len(VERSIONS)]))
+    print("\n".join(out[: 12 + len(versions)]))
 
 
 if __name__ == "__main__":

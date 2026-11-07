@@ -9,12 +9,12 @@ Generert av `python eval/kort/score.py`. Metoden står i [README.md](README.md).
 | Engelsk (originalen) | 1103 | 100% | 7.1 |
 | Klar | 1035 | 99% | 6.7 |
 | Telegramengelsk | 876 | 100% | 5.6 |
-| Klar Kort | 664 | 93% | 4.6 |
+| Klar Kort, første versjon | 664 | 93% | 4.6 |
 | Kort-200 | 185 | 39% | 3.0 |
 
 ## Per kategori
 
-| Kategori | Klar | Telegramengelsk | Klar Kort | Kort-200 |
+| Kategori | Klar | Telegramengelsk | Klar Kort, første versjon | Kort-200 |
 |---|---:|---:|---:|---:|
 | dialog | 100% | 100% | 97% | 44% |
 | fakta | 100% | 100% | 98% | 42% |
@@ -22,7 +22,7 @@ Generert av `python eval/kort/score.py`. Metoden står i [README.md](README.md).
 | rapport | 98% | 100% | 92% | 34% |
 | resonnement | 98% | 100% | 92% | 34% |
 
-## Det Klar Kort mistet (23 av 156 fakta under full score)
+## Det Klar Kort, første versjon mistet (23 av 156 fakta under full score)
 
 | Tekst | Faktum | Karakter |
 |---|---|---:|

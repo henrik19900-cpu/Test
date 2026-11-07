@@ -99,6 +99,8 @@ CSS = """
 .oc-label { font-size: 0.8rem; opacity: 0.75; }
 .oc-odds { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
 .oc-fair { font-size: 0.85rem; opacity: 0.8; }
+.oc-book { font-size: 0.85rem; font-weight: 600; }
+.oc-cell.oc-over { opacity: 0.4; }
 .oc-ev { display: inline-block; margin-top: 0.25rem; padding: 0.05rem 0.45rem; border-radius: 999px;
          font-size: 0.85rem; font-weight: 600; color: #fff; }
 .oc-ev.pos { background: #1e7b34; }
@@ -635,9 +637,6 @@ def arbitrage_tab(
     )
 
 
-BEST_EV_ROWS = 100  # the table's length: the outcomes with the best EV
-
-
 def best_ev_tab(
     cards: list[dashboard.Card],
     reference_name: str,
@@ -659,8 +658,18 @@ def best_ev_tab(
         key="best-ev-books",
         help="Ta bort dem du ikke har konto hos. Betfair Exchange er regnet etter provisjon.",
     )
-    left, right = st.columns(2)
-    positive_only = left.toggle("Bare positiv EV", value=True, key="best-ev-positive")
+    left, middle, right = st.columns(3)
+    max_odds = left.number_input(
+        "Høyeste odds",
+        min_value=1.05,
+        value=MAX_BEST_EV_ODDS,
+        step=0.5,
+        format="%.2f",
+        key="best-ev-max-odds",
+        help="Utfall med høyere odds enn dette tas ikke med. Langskudd gir ofte en EV som ikke holder, fordi "
+        "margintrekket er usikkert der.",
+    )
+    positive_only = middle.toggle("Bare positiv EV", value=True, key="best-ev-positive")
     doubtful = right.toggle(
         "Vis også usikre",
         value=True,
@@ -669,48 +678,107 @@ def best_ev_tab(
         "er da usikre, og langskuddene får ofte en EV som ikke holder.",
     )
     found = [b for b in dashboard.best_ev(cards, picked) if doubtful or not b.card.doubtful]
-    positive = [b for b in found if b.ev > 0]
-    shown = positive if positive_only else found
+    eligible = [b for b in found if b.odds <= max_odds]
+    positive = [b for b in eligible if b.ev > 0]
+    shown = positive if positive_only else eligible
     priced = len({b.card.event_id for b in found})
     st.markdown(
-        f"**{len(positive)} utfall med positiv EV** blant {priced} kamper med {reference_name}s odds, med beste "
-        f"odds hos spillselskapene du har valgt. EV er mot {reference_name}s fair odds, uten margin."
+        f"**{len(positive)} utfall med positiv EV** og odds på høyst {odds_text(max_odds)} blant {priced} kamper "
+        f"med {reference_name}s odds, med beste odds hos spillselskapene du har valgt. EV er mot "
+        f"{reference_name}s fair odds, uten margin."
     )
     if not shown:
         st.info("Ingen utfall med positiv EV akkurat nå." if positive_only else "Ingen utfall å vise.")
         return
-    st.dataframe(
-        [
-            {
-                "Avspark": local(b.card.kickoff_utc),
-                "Kamp": f"{b.card.home} – {b.card.away}",
-                "Utfall": ("H", "U", "B")[b.outcome],
-                "Odds": odds_text(b.odds),
-                "Hos": either(b.books),
-                "EV": percent(b.ev, signed=True) + (" ⚠" if b.card.doubtful else ""),
-                "Fair": odds_text(b.fair),
-                "NT-odds": odds_text(b.nt_odds),
-                "NT-EV": percent(b.nt_ev, signed=True),
-                f"{reference_name} hentet": f"{age_text(now - b.card.ref_fetched)} siden",
-                "Odds hentet": f"{age_text(now - b.fetched)} siden" if b.fetched else "–",
-                "Liga": b.card.league,
-            }
-            for b in shown[:BEST_EV_ROWS]
-        ],
-        hide_index=True,
-        width="stretch",
-    )
-    notes = [
-        f"Viser de {BEST_EV_ROWS} beste av {len(shown)}." if len(shown) > BEST_EV_ROWS else "",
+    # One card per match, the match with the best EV first; its three outcomes at their best prices.
+    matches: dict[int, dict[int, dashboard.BestEv]] = {}
+    for b in shown:
+        matches.setdefault(b.card.event_id, {})
+    for b in found:
+        if b.card.event_id in matches:
+            matches[b.card.event_id][b.outcome] = b
+    ordered = list(matches.values())
+    limit = st.session_state.get("best-ev-shown", PAGE_SIZE)
+    for start in range(0, min(len(ordered), limit), 2):
+        for column, best in zip(st.columns(2), ordered[start : start + 2], strict=False):
+            card = next(iter(best.values())).card
+            with column.container(border=True):
+                st.markdown(best_card_html(card, best, now, reference_name, max_odds), unsafe_allow_html=True)
+                with st.expander(f"Alle odds ({len(card.competitors) + 2})"):
+                    st.markdown(books_table(card, reference_name), unsafe_allow_html=True)
+                    if any(map(dashboard.is_exchange, card.competitors)):
+                        st.caption(commission_note(cfg))
+    if len(ordered) > limit:
+        if st.button(f"Vis flere ({len(ordered) - limit} til)", key="best-ev-more"):
+            st.session_state["best-ev-shown"] = limit + PAGE_SIZE
+            st.rerun()
+    st.caption(
         f"EV er mot {reference_name}s odds slik de var da de ble hentet: er de gamle, kan markedet ha flyttet seg. "
-        "Konkurrentenes odds er fra samme henting, så sjekk oddsen hos spillselskapet før du spiller.",
-        f"⚠: {reference_name}s margin er over {percent(dashboard.DOUBTFUL_MARGIN)}, så fair odds er usikre."
-        if doubtful
-        else "",
+        "Konkurrentenes odds er fra samme henting, så sjekk oddsen hos spillselskapet før du spiller. "
         f"Betfair Exchange er etter {percent(cfg.exchange_commission)} provisjon, men prisen kan være midt mellom "
-        "kjøps- og salgsprisen, og det er ikke sikkert det står nok penger på den.",
-    ]
-    st.caption(" ".join(n for n in notes if n))
+        "kjøps- og salgsprisen, og det er ikke sikkert det står nok penger på den."
+    )
+
+
+MAX_BEST_EV_ODDS = 5.0  # «Beste EV» leaves out longer odds unless asked for
+OLD_REFERENCE = timedelta(hours=3)  # a best-EV card warns when the reference's odds are older than this
+
+
+def best_card_html(
+    card: dashboard.Card,
+    best: dict[int, dashboard.BestEv],
+    now: datetime,
+    reference_name: str,
+    max_odds: float | None = None,
+) -> str:
+    """A match as on «Kamper», but each outcome at its best price among the bookmakers, with who has it,
+    and Norsk Tipping's odds and EV beside. An outcome above max_odds is greyed out: it is left out."""
+    e = html.escape
+    cells = []
+    for i, label in enumerate(("H", "U", "B")):
+        b = best.get(i)
+        if b is None:
+            cells.append(
+                f'<div class="oc-cell"><div class="oc-label">{label}</div><div class="oc-odds">–</div></div>'
+            )
+            continue
+        who = either(b.books)
+        nt = ' class="oc-nt-best"' if "Norsk Tipping" in b.books else ""
+        over = ' oc-over" title="Over høyeste odds' if max_odds and b.odds > max_odds else ""
+        cells.append(
+            f'<div class="oc-cell{over}"><div class="oc-label">{label}</div>'
+            f'<div class="oc-odds">{odds_text(b.odds)}</div>'
+            f'<div class="oc-book"><span{nt}>{e(who)}</span></div>'
+            f'<div class="oc-fair">fair {odds_text(b.fair)}</div>'
+            f'<div class="oc-ev {dashboard.ev_class(b.ev)}">EV {percent(b.ev, signed=True)}</div>'
+            f'<div class="oc-pos">NT {odds_text(b.nt_odds)} · EV {percent(b.nt_ev, signed=True)}</div></div>'
+        )
+    times = (
+        f"NT {local(card.nt_fetched, '%H:%M')} · {e(reference_name)} {local(card.ref_fetched, '%a %H:%M')}"
+    )
+    warning = ""
+    if now - card.ref_fetched > OLD_REFERENCE:
+        warning += (
+            f'<div class="oc-stale">{e(reference_name)}-oddsen er {age_text(now - card.ref_fetched)} gammel: '
+            "hent referanseodds for ferske tall.</div>"
+        )
+    if card.nt_moved and any("Norsk Tipping" in b.books for b in best.values()):
+        warning += (
+            '<div class="oc-stale">Norsk Tipping har endret oddsen etter siste referansehenting, så EV kan være '
+            "utdatert.</div>"
+        )
+    if card.doubtful:
+        warning += (
+            f'<div class="oc-stale">⚠ {e(reference_name)}-marginen er uvanlig høy ({percent(card.ref_margin)}), '
+            "så fair odds og EV er usikre.</div>"
+        )
+    return (
+        f'<div class="oc-teams">{e(card.home)} – {e(card.away)}</div>'
+        f'<div class="oc-meta">{e(card.league)} · {local(card.kickoff_utc)}</div>'
+        f'<div class="oc-row">{"".join(cells)}</div>'
+        f'<div class="oc-foot">{e(reference_name)}-margin {percent(card.ref_margin)}'
+        f"<br>Sist hentet: {times}</div>{warning}"
+    )
 
 
 @st.cache_resource

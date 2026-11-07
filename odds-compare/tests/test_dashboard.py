@@ -1040,8 +1040,15 @@ def test_the_best_ev_tab(tmp_path, monkeypatch):
     now = datetime.now(UTC)
     matches = {  # Norsk Tipping, Pinnacle, bet365, Betfair (before its commission)
         ("Brann", "Molde"): [(2.00, 3.40, 3.60), (2.10, 3.50, 3.80), (2.35, 3.40, 3.50), (2.20, 3.60, 3.90)],
-        # Pinnacle's margin is 12 % here, so its fair odds are doubtful (shown, marked, unless switched off).
+        # Pinnacle's margin is 12 % here, so its fair odds are doubtful: shown with ⚠, unless switched off.
         ("Viking", "Odd"): [(2.00, 3.40, 3.60), (1.90, 3.20, 3.40), (2.60, 3.50, 3.70), (2.10, 3.40, 3.60)],
+        # Value only on the away side, at 8.00: over the default highest odds of 5.
+        ("Rosenborg", "Lillestrøm"): [
+            (1.40, 4.50, 7.00),
+            (1.45, 4.60, 7.00),
+            (1.42, 4.40, 8.00),
+            (1.40, 4.40, 7.00),
+        ],
     }
     for n, ((home, away), (nt_odds, *books)) in enumerate(matches.items()):
         nt = raw_event(source_event_id=home, home=home, away=away, kickoff_utc=now + timedelta(days=1),
@@ -1053,27 +1060,41 @@ def test_the_best_ev_tab(tmp_path, monkeypatch):
             raw = nt.model_copy(update={"source": source, "source_event_id": f"o{n}",
                                         "odds": dict(zip(("home", "draw", "away"), odds, strict=True))})  # fmt: skip
             db.add_snapshot(conn, event_id, raw, now)
-    db.log_fetch(conn, "norsk_tipping", now, "ok", 2)
+    db.log_fetch(conn, "norsk_tipping", now, "ok", 3)
     conn.commit()
     monkeypatch.setenv("ODDSCOMPARE_CONFIG", str(tmp_path / "config.yaml"))
     from streamlit.testing.v1 import AppTest
 
+    def best_ev_cards(app):
+        [tab] = [t for t in app.tabs if t.label == "Beste EV"]
+        return tab, [m.value for m in tab.markdown if 'class="oc-teams"' in m.value]
+
+    def teams(cards):
+        return [re.search(r'class="oc-teams">([^<]+)<', c).group(1) for c in cards]
+
     app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=30).run()
     assert not app.exception
-    [tab] = [t for t in app.tabs if t.label == "Beste EV"]
+    tab, cards = best_ev_cards(app)
     [picker] = [m for m in tab.multiselect if m.label == "Spillselskaper"]
     assert set(picker.value) == {"norsk_tipping", "oddslink:bet365", "oddslink:betfair"}  # every bookmaker
-    [table] = tab.dataframe
-    rows = table.value.to_dict("records")
     # Viking – Odd first: bet365's 2.60 against Pinnacle's 1.90, whose 12 % margin makes it doubtful (⚠).
-    assert [(r["Kamp"], r["Utfall"], r["Odds"], r["Hos"]) for r in rows] == [
-        ("Viking – Odd", "H", "2,60", "bet365"),
-        ("Brann – Molde", "H", "2,35", "bet365"),
-    ]
-    assert rows[0]["EV"].endswith("⚠") and rows[1]["EV"].startswith("+") and not rows[1]["EV"].endswith("⚠")
-    assert rows[1]["NT-odds"] == "2,00" and rows[1]["Pinnacle hentet"] == "under 1 min siden"
+    assert teams(cards) == ["Viking – Odd", "Brann – Molde"]  # not Rosenborg: its value is at 8.00
+    assert "⚠" in cards[0] and "⚠" not in cards[1]
+    brann = cards[1]
+    assert '<div class="oc-odds">2,35</div><div class="oc-book"><span>bet365</span></div>' in brann
+    assert 'class="oc-ev pos">EV +' in brann and "NT 2,00 · EV −" in brann
+    assert any(e.label == "Alle odds (4)" for e in tab.expander)  # Norsk Tipping, Pinnacle and two others
+
+    [highest] = [n for n in tab.number_input if n.label == "Høyeste odds"]
+    assert highest.value == 5.0
+    app = highest.set_value(10.0).run()
+    tab, cards = best_ev_cards(app)
+    assert teams(cards) == ["Viking – Odd", "Brann – Molde", "Rosenborg – Lillestrøm"]  # +9.2 % before +8.8 %
+    app = highest.set_value(5.0).run()
+    tab, cards = best_ev_cards(app)
     [doubtful] = [t for t in tab.toggle if t.label == "Vis også usikre"]
     app = doubtful.set_value(False).run()
-    [tab] = [t for t in app.tabs if t.label == "Beste EV"]
-    rows = tab.dataframe[0].value.to_dict("records")
-    assert [r["Kamp"] for r in rows] == ["Brann – Molde"]  # the doubtful one hidden
+    tab, cards = best_ev_cards(app)
+    assert teams(cards) == ["Brann – Molde"]  # the doubtful one hidden
+    rosenborg = [c for c in cards if "Rosenborg" in c]
+    assert rosenborg == []

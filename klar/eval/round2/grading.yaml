@@ -1,0 +1,79 @@
+# Human grading of meaning, round 2 (primer as in round2/prompt.txt). Same scale as round 1:
+# 1 = every key point right and nothing wrong added; 0.5 = one key point wrong or missing; 0 = main meaning wrong.
+# "it" is graded by the rule in the primer the models were given: the nearest earlier subject or object.
+
+comprehension:
+  haiku:
+    D1: {score: 1}
+    D2: {score: 1}
+    D3: {score: 1}
+    D4: {score: 1}
+    D5: {score: 1}
+    D6: {score: 1}
+  sonnet:
+    D1: {score: 1, note: "følger regelen (it = file) og nevner at engelsk ville lest det annerledes"}
+    D2: {score: 1}
+    D3: {score: 1}
+    D4: {score: 1}
+    D5: {score: 1}
+    D6: {score: 1}
+  opus:
+    D1: {score: 1}
+    D2: {score: 1}
+    D3: {score: 1}
+    D4: {score: 1}
+    D5: {score: 1}
+    D6: {score: 1}
+
+production:
+  haiku:
+    C1: {score: 1, note: "«tonight» ble «later today»; «but I li not sure» er overflødig, men riktig"}
+    C2: {score: 1}
+    C3: {score: 0.5, note: "«report pa write» gjør rapporten til den som skriver; passiv skrives uten subjekt: «pa write report by analytics team»"}
+    C4: {score: 1}
+    C5: {score: 1}
+    C6: {score: 1, note: "uten «checked», men «we pa test backup» sier det samme"}
+    C7: {score: 1}
+    C8: {score: 1}
+    C9: {score: 1}
+    C10: {score: 1}
+    C11: {score: 1}
+    C12: {score: 1}
+    C13: {score: 1, note: "dobbelt opp («90%» og «I li sure»), men riktig"}
+    C14: {score: 1}
+    C15: {score: 0.5, note: "«and it pa crash» betyr etter regelen at filen krasjet; mente skriptet. Sjekkeren advarer nå mot nettopp dette (versjon 1.1)"}
+    C16: {score: 1}
+  sonnet:
+    C1: {score: 0.5, note: "«tonight» ble «today»"}
+    C2: {score: 1}
+    C3: {score: 1}
+    C4: {score: 1}
+    C5: {score: 1}
+    C6: {score: 1}
+    C7: {score: 1}
+    C8: {score: 1}
+    C9: {score: 1}
+    C10: {score: 1, note: "«package pa delay» i stedet for passiv uten subjekt; forstås likevel"}
+    C11: {score: 1}
+    C12: {score: 1}
+    C13: {score: 1}
+    C14: {score: 1}
+    C15: {score: 1}
+    C16: {score: 1}
+  opus:
+    C1: {score: 1}
+    C2: {score: 1}
+    C3: {score: 1}
+    C4: {score: 1}
+    C5: {score: 1}
+    C6: {score: 1}
+    C7: {score: 1}
+    C8: {score: 1}
+    C9: {score: 1}
+    C10: {score: 1}
+    C11: {score: 1}
+    C12: {score: 1}
+    C13: {score: 1}
+    C14: {score: 1}
+    C15: {score: 1}
+    C16: {score: 1}

@@ -1,0 +1,86 @@
+# Human grading of meaning, round 1 (primer as in eval/prompt.txt).
+# Score: 1 = every key point in items.yaml right and nothing wrong added; 0.5 = one key point wrong or
+# missing; 0 = the main meaning wrong. Production answers are graded for the meaning a reader would get,
+# whether or not they parse; validity and features are checked by the parser in score.py.
+
+comprehension:
+  haiku:
+    A1: {score: 1}
+    A2: {score: 1}
+    A3: {score: 1}
+    A4: {score: 1}
+    A5: {score: 1}
+    A6: {score: 1}
+    A7: {score: 1}
+    A8: {score: 1}
+    A9: {score: 1}
+    A10: {score: 1}
+    A11: {score: 1}
+    A12: {score: 1}
+  sonnet:
+    A1: {score: 1}
+    A2: {score: 1}
+    A3: {score: 1}
+    A4: {score: 0.5, note: "formuleringen kaller «A er større enn B» utledet; det er sagt som kjent, bare den andre setningen er utledet"}
+    A5: {score: 1}
+    A6: {score: 1}
+    A7: {score: 1}
+    A8: {score: 1}
+    A9: {score: 1}
+    A10: {score: 1}
+    A11: {score: 1}
+    A12: {score: 1}
+  opus:
+    A1: {score: 1}
+    A2: {score: 1}
+    A3: {score: 1}
+    A4: {score: 1}
+    A5: {score: 1}
+    A6: {score: 1}
+    A7: {score: 1}
+    A8: {score: 1}
+    A9: {score: 1}
+    A10: {score: 1}
+    A11: {score: 1}
+    A12: {score: 1}
+
+production:
+  haiku:
+    B1: {score: 1}
+    B2: {score: 1, note: "«not» i stedet for «never»; samme forbud"}
+    B3: {score: 1}
+    B4: {score: 1}
+    B5: {score: 1}
+    B6: {score: 0.5, note: "«li still need» leses som at filen trenger noe; riktig er «li still necessary»"}
+    B7: {score: 1}
+    B8: {score: 1}
+    B9: {score: 1, note: "relativsetning i stedet for parentes; like riktig"}
+    B10: {score: 1}
+    B11: {score: 1}
+    B12: {score: 0.5, note: "«suppose» betyr antakelse, ikke «jeg tror»; komma før «but» er ikke Klar"}
+  sonnet:
+    B1: {score: 0.5, note: "«I pa finish backup» sier at jeg fullførte backupen; i originalen ble backupen ferdig av seg selv"}
+    B2: {score: 1}
+    B3: {score: 1}
+    B4: {score: 1}
+    B5: {score: 1}
+    B6: {score: 1, note: "riktig betydning, men adverbet står foran markøren («still li»), så setningen er ugyldig"}
+    B7: {score: 1}
+    B8: {score: 1, note: "«pa fail» (har feilet) i stedet for «li fail»; tåler begge lesninger"}
+    B9: {score: 1, note: "relativsetning i stedet for parentes; like riktig"}
+    B10: {score: 1}
+    B11: {score: 1}
+    B12: {score: 0.5, note: "«suppose» betyr antakelse, ikke «jeg tror»; komma før «but» er ikke Klar"}
+  opus:
+    B1: {score: 1}
+    B2: {score: 1}
+    B3: {score: 1}
+    B4: {score: 1}
+    B5: {score: 1}
+    B6: {score: 1}
+    B7: {score: 1}
+    B8: {score: 1}
+    B9: {score: 1, note: "relativsetning i stedet for parentes; like riktig"}
+    B10: {score: 1}
+    B11: {score: 1}
+    B12: {score: 1}

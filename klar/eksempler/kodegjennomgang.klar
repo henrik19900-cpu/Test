@@ -1,0 +1,6 @@
+# Kodegjennomgang med etiketter for filer og funksjoner som nevnes flere ganger
+
+C = src/payments/checkout_service.py. F = validate_card().
+checked I pa review pull request. C li call F from src/payments/validators.py but F li not reject expired card.
+I pa add this check to F pa add test for it in tests/test_validators.py. checked all test in this file pa pass.
+C li also log full card number. this li a security risk. I pa not change C because this li outside scope of task.

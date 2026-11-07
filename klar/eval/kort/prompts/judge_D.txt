@@ -1,0 +1,351 @@
+You are grading how much information survived in rewritten texts.
+
+Rules:
+- Do NOT use any tools: no reading files, no searching, no commands. Use only the text below.
+- Reply with one JSON object and nothing else.
+
+For each item there is a numbered list of facts from the original text, and two rewritten texts, S7 and S8. Grade every fact separately for each rewritten text:
+- 1: the text states the fact, with the same meaning. Numbers, names, negation, how strong a rule is (must, should, never), how certain the claim is, and where it comes from must all match.
+- 0.5: the fact is there but weaker, vaguer or incomplete (for example a number, a qualifier like "probably" or "at least", or a part of it is missing).
+- 0: the fact is missing, or the text says something different.
+Judge only what the text says or clearly implies. General knowledge does not count: if a text says "Oslo is the capital" without naming the country, the fact "Oslo is the capital of Norway" gets 0.5. The two texts are graded independently; do not compare them with each other.
+
+### instruks-01
+Facts:
+  1. Always answer in Norwegian.
+  2. Keep the answer short.
+S7: Always answer in Norwegian, and keep answers short.
+S8: Always answer in Norwegian, and keep answers short.
+### instruks-02
+Facts:
+  1. Do not use technical jargon.
+  2. Exception: jargon is allowed if the user asks for it.
+S7: Do not use technical jargon unless the user asks for it.
+S8: Do not use technical jargon unless the user asks for it.
+### instruks-03
+Facts:
+  1. This applies when the user uploads a file.
+  2. Read all of the file.
+  3. Read it carefully.
+  4. Do this before answering.
+S7: When the user uploads a file, read all of it carefully before answering.
+S8: Read uploaded files fully first, before doing anything else.
+### instruks-04
+Facts:
+  1. Never share the user's password.
+  2. With anyone; this is an absolute rule.
+S7: Never share the user's password with anyone.
+S8: Never share the user's password.
+### instruks-05
+Facts:
+  1. Cite sources for each factual claim.
+  2. At least two sources.
+  3. This is a recommendation (should), not a strict requirement.
+S7: You should cite at least 2 sources for each factual claim.
+S8: You should cite at least 2 sources.
+### instruks-06
+Facts:
+  1. Write the summary as a bulleted list.
+  2. At most five points.
+S7: For a summary, use at most 5 bullets.
+S8: Summary: at most 5 bullets.
+### instruks-07
+Facts:
+  1. Check whether the input is valid JSON.
+  2. Do this check first.
+  3. If the input is not valid JSON, return an error message.
+S7: First check that the input is valid JSON; if it is not, return an error message.
+S8: If the JSON is invalid, return an error.
+### instruks-08
+Facts:
+  1. Respond only with the corrected code.
+  2. Give no explanation.
+S7: Reply with only the corrected code and no explanation.
+S8: Reply with only the corrected code.
+### instruks-09
+Facts:
+  1. Ask the user for confirmation.
+  2. Before deleting any files.
+S7: Ask the user for confirmation before deleting any files.
+S8: Confirm with the user before deleting files.
+### instruks-10
+Facts:
+  1. Accuracy is more important than speed.
+  2. If you do not know something, say so.
+  3. Do not guess.
+S7: Put accuracy over speed. If you don't know, say so; never guess.
+S8: Prioritize accuracy over speed, and never guess.
+### rapport-01
+Facts:
+  1. The writer ran the test suite.
+  2. 41 tests passed.
+  3. 1 test failed.
+S7: I ran the tests: 41 passed and 1 failed.
+S8: I ran the tests: 41 passed and 1 failed.
+### rapport-02
+Facts:
+  1. The failure was caused by an outdated cache.
+  2. This is probable, not certain.
+S7: The failure was likely caused by an outdated cache.
+S8: The failure was likely caused by an outdated cache.
+### rapport-03
+Facts:
+  1. The API was deprecated.
+  2. In version 3.
+  3. The writer has not verified this; it is uncertain.
+S7: Maybe the API was deprecated in version 3; I have not checked this.
+S8: Maybe the API was deprecated in v3, but I have not checked this.
+### rapport-04
+Facts:
+  1. The file config.yaml is missing.
+  2. The server could not start.
+  3. The server failed because the file is missing.
+S7: config.yaml was missing, so the server failed to start.
+S8: The config.yaml file was missing, so the server failed.
+### rapport-05
+Facts:
+  1. The writer fixed a bug.
+  2. The bug was in the login form.
+  3. The writer added two tests.
+  4. The tests are for that bug.
+S7: I fixed a bug in the login form and added 2 tests for it.
+S8: I fixed a bug in the login form and added 2 tests.
+### rapport-06
+Facts:
+  1. The rate limit is 100 requests per minute.
+  2. The source is the documentation.
+S7: According to the docs, the rate limit is 100 per minute.
+S8: According to the docs, the limit is 100 per minute.
+### rapport-07
+Facts:
+  1. The writer could not reach the database server.
+  2. The connection timed out.
+  3. After 30 seconds.
+S7: I couldn't reach the database server; it hit a 30 second timeout.
+S8: The database server was unreachable, with a 30 second timeout.
+### rapport-08
+Facts:
+  1. This is the next step (future).
+  2. Update the dependencies.
+  3. Run the tests again.
+S7: Next: update the dependencies and rerun the tests.
+S8: Next: update the dependencies and rerun the tests.
+### rapport-09
+Facts:
+  1. The deployment succeeded.
+  2. The response time increased.
+  3. By about 20%.
+S7: The deploy was OK; response time is about 20% higher.
+S8: The deploy was OK, and response time increased by 20%.
+### rapport-10
+Facts:
+  1. There is a memory leak.
+  2. It comes from the image cache.
+  3. The writer is not sure.
+S7: The memory leak may come from the image cache.
+S8: The memory leak maybe comes from the image cache.
+### resonnement-01
+Facts:
+  1. If all birds can fly and penguins are birds, penguins can fly.
+  2. Penguins cannot fly.
+  3. So the first premise (all birds can fly) is false.
+S7: Premise 1 says all birds fly, and penguins are birds, so penguins fly. But penguins can't fly, so premise 1 is false.
+S8: Penguins can't fly, so not all birds fly.
+### resonnement-02
+Facts:
+  1. The train leaves at 14:30.
+  2. The trip takes 45 minutes.
+  3. So arrival is not before 15:15.
+S7: The train leaves at 14:30 and the trip takes 45 minutes, so it arrives at 15:15 at the earliest.
+S8: 14:30 plus 45 minutes means you arrive at 15:15 at the earliest.
+### resonnement-03
+Facts:
+  1. x is even.
+  2. x is greater than 2.
+  3. So x is not prime.
+S7: x is even and greater than 2, so it is not prime.
+S8: x is even and greater than 2, so it is not prime.
+### resonnement-04
+Facts:
+  1. The function returns null when the list is empty.
+  2. This explains the crash.
+S7: The function returns null on an empty list, which explains the crash.
+S8: A null on an empty list explains the crash.
+### resonnement-05
+Facts:
+  1. Option A is cheaper.
+  2. Option B is faster.
+  3. Speed matters more here.
+  4. The writer recommends B.
+S7: A is cheaper and B is faster. Speed matters more here, so I recommend B.
+S8: Recommend the faster option B, since speed matters more.
+### resonnement-06
+Facts:
+  1. There are three possible causes.
+  2. The cause is a race condition.
+  3. With about 60% probability.
+S7: There are 3 possible causes; the race condition is about 60% likely.
+S8: There are 3 possible causes, with about a 60% chance it is a race condition.
+### resonnement-07
+Facts:
+  1. Assumption, not a claim: the user has admin rights.
+  2. Then the request will succeed.
+  3. Probably, not certainly.
+S7: Assuming the user is an admin, the request will likely succeed.
+S8: If the user is an admin, it will likely succeed.
+### resonnement-08
+Facts:
+  1. Every test that touches the network failed.
+  2. So the cause is probably the proxy.
+  3. Not the code.
+S7: All the network tests failed, so the cause is likely the proxy, not the code.
+S8: The network tests failed, so the cause is likely the proxy, not the code.
+### fakta-01
+Facts:
+  1. Oslo is the capital of Norway.
+  2. Oslo has about 700,000 inhabitants.
+S7: Oslo is the capital of Norway and has about 700,000 people.
+S8: Oslo is the capital of Norway and has about 700,000 people.
+### fakta-02
+Facts:
+  1. Water boils at 100 degrees Celsius.
+  2. At sea level.
+S7: Water boils at 100 degrees Celsius at sea level.
+S8: Water boils at 100 degrees C at sea level.
+### fakta-03
+Facts:
+  1. Python was created by Guido van Rossum.
+  2. Python was first released in 1991.
+S7: Python was created by Guido van Rossum and was first released in 1991.
+S8: Python was created by Guido van Rossum in 1991.
+### fakta-04
+Facts:
+  1. Most mammals live on land.
+  2. Whales and dolphins live in the sea.
+S7: Most mammals live on land, while whales and dolphins live in the sea.
+S8: Most mammals live on land, while whales and dolphins live in the sea.
+### fakta-05
+Facts:
+  1. Light from the Sun reaches the Earth.
+  2. It takes about eight minutes.
+S7: Sunlight takes about 8 minutes to reach Earth.
+S8: Sunlight takes 8 minutes to reach Earth.
+### fakta-06
+Facts:
+  1. Antibiotics do not work against viral infections.
+S7: Antibiotics are useless against viruses.
+S8: Antibiotics are useless against viruses.
+### dialog-01
+Facts:
+  1. Question: when does the meeting start?
+  2. The meeting is tomorrow.
+S7: What time does the meeting start tomorrow?
+S8: What is the meeting time tomorrow?
+### dialog-02
+Facts:
+  1. Request to send the report.
+  2. By Friday.
+  3. The answer is yes.
+  4. The report has already been sent.
+S7: Will you send the report by Friday? Yes, I already sent it.
+S8: Is the report due by Friday? I have already sent it.
+### dialog-03
+Facts:
+  1. Question: which file is larger?
+  2. The two files are A and B.
+S7: Which file is larger, A or B?
+S8: Which is larger, A or B?
+### dialog-04
+Facts:
+  1. Question: how many users signed up?
+  2. Last week.
+S7: How many signups were there last week?
+S8: How many signups were there last week?
+### dialog-05
+Facts:
+  1. The writer does not understand the error message.
+  2. Request to explain what the error message means.
+S7: I don't understand the error message; can you explain it?
+S8: Can you explain the error message?
+### dialog-06
+Facts:
+  1. Question: is the bug fixed?
+  2. Answer: no.
+  3. The bug still happens on Android.
+  4. The bug does not happen on iOS.
+S7: Is the bug fixed? No, it is still present on Android, but not on iOS.
+S8: The bug is still present on Android, but not on iOS.
+### tekst-instruks
+Facts:
+  1. The assistant is a customer support assistant.
+  2. For an online bookstore.
+  3. Always answer in the customer's language.
+  4. Keep answers under 100 words.
+  5. Never promise refunds.
+  6. Only a human agent can approve refunds.
+  7. If a customer asks about an order, ask for the order number.
+  8. Then look up the order with the tool find_order.
+  9. If the tool returns an error, apologize.
+  10. And offer to connect the customer to a human agent.
+  11. Do not share internal notes.
+  12. Do not share other customers' data.
+  13. When unsure about a policy, say so instead of guessing.
+S7: You are an online bookstore support assistant. Always answer in the customer's language, in fewer than 100 words. Never promise refunds; only human agents approve them. When a customer asks about an order, ask for the order number and then call find_order. If a tool returns an error, apologize and offer a human agent. Never share internal notes or other customers' data. If you are unsure about a policy, say so; never guess.
+S8: You are bookstore customer support. Reply in the customer's language, in fewer than 100 words. Never promise refunds. For orders, ask for the order number and then call find_order. If a tool errors, apologize and offer a human agent. Never share internal data or other customers' data. If unsure, say so.
+### tekst-rapport
+Facts:
+  1. The writer investigated failing checkout tests.
+  2. The writer ran the test suite locally.
+  3. 3 of 120 tests failed.
+  4. All failures are in the payment module.
+  5. The failures started after yesterday's dependency update.
+  6. The update upgraded the HTTP client from version 2.4 to 3.0.
+  7. According to the changelog, version 3.0 changed the default timeout from 30 to 5 seconds.
+  8. This is very likely the cause.
+  9. Because all failing tests call the slow payment sandbox.
+  10. It is not confirmed yet.
+  11. Next step - set the timeout to 30 seconds.
+  12. Next step - rerun the tests.
+S7: I investigated the failing checkout tests. In a local run, 3 of 120 tests fail, all in the payment module. The failures started after yesterday's dependency update of the HTTP client from version 2.4 to 3.0. According to the changelog, the default timeout in 3.0 changed from 30 seconds to 5 seconds. So the very likely cause is that the failing tests all call the slow payment sandbox. This is unconfirmed. Next: set the timeout to 30 seconds and rerun the tests.
+S8: 3 of 120 checkout tests fail, all in the payment module, since the HTTP client was upgraded from 2.4 to 3.0. According to the changelog, the timeout changed from 30s to 5s, which is a very likely cause. Next: set the timeout to 30s and rerun the tests.
+### tekst-resonnement
+Facts:
+  1. Pens cost 12 kroner each.
+  2. Every fifth pen is free.
+  3. Anna buys 23 pens.
+  4. Free pens = 23 divided by 5, rounded down = 4.
+  5. So she pays for 19 pens.
+  6. 19 times 12 is 228.
+  7. Anna pays 228 kroner.
+S7: Anna buys 23 pens at 12 kr each, and every 5th pen is free. The number of free pens is 23 divided by 5, rounded down, which is 4. So she pays for 19 pens: 19 × 12 = 228 kr.
+S8: 23 pens cost 12 kr each, and every 5th is free, so the customer pays for 19 pens: 19 × 12 = 228 kr.
+### tekst-forskning
+Facts:
+  1. According to two independent studies from 2023.
+  2. Regular exercise lowers the risk of depression.
+  3. By about 25%.
+  4. A third study found no effect.
+  5. The third study had only 80 participants.
+  6. Overall the effect looks real but moderate.
+  7. This is likely, not certain.
+  8. The writer read only the abstracts, not the full papers.
+  9. Before citing, check whether the studies controlled for income.
+S7: According to 2 independent studies from 2023, regular exercise cuts the risk of depression by about 25%. A third study found no effect, but it had only 80 participants. So it is likely a real, moderate effect. I read only the abstracts. Before citing them, check whether the studies controlled for income.
+S8: According to two 2023 studies, exercise cuts depression risk by about 25%. A third study (80 people) found no effect. The effect is likely real. Read the abstracts only, and check for an income control before citing.
+### tekst-kodegjennomgang
+Facts:
+  1. The writer reviewed the pull request.
+  2. src/payments/checkout_service.py calls validate_card() from src/payments/validators.py.
+  3. validate_card() did not reject expired cards.
+  4. The writer added that check to validate_card().
+  5. The writer added a test for it in tests/test_validators.py.
+  6. All tests in that file pass.
+  7. checkout_service.py logs the full card number.
+  8. Logging the card number is a security risk.
+  9. The writer did not change checkout_service.py.
+  10. Because it is outside the scope of the task.
+S7: I reviewed the PR. The file src/payments/checkout_service.py (C) calls validate_card() (F) from src/payments/validators.py. F accepted expired cards, so I added a check to F and a test in tests/test_validators.py; all tests there pass. C logs the full card number, which is a security risk; I left it unchanged because it is out of scope.
+S8: validate_card() accepted expired cards, so I added a check and a test, and all tests pass. checkout_service.py logs card numbers, which is a security risk but out of scope.
+
+Answer format (JSON only): for each text label, for each item, a list with one grade per fact, in order.
+{"S7": {"instruks-01": [1, 0.5], "instruks-02": [1, 0]}, "S8": {"instruks-01": [1, 0.5], "instruks-02": [1, 0]}}

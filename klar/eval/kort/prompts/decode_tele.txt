@@ -1,0 +1,58 @@
+This is a test of how much meaning survives compression.
+
+Rules:
+- Do NOT use any tools: no reading files, no searching, no commands. Use only the text below.
+- Reply with one JSON object and nothing else.
+
+Below are 45 short texts written in compressed English notes.
+
+Task: expand each text into complete, natural English, as the writer meant it. Keep every detail: numbers, names, conditions, negations, who did what, tense, how certain the writer is, and where a claim comes from. Do not add facts the text does not give or clearly imply.
+
+instruks-01: Always answer in Norwegian, keep answer short.
+instruks-02: Don't use technical jargon unless user asks for it.
+instruks-03: If user uploads file, read all of it carefully before answering.
+instruks-04: Never share user's password with anyone.
+instruks-05: Should cite at least two sources per factual claim.
+instruks-06: Write summary as bulleted list, max five points.
+instruks-07: First check whether input valid JSON. If not, return error message.
+instruks-08: Respond only with corrected code, no explanation.
+instruks-09: Before deleting any files, ask user for confirmation.
+instruks-10: Prioritize accuracy over speed. If don't know, say so, don't guess.
+rapport-01: Ran test suite: 41 passed, 1 failed.
+rapport-02: Failure probably caused by outdated cache.
+rapport-03: Not verified, but API seems deprecated in version 3.
+rapport-04: File config.yaml missing, so server couldn't start.
+rapport-05: Fixed bug in login form, added two tests for it.
+rapport-06: Per docs, rate limit 100 requests per minute.
+rapport-07: Couldn't reach database server; connection timed out after 30 seconds.
+rapport-08: Next: update dependencies, rerun tests.
+rapport-09: Deployment succeeded, but response time up about 20%.
+rapport-10: Not sure, but memory leak probably from image cache.
+resonnement-01: If all birds fly and penguins birds, penguins fly. But penguins can't fly, so first premise false.
+resonnement-02: Train leaves 14:30, trip 45 minutes, so won't arrive before 15:15.
+resonnement-03: x even and greater than 2, so x not prime.
+resonnement-04: Function returns null when list empty, explains crash.
+resonnement-05: Option A cheaper, but B faster. Speed matters more here, so recommend B.
+resonnement-06: Three possible causes. ~60%: race condition.
+resonnement-07: Assume user has admin rights. Then request probably succeeds.
+resonnement-08: All network tests failed, so cause probably proxy, not code.
+fakta-01: Oslo: capital of Norway, about 700,000 inhabitants.
+fakta-02: Water boils at 100 °C at sea level.
+fakta-03: Python created by Guido van Rossum, first released 1991.
+fakta-04: Most mammals live on land, but whales, dolphins in sea.
+fakta-05: Sunlight takes about eight minutes to reach Earth.
+fakta-06: Antibiotics don't work against viral infections.
+dialog-01: When does meeting start tomorrow?
+dialog-02: Can you send me report by Friday? Yes, already sent.
+dialog-03: Which file larger, A or B?
+dialog-04: How many users signed up last week?
+dialog-05: Don't understand error message. Explain what it means?
+dialog-06: Bug fixed? No, still happens on Android, not iOS.
+tekst-instruks: You: customer support assistant, online bookstore. Always answer in customer's language, answers under 100 words. Never promise refunds; only human agent can approve. If customer asks about order: ask for order number, then look up order with tool find_order. If tool returns error: apologize, offer to connect customer to human agent. Don't share internal notes or other customers' data. If unsure about policy, say so, don't guess.
+tekst-rapport: Investigated failing checkout tests. Ran suite locally: 3 of 120 failed, all in payment module. Failures started after yesterday's dependency update, which upgraded HTTP client from 2.4 to 3.0. Per changelog, 3.0 changed default timeout from 30 to 5 seconds. Very likely the cause: all failing tests call slow payment sandbox. Not confirmed yet. Next: set timeout to 30 seconds, rerun tests.
+tekst-resonnement: Shop sells pens 12 kroner each, every fifth pen free. Anna buys 23 pens. Free pens: 23 divided by 5, rounded down = 4. So pays for 19 pens. 19 × 12 = 228. Anna pays 228 kroner.
+tekst-forskning: Per two independent 2023 studies, regular exercise lowers depression risk about 25%. Third study: no effect, but only 80 participants. Overall: real but moderate effect, likely, not certain. Read only abstracts, not full papers. Before citing, should check whether studies controlled for income.
+tekst-kodegjennomgang: Reviewed pull request. src/payments/checkout_service.py calls validate_card() from src/payments/validators.py, but validate_card() doesn't reject expired cards. Added check to validate_card(), plus test in tests/test_validators.py; all tests there pass. checkout_service.py also logs full card number: security risk. Didn't change checkout_service.py: outside scope of task.
+
+Answer format (JSON only, one entry per id):
+{"instruks-01": "full English ...", "instruks-02": "..."}

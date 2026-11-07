@@ -1,0 +1,204 @@
+# The key facts of each English text in bench/corpus.yaml: what a reader must get back for the meaning to
+# survive. Written from the English originals. A decoded text is scored fact by fact (score.py).
+
+instruks-01:
+  - Always answer in Norwegian.
+  - Keep the answer short.
+instruks-02:
+  - Do not use technical jargon.
+  - "Exception: jargon is allowed if the user asks for it."
+instruks-03:
+  - This applies when the user uploads a file.
+  - Read all of the file.
+  - Read it carefully.
+  - Do this before answering.
+instruks-04:
+  - Never share the user's password.
+  - With anyone; this is an absolute rule.
+instruks-05:
+  - Cite sources for each factual claim.
+  - At least two sources.
+  - This is a recommendation (should), not a strict requirement.
+instruks-06:
+  - Write the summary as a bulleted list.
+  - At most five points.
+instruks-07:
+  - Check whether the input is valid JSON.
+  - Do this check first.
+  - If the input is not valid JSON, return an error message.
+instruks-08:
+  - Respond only with the corrected code.
+  - Give no explanation.
+instruks-09:
+  - Ask the user for confirmation.
+  - Before deleting any files.
+instruks-10:
+  - Accuracy is more important than speed.
+  - If you do not know something, say so.
+  - Do not guess.
+rapport-01:
+  - The writer ran the test suite.
+  - 41 tests passed.
+  - 1 test failed.
+rapport-02:
+  - The failure was caused by an outdated cache.
+  - This is probable, not certain.
+rapport-03:
+  - The API was deprecated.
+  - In version 3.
+  - The writer has not verified this; it is uncertain.
+rapport-04:
+  - The file config.yaml is missing.
+  - The server could not start.
+  - The server failed because the file is missing.
+rapport-05:
+  - The writer fixed a bug.
+  - The bug was in the login form.
+  - The writer added two tests.
+  - The tests are for that bug.
+rapport-06:
+  - The rate limit is 100 requests per minute.
+  - The source is the documentation.
+rapport-07:
+  - The writer could not reach the database server.
+  - The connection timed out.
+  - After 30 seconds.
+rapport-08:
+  - This is the next step (future).
+  - Update the dependencies.
+  - Run the tests again.
+rapport-09:
+  - The deployment succeeded.
+  - The response time increased.
+  - By about 20%.
+rapport-10:
+  - There is a memory leak.
+  - It comes from the image cache.
+  - The writer is not sure.
+resonnement-01:
+  - If all birds can fly and penguins are birds, penguins can fly.
+  - Penguins cannot fly.
+  - So the first premise (all birds can fly) is false.
+resonnement-02:
+  - The train leaves at 14:30.
+  - The trip takes 45 minutes.
+  - So arrival is not before 15:15.
+resonnement-03:
+  - x is even.
+  - x is greater than 2.
+  - So x is not prime.
+resonnement-04:
+  - The function returns null when the list is empty.
+  - This explains the crash.
+resonnement-05:
+  - Option A is cheaper.
+  - Option B is faster.
+  - Speed matters more here.
+  - The writer recommends B.
+resonnement-06:
+  - There are three possible causes.
+  - The cause is a race condition.
+  - With about 60% probability.
+resonnement-07:
+  - "Assumption, not a claim: the user has admin rights."
+  - Then the request will succeed.
+  - Probably, not certainly.
+resonnement-08:
+  - Every test that touches the network failed.
+  - So the cause is probably the proxy.
+  - Not the code.
+fakta-01:
+  - Oslo is the capital of Norway.
+  - Oslo has about 700,000 inhabitants.
+fakta-02:
+  - Water boils at 100 degrees Celsius.
+  - At sea level.
+fakta-03:
+  - Python was created by Guido van Rossum.
+  - Python was first released in 1991.
+fakta-04:
+  - Most mammals live on land.
+  - Whales and dolphins live in the sea.
+fakta-05:
+  - Light from the Sun reaches the Earth.
+  - It takes about eight minutes.
+fakta-06:
+  - Antibiotics do not work against viral infections.
+dialog-01:
+  - "Question: when does the meeting start?"
+  - The meeting is tomorrow.
+dialog-02:
+  - Request to send the report.
+  - By Friday.
+  - The answer is yes.
+  - The report has already been sent.
+dialog-03:
+  - "Question: which file is larger?"
+  - The two files are A and B.
+dialog-04:
+  - "Question: how many users signed up?"
+  - Last week.
+dialog-05:
+  - The writer does not understand the error message.
+  - Request to explain what the error message means.
+dialog-06:
+  - "Question: is the bug fixed?"
+  - "Answer: no."
+  - The bug still happens on Android.
+  - The bug does not happen on iOS.
+tekst-instruks:
+  - The assistant is a customer support assistant.
+  - For an online bookstore.
+  - Always answer in the customer's language.
+  - Keep answers under 100 words.
+  - Never promise refunds.
+  - Only a human agent can approve refunds.
+  - If a customer asks about an order, ask for the order number.
+  - Then look up the order with the tool find_order.
+  - If the tool returns an error, apologize.
+  - And offer to connect the customer to a human agent.
+  - Do not share internal notes.
+  - Do not share other customers' data.
+  - When unsure about a policy, say so instead of guessing.
+tekst-rapport:
+  - The writer investigated failing checkout tests.
+  - The writer ran the test suite locally.
+  - 3 of 120 tests failed.
+  - All failures are in the payment module.
+  - The failures started after yesterday's dependency update.
+  - The update upgraded the HTTP client from version 2.4 to 3.0.
+  - According to the changelog, version 3.0 changed the default timeout from 30 to 5 seconds.
+  - This is very likely the cause.
+  - Because all failing tests call the slow payment sandbox.
+  - It is not confirmed yet.
+  - Next step - set the timeout to 30 seconds.
+  - Next step - rerun the tests.
+tekst-resonnement:
+  - Pens cost 12 kroner each.
+  - Every fifth pen is free.
+  - Anna buys 23 pens.
+  - Free pens = 23 divided by 5, rounded down = 4.
+  - So she pays for 19 pens.
+  - 19 times 12 is 228.
+  - Anna pays 228 kroner.
+tekst-forskning:
+  - According to two independent studies from 2023.
+  - Regular exercise lowers the risk of depression.
+  - By about 25%.
+  - A third study found no effect.
+  - The third study had only 80 participants.
+  - Overall the effect looks real but moderate.
+  - This is likely, not certain.
+  - The writer read only the abstracts, not the full papers.
+  - Before citing, check whether the studies controlled for income.
+tekst-kodegjennomgang:
+  - The writer reviewed the pull request.
+  - src/payments/checkout_service.py calls validate_card() from src/payments/validators.py.
+  - validate_card() did not reject expired cards.
+  - The writer added that check to validate_card().
+  - The writer added a test for it in tests/test_validators.py.
+  - All tests in that file pass.
+  - checkout_service.py logs the full card number.
+  - Logging the card number is a security risk.
+  - The writer did not change checkout_service.py.
+  - Because it is outside the scope of the task.

@@ -1,0 +1,9 @@
+# Rapport fra en agent: feilende tester i kassen
+# Hver påstand sier hvor den kommer fra, så filen består «klar check --strict».
+
+checked 3 of 120 checkout test pa fail in local run. checked all failed test li in payment module.
+checked failure pa start after dependency update U of yesterday.
+checked U pa upgrade HTTP client from version 2.4 to 3.0.
+per changelog, version 3.0 pa change default timeout from 30s to 5s.
+so 90% this li cause because all failed test li call slow payment sandbox. I pa not yet confirm this.
+then I fu set timeout to 30s then rerun test.
